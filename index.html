@@ -2935,6 +2935,17 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
         <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Front Desk Manager</div>
       </div>
     </div>
+    <!-- Hotel Name -->
+    <div class="settings-row">
+      <div class="settings-label">
+        <div class="settings-label-title">Hotel Name</div>
+        <div class="settings-label-sub">Shown on QR codes & guest page</div>
+      </div>
+      <input id="hotel-name-input" type="text"
+        style="background:var(--surface);border:1px solid var(--card-border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:13px;width:130px;outline:none;text-align:right;"
+        onchange="saveHotelName(this.value)"
+        onfocus="this.select()">
+    </div>
     <!-- Theme -->
     <div class="settings-row">
       <div class="settings-label">
@@ -3105,11 +3116,17 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
       </div>
       <div class="section-header">
         <div class="section-title">Room Status</div>
-        <div style="display:flex;gap:8px;align-items:center;font-size:11px;color:var(--text-dim);flex-wrap:wrap;">
-          <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;background:var(--green);border-radius:2px;display:inline-block"></span>Occupied</span>
-          <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;background:var(--gold);border-radius:2px;display:inline-block"></span>Checkout</span>
-          <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;background:var(--text-dim);border-radius:2px;display:inline-block"></span>Vacant</span>
-          <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;background:var(--red);border-radius:2px;display:inline-block"></span>Issue</span>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div style="display:flex;gap:4px;align-items:center;font-size:11px;color:var(--text-dim);flex-wrap:wrap;margin-right:8px;">
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;background:var(--green);border-radius:2px;display:inline-block"></span>Occupied</span>
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;background:var(--gold);border-radius:2px;display:inline-block"></span>Checkout</span>
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;background:var(--text-dim);border-radius:2px;display:inline-block"></span>Vacant</span>
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;background:var(--red);border-radius:2px;display:inline-block"></span>Issue</span>
+          </div>
+          <button onclick="downloadAllQR()" style="background:rgba(201,169,110,0.1);border:1px solid rgba(201,169,110,0.25);border-radius:8px;color:var(--gold);font-size:11px;padding:6px 12px;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            All QR Codes
+          </button>
         </div>
       </div>
       <div class="rooms-grid" id="rooms-grid"></div>
@@ -3180,37 +3197,36 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
     <!-- Branded QR Card -->
     <div id="qr-card-wrap" style="margin:16px 0;display:flex;justify-content:center;">
       <div id="qr-branded-card" style="
-        background:linear-gradient(145deg,#1A1814,#242018);
-        border:1px solid rgba(201,169,110,0.25);
+        background:#1A1814;
+        border:1px solid rgba(201,169,110,0.2);
         border-radius:20px;
-        padding:20px 20px 16px;
-        width:260px;
+        padding:18px 18px 14px;
+        width:280px;
         display:flex;flex-direction:column;align-items:center;
-        box-shadow:0 8px 32px rgba(0,0,0,0.4);
         position:relative;overflow:hidden;">
-        <!-- Gold shimmer top bar -->
+        <!-- Gold top bar -->
         <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,#C9A96E,transparent);"></div>
         <!-- Hotel name -->
-        <div style="font-family:'Cormorant Garamond',serif;font-size:13px;letter-spacing:0.18em;color:#C9A96E;text-transform:uppercase;margin-bottom:12px;opacity:0.9;">Hyatt Hotel</div>
-        <!-- QR with logo overlay -->
-        <div style="position:relative;background:white;border-radius:12px;padding:12px;display:inline-block;">
-          <canvas id="qr-canvas" width="180" height="180" style="display:block;border-radius:4px;"></canvas>
-          <!-- Logo in center of QR -->
-          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-            width:36px;height:36px;background:white;border-radius:8px;
-            display:flex;align-items:center;justify-content:center;
-            box-shadow:0 2px 8px rgba(0,0,0,0.15);">
-            <div style="width:26px;height:26px;background:#C9A96E;border-radius:6px;
-              display:flex;align-items:center;justify-content:center;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <div id="qr-hotel-name" style="font-family:'Cormorant Garamond',serif;font-size:12px;letter-spacing:0.2em;color:#C9A96E;text-transform:uppercase;margin-bottom:12px;">Hyatt Hotel</div>
+        <!-- QR — large white box, pure black QR, logo center -->
+        <div style="position:relative;background:white;border-radius:14px;padding:14px;display:inline-block;">
+          <canvas id="qr-canvas" width="220" height="220" style="display:block;"></canvas>
+          <!-- Logo center -->
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;background:white;border-radius:9px;display:flex;align-items:center;justify-content:center;">
+            <div style="width:28px;height:28px;background:#C9A96E;border-radius:6px;display:flex;align-items:center;justify-content:center;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             </div>
           </div>
         </div>
         <!-- Room label -->
-        <div style="margin-top:14px;text-align:center;">
-          <div style="font-family:'DM Sans',sans-serif;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:rgba(201,169,110,0.6);margin-bottom:3px;">Room</div>
-          <div style="font-family:'Cormorant Garamond',serif;font-size:28px;color:#F5EFE6;letter-spacing:0.08em;line-height:1;" id="qr-room-label">101</div>
+        <div style="margin-top:12px;text-align:center;">
+          <div style="font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:rgba(201,169,110,0.5);margin-bottom:2px;">Room</div>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:30px;color:#F5EFE6;letter-spacing:0.08em;line-height:1;" id="qr-room-label">101</div>
         </div>
+        <div style="margin-top:8px;font-size:10px;color:rgba(255,255,255,0.2);letter-spacing:0.1em;text-transform:uppercase;">Scan to order</div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(201,169,110,0.3),transparent);"></div>
+      </div>
+    </div>
         <!-- Scan instruction -->
         <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,0.25);letter-spacing:0.1em;text-transform:uppercase;">Scan to order · Room service</div>
         <!-- Gold shimmer bottom bar -->
@@ -3220,7 +3236,7 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
     <div class="modal-url" id="qr-url" style="cursor:pointer;" onclick="copyURL()" title="Click to copy"><span id="qr-url-text">https://yourhotel.com/r/101</span></div>
     <div class="modal-actions" style="flex-wrap:wrap;gap:8px;">
       <button class="btn-modal-close" onclick="closeQRModal()" style="flex:1;min-width:80px;">Close</button>
-      <button class="btn-modal-close" onclick="downloadQR()" style="flex:1;min-width:80px;display:flex;align-items:center;justify-content:center;gap:6px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download</button>
+      <button class="btn-modal-close" onclick="downloadSingleQR()" style="flex:1;min-width:80px;display:flex;align-items:center;justify-content:center;gap:6px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download</button>
       <button class="btn-modal-action" onclick="copyURL()" id="copy-btn" style="flex:1;min-width:80px;">Copy URL</button>
     </div>
   </div>
@@ -3481,7 +3497,6 @@ async function loadCheckinsFromSupabase(){
     }
   }catch(err){console.warn('Checkins load exception:',err&&err.message||String(err));}
 }
-}
 function handleRealtimeEvent(payload){var evt=payload.eventType,row=payload.new||{},old=payload.old||{};if(evt==='INSERT'){var o=rowToOrder(row);if(!orders.find(function(x){return x.id===o.id;})){orders.unshift(o);renderOrders();updateStats();showToast('order','New Order — Room '+o.room,'₹'+o.total+' · '+o.items.length+' item'+(o.items.length!==1?'s':''));}}else if(evt==='UPDATE'){var idx=orders.findIndex(function(x){return x.id===row.id;});if(idx!==-1)orders[idx]=rowToOrder(row);else orders.unshift(rowToOrder(row));renderOrders();updateStats();}else if(evt==='DELETE'){orders=orders.filter(function(x){return x.id!==old.id;});renderOrders();updateStats();}}
 async function advanceOrder(id){var next={new:'preparing',preparing:'ready',ready:'delivered'};var order=orders.find(function(o){return o.id===id;});if(!order)return;order.status=next[order.status]||order.status;if(order.status==='delivered'){orders=orders.filter(function(o){return o.id!==id;});}renderOrders();updateStats();if(sbClient){try{var{error}=await sbClient.from('orders').update({status:order.status}).eq('id',id);if(error)console.warn('Supabase update:',error.message);}catch(e){console.warn('Supabase update failed:',e);}}}
 function openCfg(){document.getElementById('sql-code').textContent=SETUP_SQL;if(SUPABASE_URL)document.getElementById('cfg-url').value=SUPABASE_URL;if(SUPABASE_KEY)document.getElementById('cfg-key').value=SUPABASE_KEY;var btn=document.getElementById('cfg-connect-btn');btn.disabled=false;btn.textContent='Connect';document.getElementById('cfg-overlay').style.display='flex';}
@@ -3624,19 +3639,22 @@ function editRoom(roomNum, e){
 function drawQR(url,roomNum){
   var canvas=document.getElementById('qr-canvas');
   document.getElementById('qr-room-label').textContent=roomNum;
+  // Update hotel name on QR card
+  var hn=localStorage.getItem('hyatt_hotel_name')||'Hyatt Hotel';
+  var hnel=document.getElementById('qr-hotel-name');
+  if(hnel)hnel.textContent=hn;
   if(typeof QRCode !== 'undefined'){
     QRCode.toCanvas(canvas, url, {
-      width:180, margin:1,
+      width:220, margin:0,
       errorCorrectionLevel:'H',
-      color:{dark:'#1A1814', light:'#FFFFFF'}
-    }, function(err){ if(err) drawFallbackQR(canvas.getContext('2d'),180,roomNum,url); });
+      color:{dark:'#000000', light:'#FFFFFF'}
+    }, function(err){ if(err) console.warn('QR error',err); });
   } else {
-    // fallback to Google Charts
-    var ctx=canvas.getContext('2d'),size=180;
+    var ctx=canvas.getContext('2d'),size=220;
     canvas.width=size;canvas.height=size;
     var img=new Image();img.crossOrigin='anonymous';
     img.onload=function(){ctx.drawImage(img,0,0,size,size);};
-    img.src='https://chart.googleapis.com/chart?chs=180x180&cht=qr&chl='+encodeURIComponent(url)+'&choe=UTF-8&chld=H|1';
+    img.src='https://chart.googleapis.com/chart?chs=220x220&cht=qr&chl='+encodeURIComponent(url)+'&choe=UTF-8&chld=H|0';
   }
 }
 function drawFallbackQR(ctx,size,roomNum){ctx.fillStyle='#fff';ctx.fillRect(0,0,size,size);ctx.strokeStyle='#1A1814';ctx.lineWidth=3;ctx.strokeRect(10,10,size-20,size-20);function corner(x,y){ctx.fillStyle='#1A1814';ctx.fillRect(x,y,40,40);ctx.fillStyle='#fff';ctx.fillRect(x+6,y+6,28,28);ctx.fillStyle='#1A1814';ctx.fillRect(x+12,y+12,16,16);}corner(18,18);corner(size-58,18);corner(18,size-58);ctx.fillStyle='#1A1814';ctx.font='bold 22px monospace';ctx.textAlign='center';ctx.fillText('Room '+roomNum,size/2,size/2-6);ctx.font='11px monospace';ctx.fillStyle='#8A8070';ctx.fillText(window.location.hostname||'yourhotel.com',size/2,size/2+14);ctx.fillStyle='#C9A96E';for(var i=0;i<6;i++)for(var j=0;j<3;j++){if(Math.random()>0.4)ctx.fillRect(68+i*11,size-55+j*11,7,7);}for(var i=0;i<3;i++)for(var j=0;j<6;j++){if(Math.random()>0.4)ctx.fillRect(size-55+i*11,68+j*11,7,7);}}
@@ -3835,6 +3853,76 @@ window.animateBars=animateBars;
 window.showRoomQR=showRoomQR;
 window.editRoom=editRoom;
 window.checkoutRoom=checkoutRoom;
+
+function getGuestBaseUrl(){
+  return localStorage.getItem('hyatt_guest_url') ||
+    window.location.href.split('?')[0].replace('index.html','hyatt-guest-ui-final_2.html');
+}
+
+function buildQRHtml(rooms){
+  var base = getGuestBaseUrl();
+  var hotelName = localStorage.getItem('hyatt_hotel_name') || 'Hyatt Hotel';
+  var cards = rooms.map(function(r){
+    var url = base + '?room=' + encodeURIComponent(r.num);
+    var qrSrc = 'https://chart.googleapis.com/chart?chs=220x220&cht=qr&chl=' + encodeURIComponent(url) + '&choe=UTF-8&chld=H|1';
+    return '<div class="qr-card">' +
+      '<div class="hotel-name">'+hotelName.toUpperCase()+'</div>' +
+      '<div class="qr-wrap">' +
+        '<img src="'+qrSrc+'" width="220" height="220">' +
+        '<div class="logo-overlay"><div class="logo-inner"></div></div>' +
+      '</div>' +
+      '<div class="room-num">Room '+r.num+'</div>' +
+      '<div class="scan-txt">Scan to order · Room service</div>' +
+      '<div class="gold-bar"></div>' +
+    '</div>';
+  }).join('');
+
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+hotelName+' · Room QR Codes</title>' +
+    '<style>' +
+    'body{font-family:Georgia,serif;background:#f0ebe3;padding:20px;margin:0;}' +
+    '.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:20px;max-width:1200px;margin:0 auto;}' +
+    'h1{text-align:center;font-size:18px;letter-spacing:0.15em;color:#8A7050;margin-bottom:20px;font-weight:400;}' +
+    '.qr-card{background:#F5EFE6;border-radius:16px;padding:18px 16px 14px;display:flex;flex-direction:column;align-items:center;box-shadow:0 2px 12px rgba(0,0,0,0.08);page-break-inside:avoid;break-inside:avoid;}' +
+    '.hotel-name{font-size:10px;letter-spacing:0.2em;color:#A09070;text-transform:uppercase;margin-bottom:10px;}' +
+    '.qr-wrap{position:relative;display:inline-block;}' +
+    '.qr-wrap img{display:block;border-radius:6px;}' +
+    '.logo-overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:38px;height:38px;background:white;border-radius:8px;display:flex;align-items:center;justify-content:center;}' +
+    '.logo-inner{width:26px;height:26px;background:#C9A96E;border-radius:6px;}' +
+    '.room-num{font-size:26px;color:#1A1814;margin-top:12px;letter-spacing:0.06em;}' +
+    '.scan-txt{font-size:9px;color:#C0B090;letter-spacing:0.12em;text-transform:uppercase;margin-top:4px;}' +
+    '.gold-bar{width:40px;height:2px;background:#C9A96E;border-radius:1px;margin-top:10px;opacity:0.7;}' +
+    '@media print{body{background:white;padding:0;}.qr-card{box-shadow:none;border:1px solid #ddd;}}' +
+    '</style></head><body>' +
+    '<h1>'+hotelName.toUpperCase()+' · ROOM QR CODES</h1>' +
+    '<div class="grid">'+cards+'</div>' +
+    '<script>window.onload=function(){window.print();}<\/script>' +
+    '</body></html>';
+}
+
+function downloadAllQR(){
+  var data = (typeof buildRoomsData==='function') ? buildRoomsData() : [];
+  if(!data.length){alert('No rooms configured.');return;}
+  var html = buildQRHtml(data);
+  var blob = new Blob([html], {type:'text/html'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Hyatt-All-Room-QR-Codes.html';
+  a.click();
+}
+
+function downloadSingleQR(){
+  var data = (typeof buildRoomsData==='function') ? buildRoomsData() : [];
+  var room = data.find(function(r){return r.num===currentQRRoom;});
+  if(!room){alert('Room not found.');return;}
+  var html = buildQRHtml([room]);
+  var blob = new Blob([html], {type:'text/html'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'QR-Room-'+currentQRRoom+'.html';
+  a.click();
+}
+window.downloadAllQR=downloadAllQR;
+window.downloadSingleQR=downloadSingleQR;
 window.drawQR=drawQR;
 window.drawFallbackQR=drawFallbackQR;
 window.handleModalClick=handleModalClick;
@@ -4091,6 +4179,26 @@ updateUrgencyStrip();
   if(u) localStorage.setItem('hyatt_sb_url', u.replace(/\/+$/,'').trim());
   if(k) localStorage.setItem('hyatt_sb_key', k.trim());
 })();
+// ── HOTEL NAME
+function saveHotelName(val){
+  val = val.trim() || 'Hyatt Hotel';
+  localStorage.setItem('hyatt_hotel_name', val);
+  applyHotelName(val);
+}
+function applyHotelName(name){
+  // Update all places showing hotel name
+  document.querySelectorAll('.hotel-name-text').forEach(function(el){el.textContent=name;});
+  var inp = document.getElementById('hotel-name-input');
+  if(inp) inp.value = name;
+  // Update page title
+  document.title = name + ' · Staff Dashboard';
+}
+(function(){
+  var saved = localStorage.getItem('hyatt_hotel_name') || 'Hyatt Hotel';
+  applyHotelName(saved);
+})();
+window.saveHotelName = saveHotelName;
+
 maybeShowCfgOnLoad();
 })();
 </script>
