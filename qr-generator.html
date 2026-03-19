@@ -3,165 +3,146 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hyatt · QR Generator</title>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<title>Room QR Generator</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:'Segoe UI',sans-serif; background:#0D0D0D; color:#F5EFE6; min-height:100vh; padding:24px 16px 60px; }
-  h1 { font-family:Georgia,serif; font-size:22px; font-weight:400; color:#C9A96E; text-align:center; margin-bottom:4px; letter-spacing:0.04em; }
-  .sub { text-align:center; font-size:13px; color:#5A5248; margin-bottom:28px; }
-  .card { background:#1E1C18; border:1px solid rgba(255,255,255,0.07); border-radius:16px; padding:20px; max-width:500px; margin:0 auto 20px; }
-  label { display:block; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:#8A8070; margin-bottom:6px; }
-  input { width:100%; background:#0D0D0D; border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:11px 14px; color:#F5EFE6; font-size:14px; outline:none; margin-bottom:16px; }
-  input:focus { border-color:rgba(201,169,110,0.5); }
-  .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  .btn { width:100%; background:#C9A96E; color:#0D0D0D; border:none; border-radius:12px; padding:14px; font-size:15px; font-weight:600; cursor:pointer; margin-top:4px; }
-  .btn.ghost { background:#1E1C18; color:#C9A96E; border:1px solid rgba(201,169,110,0.3); }
-  .url-preview { background:#0D0D0D; border:1px solid rgba(201,169,110,0.2); border-radius:10px; padding:10px 14px; font-size:12px; color:#8A8070; word-break:break-all; margin-top:16px; display:none; }
-  #qr-section { max-width:500px; margin:0 auto; display:none; }
-  .qr-card { background:#1E1C18; border:1px solid rgba(255,255,255,0.07); border-radius:16px; padding:24px; margin-bottom:16px; text-align:center; }
-  .qr-room { font-family:Georgia,serif; font-size:20px; color:#C9A96E; margin-bottom:4px; }
-  .qr-guest { font-size:13px; color:#8A8070; margin-bottom:20px; }
-  canvas { border-radius:12px; }
-  .qr-url { font-size:11px; color:#5A5248; margin-top:14px; word-break:break-all; line-height:1.5; }
-  .btn-dl { display:inline-block; margin-top:14px; background:rgba(201,169,110,0.12); color:#C9A96E; border:1px solid rgba(201,169,110,0.25); border-radius:10px; padding:9px 20px; font-size:13px; cursor:pointer; }
-  .section-title { font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:#5A5248; text-align:center; margin:20px 0 16px; }
-  .how { max-width:500px; margin:0 auto 20px; background:#1A1814; border:1px solid rgba(201,169,110,0.1); border-radius:14px; padding:16px 18px; }
-  .how-title { font-size:12px; letter-spacing:0.08em; text-transform:uppercase; color:#C9A96E; margin-bottom:10px; }
-  .how-step { display:flex; gap:10px; margin-bottom:8px; font-size:13px; color:#8A8070; line-height:1.5; }
-  .how-num { width:20px; height:20px; border-radius:50%; background:rgba(201,169,110,0.15); color:#C9A96E; font-size:11px; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px; }
-  .sql-box { max-width:500px; margin:0 auto 20px; background:#111; border:1px solid rgba(201,169,110,0.15); border-radius:14px; padding:16px; }
-  .sql-title { font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#C9A96E; margin-bottom:10px; }
-  pre { font-size:11px; color:#8A8070; white-space:pre-wrap; line-height:1.6; }
-  .copy-btn { margin-top:10px; background:rgba(201,169,110,0.1); color:#C9A96E; border:1px solid rgba(201,169,110,0.2); border-radius:8px; padding:7px 14px; font-size:12px; cursor:pointer; }
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Segoe UI',sans-serif;background:#0D0D0D;color:#F5EFE6;padding:20px 16px 60px;min-height:100vh;}
+h1{font-family:Georgia,serif;font-size:20px;font-weight:400;color:#C9A96E;text-align:center;margin-bottom:20px;letter-spacing:0.05em;}
+.card{background:#1A1814;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:18px;margin-bottom:14px;}
+label{display:block;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#6A6055;margin-bottom:6px;}
+input{width:100%;background:#0D0D0D;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:#F5EFE6;font-size:15px;outline:none;margin-bottom:12px;}
+input:focus{border-color:rgba(201,169,110,0.5);}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.btn{width:100%;background:#C9A96E;color:#0D0D0D;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:600;cursor:pointer;}
+.btn.ghost{background:transparent;color:#C9A96E;border:1px solid rgba(201,169,110,0.3);margin-top:10px;}
+#output{display:none;margin-top:4px;}
+.qr-wrap{background:#F5EFE6;border-radius:16px;padding:20px 20px 16px;display:flex;flex-direction:column;align-items:center;margin-bottom:14px;}
+.qr-hotel{font-family:Georgia,serif;font-size:11px;letter-spacing:0.18em;color:#8A7050;text-transform:uppercase;margin-bottom:10px;}
+.qr-cw{position:relative;display:inline-block;}
+.qr-cw canvas{display:block;border-radius:6px;}
+.qr-logo{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:32px;height:32px;background:white;border-radius:7px;display:flex;align-items:center;justify-content:center;}
+.qr-logo-i{width:22px;height:22px;background:#C9A96E;border-radius:5px;display:flex;align-items:center;justify-content:center;}
+.qr-rn{font-family:Georgia,serif;font-size:22px;color:#1A1814;margin-top:12px;letter-spacing:0.06em;}
+.qr-sub{font-size:10px;color:#A09080;letter-spacing:0.1em;text-transform:uppercase;margin-top:3px;}
+.dl-btn{width:100%;background:#1A1814;color:#C9A96E;border:1px solid rgba(201,169,110,0.3);border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;margin-top:12px;}
+.rlbl{font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#5A5248;text-align:center;margin-bottom:8px;}
 </style>
 </head>
 <body>
-
-<h1>Hyatt · QR Generator</h1>
-<p class="sub">Generate room QR codes → guest scans → order hits dashboard live</p>
-
-<div class="how">
-  <div class="how-title">Flow</div>
-  <div class="how-step"><div class="how-num">1</div><div>Print QR and place in room. Guest scans with phone camera.</div></div>
-  <div class="how-step"><div class="how-num">2</div><div>Guest page opens with their room number pre-filled. They browse & order.</div></div>
-  <div class="how-step"><div class="how-num">3</div><div>Order hits Supabase → dashboard shows toast + card instantly via Realtime.</div></div>
-</div>
-
-<div class="sql-box">
-  <div class="sql-title">⚠️ Run once in Supabase SQL Editor (if table not created yet)</div>
-  <pre>create table if not exists orders (
-  id          text primary key,
-  room        text        not null,
-  guest       text        not null default 'Guest',
-  items       jsonb       not null default '[]',
-  total       integer     not null default 0,
-  status      text        not null default 'new',
-  placed_at   timestamptz not null default now()
-);
-alter table orders enable row level security;
-create policy "guests insert" on orders for insert with check (true);
-create policy "staff select" on orders for select using (true);
-create policy "staff update" on orders for update using (true);
-alter publication supabase_realtime add table orders;</pre>
-  <button class="copy-btn" onclick="this.textContent='Copied ✓';navigator.clipboard.writeText(document.querySelector('pre').textContent);setTimeout(()=>this.textContent='Copy SQL',2000)">Copy SQL</button>
-</div>
+<h1>Room QR Generator</h1>
 
 <div class="card">
   <label>Guest Page URL</label>
-  <input type="url" id="base-url" value="https://shakti151622.github.io/hyatt-guest-ui-final_2.html" placeholder="https://yoursite.github.io/guest.html">
+  <input id="base-url" type="url" value="https://shakti151622.github.io/HOTEL-PROJECT-2/hyatt-guest-ui-final_2.html">
   <div class="row">
-    <div>
-      <label>Room Number</label>
-      <input type="text" id="room" placeholder="203">
-    </div>
-    <div>
-      <label>Guest Name</label>
-      <input type="text" id="guest" placeholder="Rajan Singh">
-    </div>
+    <div><label>Room Number</label><input id="room" type="text" placeholder="203"></div>
+    <div><label>Guest Name</label><input id="guest" type="text" placeholder="Rajan Singh"></div>
   </div>
-  <button class="btn" onclick="generateSingle()">Generate QR</button>
-  <div class="url-preview" id="url-preview"></div>
+  <button class="btn" onclick="gen()">Generate QR</button>
 </div>
 
 <div class="card">
-  <label>Batch — Multiple Rooms (comma separated)</label>
-  <input type="text" id="batch-rooms" placeholder="101, 102, 103, 201, 202, 203">
-  <label>Guest Name (optional, default: Guest)</label>
-  <input type="text" id="batch-guest" placeholder="Guest">
-  <button class="btn ghost" onclick="generateBatch()">Generate All Rooms</button>
+  <label>Batch — comma separated rooms</label>
+  <input id="batch" type="text" placeholder="101, 102, 103, 201, 202, 203">
+  <button class="btn ghost" onclick="genBatch()">Generate All</button>
 </div>
 
-<div id="qr-section">
-  <div class="section-title" id="qr-title">Generated QR Codes</div>
-  <div id="qr-output"></div>
-</div>
+<div id="output"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <script>
-function buildUrl(base, room, guest) {
-  const b = base.trim().replace(/\/$/, '');
-  const p = new URLSearchParams({ room: room.trim(), guest: (guest||'Guest').trim() });
-  return b + '?' + p.toString();
-}
+function baseUrl(){return document.getElementById('base-url').value.trim().replace(/\/$/,'');}
+function makeUrl(room,guest){return baseUrl()+'?room='+encodeURIComponent(room)+'&guest='+encodeURIComponent(guest||'Guest');}
 
-async function makeQR(canvasId, url) {
-  return new Promise((res, rej) => {
-    QRCode.toCanvas(document.getElementById(canvasId), url, {
-      width: 220, margin: 2,
-      color: { dark: '#1A1814', light: '#F5EFE6' }
-    }, err => err ? rej(err) : res());
+async function makeCard(room,guest){
+  var url=makeUrl(room,guest);
+  var div=document.createElement('div');
+
+  var lbl=document.createElement('div');lbl.className='rlbl';lbl.textContent='Room '+room;
+  div.appendChild(lbl);
+
+  var wrap=document.createElement('div');wrap.className='qr-wrap';
+
+  var h=document.createElement('div');h.className='qr-hotel';h.textContent='Hyatt Hotel';
+  wrap.appendChild(h);
+
+  var cw=document.createElement('div');cw.className='qr-cw';
+  var canvas=document.createElement('canvas');
+  cw.appendChild(canvas);
+
+  var logo=document.createElement('div');logo.className='qr-logo';
+  var li=document.createElement('div');li.className='qr-logo-i';
+  li.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>';
+  logo.appendChild(li);cw.appendChild(logo);
+  wrap.appendChild(cw);
+
+  var rn=document.createElement('div');rn.className='qr-rn';rn.textContent=room;
+  wrap.appendChild(rn);
+  var sub=document.createElement('div');sub.className='qr-sub';sub.textContent='Scan to order';
+  wrap.appendChild(sub);
+
+  var dl=document.createElement('button');dl.className='dl-btn';dl.textContent='⬇ Download PNG';
+  dl.onclick=function(){downloadCard(canvas,room);};
+  wrap.appendChild(dl);
+  div.appendChild(wrap);
+
+  await new Promise(function(res){
+    QRCode.toCanvas(canvas,url,{width:200,margin:1,errorCorrectionLevel:'H',color:{dark:'#1A1814',light:'#F5EFE6'}},function(){res();});
   });
+  return div;
 }
 
-function downloadQR(canvasId, room) {
-  const c = document.getElementById(canvasId);
-  const a = document.createElement('a');
-  a.download = 'QR-Room-' + room + '.png';
-  a.href = c.toDataURL('image/png');
-  a.click();
+async function gen(){
+  var room=document.getElementById('room').value.trim();
+  var guest=document.getElementById('guest').value.trim();
+  if(!room){alert('Enter room number');return;}
+  var out=document.getElementById('output');
+  out.style.display='block';
+  out.innerHTML='<div style="text-align:center;color:#5A5248;padding:20px;font-size:13px">Generating...</div>';
+  var card=await makeCard(room,guest||'Guest');
+  out.innerHTML='';out.appendChild(card);
+  out.scrollIntoView({behavior:'smooth'});
 }
 
-async function generateSingle() {
-  const base  = document.getElementById('base-url').value;
-  const room  = document.getElementById('room').value.trim();
-  const guest = document.getElementById('guest').value.trim() || 'Guest';
-  if (!base || !room) { alert('Enter URL and room number'); return; }
-  const url = buildUrl(base, room, guest);
-  const prev = document.getElementById('url-preview');
-  prev.style.display = 'block';
-  prev.textContent = '🔗 ' + url;
-  await renderCards([{ room, guest, url }], 'QR — Room ' + room);
+async function genBatch(){
+  var rooms=document.getElementById('batch').value.split(',').map(function(r){return r.trim();}).filter(Boolean);
+  if(!rooms.length){alert('Enter room numbers');return;}
+  var out=document.getElementById('output');
+  out.style.display='block';
+  out.innerHTML='<div style="text-align:center;color:#5A5248;padding:20px;font-size:13px">Generating '+rooms.length+' QR codes...</div>';
+  var frag=document.createDocumentFragment();
+  for(var i=0;i<rooms.length;i++){var c=await makeCard(rooms[i],'Guest');frag.appendChild(c);}
+  out.innerHTML='';out.appendChild(frag);
+  out.scrollIntoView({behavior:'smooth'});
 }
 
-async function generateBatch() {
-  const base  = document.getElementById('base-url').value;
-  const rooms = document.getElementById('batch-rooms').value.split(',').map(r=>r.trim()).filter(Boolean);
-  const guest = document.getElementById('batch-guest').value.trim() || 'Guest';
-  if (!base || !rooms.length) { alert('Enter URL and room numbers'); return; }
-  const entries = rooms.map(room => ({ room, guest, url: buildUrl(base, room, guest) }));
-  await renderCards(entries, rooms.length + ' QR Codes');
+function downloadCard(qrCanvas,room){
+  var W=300,H=340;
+  var off=document.createElement('canvas');off.width=W;off.height=H;
+  var ctx=off.getContext('2d');
+  ctx.fillStyle='#F5EFE6';rr(ctx,0,0,W,H,16);ctx.fill();
+  ctx.fillStyle='#A09070';ctx.font='11px Georgia';ctx.textAlign='center';
+  ctx.fillText('HYATT HOTEL',W/2,30);
+  var qs=200,qx=(W-qs)/2,qy=46;
+  ctx.drawImage(qrCanvas,qx,qy,qs,qs);
+  var lx=W/2,ly=qy+qs/2;
+  ctx.fillStyle='white';rr(ctx,lx-16,ly-16,32,32,7);ctx.fill();
+  ctx.fillStyle='#C9A96E';rr(ctx,lx-11,ly-11,22,22,5);ctx.fill();
+  ctx.fillStyle='#1A1814';ctx.font='26px Georgia';ctx.textAlign='center';
+  ctx.fillText('Room '+room,W/2,qy+qs+30);
+  ctx.fillStyle='#A09080';ctx.font='10px sans-serif';
+  ctx.fillText('SCAN TO ORDER',W/2,qy+qs+48);
+  ctx.fillStyle='#C9A96E';ctx.fillRect(80,H-10,W-160,2);
+  var a=document.createElement('a');a.download='QR-Room-'+room+'.png';
+  a.href=off.toDataURL('image/png');a.click();
 }
 
-async function renderCards(entries, title) {
-  const section = document.getElementById('qr-section');
-  const output  = document.getElementById('qr-output');
-  document.getElementById('qr-title').textContent = title;
-  section.style.display = 'block';
-  output.innerHTML = '';
-  for (const e of entries) {
-    const cid = 'qr-' + e.room + '-' + Math.random().toString(36).slice(2);
-    const div = document.createElement('div');
-    div.className = 'qr-card';
-    div.innerHTML = `
-      <div class="qr-room">Room ${e.room}</div>
-      <div class="qr-guest">${e.guest}</div>
-      <canvas id="${cid}"></canvas>
-      <div class="qr-url">${e.url}</div><br>
-      <button class="btn-dl" onclick="downloadQR('${cid}','${e.room}')">⬇ Download PNG</button>`;
-    output.appendChild(div);
-    await makeQR(cid, e.url);
-  }
-  section.scrollIntoView({ behavior:'smooth', block:'start' });
+function rr(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();
 }
 </script>
 </body>
