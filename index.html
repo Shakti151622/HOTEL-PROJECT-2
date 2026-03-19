@@ -3200,7 +3200,7 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
         <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#C9A96E,transparent);"></div>
         <div id="qr-hotel-name" style="font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:0.2em;color:#C9A96E;text-transform:uppercase;margin-bottom:8px;">Hyatt Hotel</div>
         <div style="position:relative;background:white;border-radius:10px;padding:10px;display:inline-block;">
-          <canvas id="qr-canvas" width="200" height="200" style="display:block;"></canvas>
+          <img id="qr-canvas" width="200" height="200" style="display:block;" alt="QR Code">
           <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:36px;height:36px;background:white;border-radius:8px;display:flex;align-items:center;justify-content:center;">
             <div style="width:26px;height:26px;background:#C9A96E;border-radius:6px;display:flex;align-items:center;justify-content:center;">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -3542,9 +3542,7 @@ function renderRooms(){
     if(r.services>0)dots+='<div class="room-dot service">'+r.services+'🛎</div>';
     var isOccupied = r.status === 'occupied' || r.status === 'checkout';
     // QR uses only room number — fixed per room
-    var fixedUrl = (localStorage.getItem('hyatt_guest_url') ||
-      window.location.href.split('?')[0].replace('index.html','hyatt-guest-ui-final_2.html'))
-      + '?room=' + encodeURIComponent(r.num);
+    var fixedUrl = getGuestBaseUrl() + '?room=' + encodeURIComponent(r.num);
     var qrSrc = 'https://chart.googleapis.com/chart?chs=72x72&cht=qr&chl=' + encodeURIComponent(fixedUrl) + '&choe=UTF-8&chld=M|0';
     return '<div class="room-tile '+r.status+'" onclick="showRoomQR(\''+r.num+'\')">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
@@ -3582,18 +3580,14 @@ function animateBars(){document.querySelectorAll('.bar-fill').forEach(function(b
 var currentQRUrl='',currentQRRoom='';
 function showRoomQR(roomNum){
   currentQRRoom=roomNum;
-  var _rooms=(typeof buildRoomsData==='function')?buildRoomsData():[];
-  var guestName='';
-  for(var i=0;i<_rooms.length;i++){if(_rooms[i].num===roomNum){guestName=_rooms[i].guest||'';break;}}
-  // Use saved guest URL or construct from current host
-  var savedBase=localStorage.getItem('hyatt_guest_url')||'';
-  var baseUrl=savedBase||window.location.href.split('?')[0].replace('index.html','hyatt-guest-ui-final_2.html');
-  var cleanGuest=(guestName==='—'||guestName==='Vacant')?'Guest':guestName;
-  var url=baseUrl+'?room='+roomNum+'&guest='+encodeURIComponent(cleanGuest);
+  var url=getGuestBaseUrl()+'?room='+encodeURIComponent(roomNum);
   currentQRUrl=url;
-  document.getElementById('qr-modal-sub').textContent='Room '+roomNum+' · '+(cleanGuest||'Guest portal');
+  document.getElementById('qr-modal-sub').textContent='Room '+roomNum+' · Guest scans to check in';
   document.getElementById('qr-url-text').textContent=url;
   document.getElementById('qr-room-label').textContent=roomNum;
+  var hn=localStorage.getItem('hyatt_hotel_name')||'Hyatt Hotel';
+  var hnel=document.getElementById('qr-hotel-name');
+  if(hnel)hnel.textContent=hn.toUpperCase();
   document.getElementById('qr-modal').classList.add('open');
   drawQR(url,roomNum);
 }
@@ -3618,24 +3612,23 @@ function editRoom(roomNum, e){
   renderRooms();
 }
 function drawQR(url,roomNum){
-  var canvas=document.getElementById('qr-canvas');
   document.getElementById('qr-room-label').textContent=roomNum;
-  // Update hotel name on QR card
   var hn=localStorage.getItem('hyatt_hotel_name')||'Hyatt Hotel';
   var hnel=document.getElementById('qr-hotel-name');
-  if(hnel)hnel.textContent=hn;
+  if(hnel)hnel.textContent=hn.toUpperCase();
+  var imgEl=document.getElementById('qr-canvas');
+  // Use QRCode.toDataURL — generates base64 PNG entirely in browser, no network needed
   if(typeof QRCode !== 'undefined'){
-    QRCode.toCanvas(canvas, url, {
-      width:220, margin:0,
+    QRCode.toDataURL(url, {
+      width:200, margin:1,
       errorCorrectionLevel:'H',
       color:{dark:'#000000', light:'#FFFFFF'}
-    }, function(err){ if(err) console.warn('QR error',err); });
+    }, function(err, dataUrl){
+      if(!err && dataUrl) { imgEl.src=dataUrl; }
+    });
   } else {
-    var ctx=canvas.getContext('2d'),size=220;
-    canvas.width=size;canvas.height=size;
-    var img=new Image();img.crossOrigin='anonymous';
-    img.onload=function(){ctx.drawImage(img,0,0,size,size);};
-    img.src='https://chart.googleapis.com/chart?chs=220x220&cht=qr&chl='+encodeURIComponent(url)+'&choe=UTF-8&chld=H|0';
+    // Fallback: Google Charts
+    imgEl.src='https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl='+encodeURIComponent(url)+'&choe=UTF-8&chld=H|1';
   }
 }
 function drawFallbackQR(ctx,size,roomNum){ctx.fillStyle='#fff';ctx.fillRect(0,0,size,size);ctx.strokeStyle='#1A1814';ctx.lineWidth=3;ctx.strokeRect(10,10,size-20,size-20);function corner(x,y){ctx.fillStyle='#1A1814';ctx.fillRect(x,y,40,40);ctx.fillStyle='#fff';ctx.fillRect(x+6,y+6,28,28);ctx.fillStyle='#1A1814';ctx.fillRect(x+12,y+12,16,16);}corner(18,18);corner(size-58,18);corner(18,size-58);ctx.fillStyle='#1A1814';ctx.font='bold 22px monospace';ctx.textAlign='center';ctx.fillText('Room '+roomNum,size/2,size/2-6);ctx.font='11px monospace';ctx.fillStyle='#8A8070';ctx.fillText(window.location.hostname||'yourhotel.com',size/2,size/2+14);ctx.fillStyle='#C9A96E';for(var i=0;i<6;i++)for(var j=0;j<3;j++){if(Math.random()>0.4)ctx.fillRect(68+i*11,size-55+j*11,7,7);}for(var i=0;i<3;i++)for(var j=0;j<6;j++){if(Math.random()>0.4)ctx.fillRect(size-55+i*11,68+j*11,7,7);}}
@@ -3835,9 +3828,25 @@ window.showRoomQR=showRoomQR;
 window.editRoom=editRoom;
 window.checkoutRoom=checkoutRoom;
 
+function downloadQR(){
+  var imgEl=document.getElementById('qr-canvas');
+  if(!imgEl.src||imgEl.src===''){alert('QR not ready yet');return;}
+  var a=document.createElement('a');
+  a.download='QR-Room-'+currentQRRoom+'.png';
+  a.href=imgEl.src;
+  a.click();
+}
 function getGuestBaseUrl(){
-  return localStorage.getItem('hyatt_guest_url') ||
-    window.location.href.split('?')[0].replace('index.html','hyatt-guest-ui-final_2.html');
+  // Saved custom URL takes priority
+  var saved=localStorage.getItem('hyatt_guest_url');
+  if(saved&&saved.indexOf('http')===0)return saved;
+  // Use current location if on a real domain
+  var loc=window.location.href;
+  if(loc.indexOf('http')===0&&loc.indexOf('srcdoc')===-1){
+    return loc.split('?')[0].replace('index.html','hyatt-guest-ui-final_2.html');
+  }
+  // Hardcoded fallback for GitHub Pages
+  return 'https://shakti151622.github.io/HOTEL-PROJECT-2/hyatt-guest-ui-final_2.html';
 }
 
 function buildQRHtml(rooms){
