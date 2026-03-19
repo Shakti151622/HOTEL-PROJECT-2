@@ -1572,7 +1572,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 .svc-complete { flex:1; padding:8px 12px; background:rgba(76,175,125,0.08); border:1px solid rgba(76,175,125,0.22); border-radius:10px; font-family:'DM Sans',sans-serif; font-size:13px; color:var(--green); cursor:pointer; transition:all 0.15s; font-weight:400; }
 .svc-complete:hover { background:rgba(76,175,125,0.16); }
 .rooms-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
-.room-tile { background:var(--surface); border:1px solid var(--card-border); border-radius:16px; padding:18px 16px; cursor:pointer; transition:all 0.2s; position:relative; overflow:hidden; }
+.room-tile { background:var(--surface); border:1px solid var(--card-border); border-radius:16px; padding:14px 12px 10px; cursor:pointer; transition:all 0.2s; position:relative; overflow:hidden; }
 .room-tile::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
 .room-tile.occupied::before{background:var(--green);} .room-tile.vacant::before{background:var(--text-dim);}
 .room-tile.checkout::before{background:var(--gold);} .room-tile.issue::before{background:var(--red);}
@@ -3333,7 +3333,22 @@ alter table service_requests enable row level security;
 create policy "guests can insert svc" on service_requests for insert with check (true);
 create policy "staff can select svc" on service_requests for select using (true);
 create policy "staff can update svc" on service_requests for update using (true);
-alter publication supabase_realtime add table service_requests;`;
+alter publication supabase_realtime add table service_requests;
+
+-- Check-ins table (guest check-in/checkout via QR scan)
+create table if not exists checkins (
+  id             text primary key,
+  room           text        not null,
+  guest_name     text        not null,
+  checked_in_at  timestamptz not null default now(),
+  checked_out_at timestamptz,
+  status         text        not null default 'active'
+);
+alter table checkins enable row level security;
+create policy "guests can insert checkins" on checkins for insert with check (true);
+create policy "staff can select checkins" on checkins for select using (true);
+create policy "staff can update checkins" on checkins for update using (true);
+alter publication supabase_realtime add table checkins;`;
 
 // ROOMS_DATA replaced by buildRoomsData()
 
@@ -3349,7 +3364,7 @@ var services=[
 ];
 function rowToOrder(row){return{id:row.id,room:String(row.room),guest:row.guest||'Guest',items:Array.isArray(row.items)?row.items:[],total:row.total||0,status:row.status||'new',placedAt:row.placed_at?new Date(row.placed_at).getTime():Date.now(),fromSupa:true};}
 function setConnBadge(state,label){var b=document.getElementById('conn-badge'),l=document.getElementById('conn-label');if(!b)return;b.className='conn-badge '+state;l.textContent=label;}
-async function connectSupabase(){var url=(document.getElementById('cfg-url').value||'').trim().replace(/\/+$/,''),key=(document.getElementById('cfg-key').value||'').trim();if(!url||!key){alert('Please enter both the Project URL and Anon Key.');return;}var btn=document.getElementById('cfg-connect-btn');btn.disabled=true;btn.textContent='Connecting…';try{sbClient=window._hyattSb||supabase.createClient(url,key,{auth:{storageKey:'hyatt-sb-auth'}});window._hyattSb=sbClient;var{data,error}=await sbClient.from('orders').select('id').limit(1);if(error)throw error;localStorage.setItem('hyatt_sb_url',url);localStorage.setItem('hyatt_sb_key',key);SUPABASE_URL=url;SUPABASE_KEY=key;closeCfg();setConnBadge('connecting','Syncing…');await loadOrdersFromSupabase();await loadServicesFromSupabase();try{subscribeRealtime();}catch(e){console.warn('Realtime init:',e&&e.message||e);}}catch(err){btn.disabled=false;btn.textContent='Connect';var msg=err.message||String(err);if(msg.includes('relation')||msg.includes('does not exist')||msg.includes('42P01')){document.getElementById('sql-panel').classList.add('visible');document.getElementById('sql-code').textContent=SETUP_SQL;alert('Table "orders" not found.\n\nRun the SQL shown in the panel, then try again.');}else{alert('Connection failed: '+msg);}}}
+async function connectSupabase(){var url=(document.getElementById('cfg-url').value||'').trim().replace(/\/+$/,''),key=(document.getElementById('cfg-key').value||'').trim();if(!url||!key){alert('Please enter both the Project URL and Anon Key.');return;}var btn=document.getElementById('cfg-connect-btn');btn.disabled=true;btn.textContent='Connecting…';try{sbClient=window._hyattSb||supabase.createClient(url,key,{auth:{storageKey:'hyatt-sb-auth'}});window._hyattSb=sbClient;var{data,error}=await sbClient.from('orders').select('id').limit(1);if(error)throw error;localStorage.setItem('hyatt_sb_url',url);localStorage.setItem('hyatt_sb_key',key);SUPABASE_URL=url;SUPABASE_KEY=key;closeCfg();setConnBadge('connecting','Syncing…');await loadOrdersFromSupabase();await loadServicesFromSupabase();await loadCheckinsFromSupabase();try{subscribeRealtime();}catch(e){console.warn('Realtime init:',e&&e.message||e);}}catch(err){btn.disabled=false;btn.textContent='Connect';var msg=err.message||String(err);if(msg.includes('relation')||msg.includes('does not exist')||msg.includes('42P01')){document.getElementById('sql-panel').classList.add('visible');document.getElementById('sql-code').textContent=SETUP_SQL;alert('Table "orders" not found.\n\nRun the SQL shown in the panel, then try again.');}else{alert('Connection failed: '+msg);}}}
 async function loadOrdersFromSupabase(){
   if(!sbClient)return;
   try{
@@ -3367,6 +3382,7 @@ function subscribeRealtime(){
   if(!sbClient)return;
   if(realtimeChan){sbClient.removeChannel(realtimeChan);realtimeChan=null;}
   if(window._svcChan){try{sbClient.removeChannel(window._svcChan);}catch(e){} window._svcChan=null;}
+  if(window._chkChan){try{sbClient.removeChannel(window._chkChan);}catch(e){} window._chkChan=null;}
 
   // Orders channel
   realtimeChan=sbClient.channel('orders-rt')
@@ -3380,6 +3396,38 @@ function subscribeRealtime(){
   window._svcChan=sbClient.channel('svc-rt')
     .on('postgres_changes',{event:'*',schema:'public',table:'service_requests'},handleSvcRealtimeEvent)
     .subscribe();
+
+  // Checkins channel — updates room tiles in realtime
+  window._chkChan=sbClient.channel('chk-rt')
+    .on('postgres_changes',{event:'*',schema:'public',table:'checkins'},handleCheckinEvent)
+    .subscribe();
+}
+
+function handleCheckinEvent(payload){
+  var evt=payload.eventType, row=payload.new||{};
+  if(evt==='INSERT' && row.status==='active'){
+    // New guest checked in — update STATIC_ROOMS and re-render
+    var room = String(row.room);
+    if(!STATIC_ROOMS[room]) STATIC_ROOMS[room]={};
+    STATIC_ROOMS[room].guest    = row.guest_name;
+    STATIC_ROOMS[room].status   = 'occupied';
+    STATIC_ROOMS[room].checkout = '—';
+    STATIC_ROOMS[room].checkinId = row.id;
+    try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}
+    renderRooms();
+    showToast('checkin','Check-in · Room '+room, row.guest_name+' just checked in');
+  } else if(evt==='UPDATE' && row.status==='checked_out'){
+    var room = String(row.room);
+    if(STATIC_ROOMS[room]){
+      STATIC_ROOMS[room].guest    = '—';
+      STATIC_ROOMS[room].status   = 'vacant';
+      STATIC_ROOMS[room].checkout = '—';
+      delete STATIC_ROOMS[room].checkinId;
+    }
+    try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}
+    renderRooms();
+    showToast('checkin','Checkout · Room '+room, row.guest_name+' checked out');
+  }
 }
 
 function rowToService(row){
@@ -3406,8 +3454,7 @@ function handleSvcRealtimeEvent(payload){
   }
 }
 
-async function loadServicesFromSupabase(){
-  if(!sbClient)return;
+async function loadServicesFromSupabase(){  if(!sbClient)return;
   try{
     var res=await sbClient.from('service_requests').select('*').not('status','eq','done').order('placed_at',{ascending:false}).limit(200);
     if(res.error){console.warn('Services fetch:',res.error.message||res.error.code);return;}
@@ -3415,12 +3462,32 @@ async function loadServicesFromSupabase(){
     renderServices();updateUrgencyStrip();
   }catch(err){console.warn('Services load exception:',err&&err.message||String(err));}
 }
+async function loadCheckinsFromSupabase(){
+  if(!sbClient)return;
+  try{
+    var res=await sbClient.from('checkins').select('*').eq('status','active');
+    if(res.error){console.warn('Checkins fetch:',res.error.message);return;}
+    if(res.data){
+      res.data.forEach(function(row){
+        var room=String(row.room);
+        if(!STATIC_ROOMS[room])STATIC_ROOMS[room]={};
+        STATIC_ROOMS[room].guest=row.guest_name;
+        STATIC_ROOMS[room].status='occupied';
+        STATIC_ROOMS[room].checkinId=row.id;
+        STATIC_ROOMS[room].checkout=new Date(row.checked_in_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+      });
+      try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}
+      renderRooms();
+    }
+  }catch(err){console.warn('Checkins load exception:',err&&err.message||String(err));}
+}
+}
 function handleRealtimeEvent(payload){var evt=payload.eventType,row=payload.new||{},old=payload.old||{};if(evt==='INSERT'){var o=rowToOrder(row);if(!orders.find(function(x){return x.id===o.id;})){orders.unshift(o);renderOrders();updateStats();showToast('order','New Order — Room '+o.room,'₹'+o.total+' · '+o.items.length+' item'+(o.items.length!==1?'s':''));}}else if(evt==='UPDATE'){var idx=orders.findIndex(function(x){return x.id===row.id;});if(idx!==-1)orders[idx]=rowToOrder(row);else orders.unshift(rowToOrder(row));renderOrders();updateStats();}else if(evt==='DELETE'){orders=orders.filter(function(x){return x.id!==old.id;});renderOrders();updateStats();}}
 async function advanceOrder(id){var next={new:'preparing',preparing:'ready',ready:'delivered'};var order=orders.find(function(o){return o.id===id;});if(!order)return;order.status=next[order.status]||order.status;if(order.status==='delivered'){orders=orders.filter(function(o){return o.id!==id;});}renderOrders();updateStats();if(sbClient){try{var{error}=await sbClient.from('orders').update({status:order.status}).eq('id',id);if(error)console.warn('Supabase update:',error.message);}catch(e){console.warn('Supabase update failed:',e);}}}
 function openCfg(){document.getElementById('sql-code').textContent=SETUP_SQL;if(SUPABASE_URL)document.getElementById('cfg-url').value=SUPABASE_URL;if(SUPABASE_KEY)document.getElementById('cfg-key').value=SUPABASE_KEY;var btn=document.getElementById('cfg-connect-btn');btn.disabled=false;btn.textContent='Connect';document.getElementById('cfg-overlay').style.display='flex';}
 function closeCfg(){document.getElementById('cfg-overlay').style.display='none';}
 function cfgOverlayClick(e){if(e.target.id==='cfg-overlay')closeCfg();}
-function maybeShowCfgOnLoad(){if(!SUPABASE_URL||!SUPABASE_KEY){setTimeout(openCfg,600);}else{setConnBadge('connecting','Connecting…');SUPABASE_URL=SUPABASE_URL.replace(/\/+$/,'');sbClient=window._hyattSb||supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storageKey:'hyatt-sb-auth'}});window._hyattSb=sbClient;document.getElementById('cfg-url').value=SUPABASE_URL;document.getElementById('cfg-key').value=SUPABASE_KEY;loadOrdersFromSupabase().then(function(){return loadServicesFromSupabase();}).then(function(){try{subscribeRealtime();}catch(e){}}).catch(function(e){console.warn('Init error:',e&&e.message||e);setConnBadge('disconnected','Offline');});}}
+function maybeShowCfgOnLoad(){if(!SUPABASE_URL||!SUPABASE_KEY){setTimeout(openCfg,600);}else{setConnBadge('connecting','Connecting…');SUPABASE_URL=SUPABASE_URL.replace(/\/+$/,'');sbClient=window._hyattSb||supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storageKey:'hyatt-sb-auth'}});window._hyattSb=sbClient;document.getElementById('cfg-url').value=SUPABASE_URL;document.getElementById('cfg-key').value=SUPABASE_KEY;loadOrdersFromSupabase().then(function(){return loadServicesFromSupabase();}).then(function(){return loadCheckinsFromSupabase();}).then(function(){try{subscribeRealtime();}catch(e){}}).catch(function(e){console.warn('Init error:',e&&e.message||e);setConnBadge('disconnected','Offline');});}}
 function updateClock(){var d=new Date(),el=document.getElementById('clock');if(el)el.textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');}
 setInterval(updateClock,1000);updateClock();
 function elapsed(ts){var m=Math.floor((Date.now()-ts)/60000);if(m<1)return'< 1m';if(m<60)return m+'m';return Math.floor(m/60)+'h '+(m%60)+'m';}
@@ -3439,7 +3506,75 @@ async function advanceSvc(id,status){
   }
 }
 function filterSvc(f,el){svcFilter=f;document.querySelectorAll('#view-service .filter-tab').forEach(function(t){t.classList.remove('active');});el.classList.add('active');renderServices();}
-function renderRooms(){var data=(typeof buildRoomsData==='function')?buildRoomsData():[];var grid=document.getElementById('rooms-grid');if(!grid)return;grid.innerHTML=data.map(function(r){var dots='';if(r.orders>0)dots+='<div class="room-dot order">'+r.orders+'🍽</div>';if(r.services>0)dots+='<div class="room-dot service">'+r.services+'🛎</div>';return'<div class="room-tile '+r.status+'" onclick="showRoomQR(\''+r.num+'\')">'+'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'+'<div class="room-number">'+r.num+'</div>'+'<button onclick="editRoom(\''+r.num+'\',event)" style="background:none;border:none;color:var(--text-dim);font-size:13px;cursor:pointer;padding:0 2px;line-height:1;" title="Edit room">✎</button>'+'</div>'+'<div class="room-guest">'+(r.guest||'Vacant')+'</div>'+'<div class="room-status-row"><div class="room-checkout" style="font-size:10px;color:var(--text-dim)">'+r.checkout+'</div>'+'<div class="room-actions-active">'+dots+'</div></div></div>';}).join('');}
+async function checkoutRoom(roomNum, e) {
+  e.stopPropagation();
+  if (!confirm('Check out ' + (STATIC_ROOMS[roomNum]&&STATIC_ROOMS[roomNum].guest||'guest') + ' from Room ' + roomNum + '?')) return;
+  // Update Supabase checkin record
+  if (sbClient) {
+    try {
+      await sbClient.from('checkins')
+        .update({ status: 'checked_out', checked_out_at: new Date().toISOString() })
+        .eq('room', roomNum).eq('status', 'active');
+    } catch(e) { console.warn('Checkout update failed', e); }
+  }
+  // Update local
+  if (STATIC_ROOMS[roomNum]) {
+    STATIC_ROOMS[roomNum].guest    = '—';
+    STATIC_ROOMS[roomNum].status   = 'vacant';
+    STATIC_ROOMS[roomNum].checkout = '—';
+  }
+  try { localStorage.setItem('hyatt_rooms_override', JSON.stringify(STATIC_ROOMS)); } catch(e) {}
+  renderRooms();
+}
+
+function roomGuestUrl(roomNum, guestName) {
+  var base = localStorage.getItem('hyatt_guest_url') ||
+    window.location.href.split('?')[0].replace('index.html','hyatt-guest-ui-final_2.html');
+  var clean = (!guestName || guestName === '—' || guestName === 'Vacant') ? 'Guest' : guestName;
+  return base + '?room=' + encodeURIComponent(roomNum) + '&guest=' + encodeURIComponent(clean);
+}
+function tileQrSrc(url) {
+  return 'https://chart.googleapis.com/chart?chs=80x80&cht=qr&chl=' + encodeURIComponent(url) + '&choe=UTF-8&chld=M|0';
+}
+function renderRooms(){
+  var data=(typeof buildRoomsData==='function')?buildRoomsData():[];
+  var grid=document.getElementById('rooms-grid');
+  if(!grid)return;
+  grid.innerHTML=data.map(function(r){
+    var dots='';
+    if(r.orders>0)dots+='<div class="room-dot order">'+r.orders+'🍽</div>';
+    if(r.services>0)dots+='<div class="room-dot service">'+r.services+'🛎</div>';
+    var isOccupied = r.status === 'occupied' || r.status === 'checkout';
+    // QR uses only room number — fixed per room
+    var fixedUrl = (localStorage.getItem('hyatt_guest_url') ||
+      window.location.href.split('?')[0].replace('index.html','hyatt-guest-ui-final_2.html'))
+      + '?room=' + encodeURIComponent(r.num);
+    var qrSrc = 'https://chart.googleapis.com/chart?chs=72x72&cht=qr&chl=' + encodeURIComponent(fixedUrl) + '&choe=UTF-8&chld=M|0';
+    return '<div class="room-tile '+r.status+'" onclick="showRoomQR(\''+r.num+'\')">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
+        '<div class="room-number">'+r.num+'</div>' +
+        '<button onclick="editRoom(\''+r.num+'\',event)" style="background:none;border:none;color:var(--text-dim);font-size:13px;cursor:pointer;padding:0 2px;line-height:1;" title="Edit room">✎</button>' +
+      '</div>' +
+      '<div class="room-guest">'+(r.guest||'Vacant')+'</div>' +
+      // QR always shown — fixed per room, no guest name
+      '<div style="display:flex;justify-content:center;margin:6px 0 4px;">' +
+        '<div style="background:white;border-radius:6px;padding:3px;display:inline-block;position:relative;">' +
+          '<img src="'+qrSrc+'" width="66" height="66" style="display:block;border-radius:2px;" loading="lazy" alt="QR '+r.num+'">' +
+          '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;background:white;border-radius:3px;display:flex;align-items:center;justify-content:center;">' +
+            '<div style="width:10px;height:10px;background:#C9A96E;border-radius:2px;"></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="room-status-row">' +
+        '<div class="room-checkout" style="font-size:10px;color:var(--text-dim)">'+r.checkout+'</div>' +
+        '<div class="room-actions-active">'+dots+'</div>' +
+      '</div>' +
+      (isOccupied ?
+        '<button onclick="checkoutRoom(\''+r.num+'\',event)" style="width:100%;margin-top:6px;background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.2);border-radius:8px;color:var(--red);font-size:11px;padding:5px;cursor:pointer;letter-spacing:0.04em;">Check Out</button>'
+      : '') +
+    '</div>';
+  }).join('');
+}
 function renderAnalytics(){var items=[{name:'Paneer Butter Masala',val:42,pct:84},{name:'Chicken Biryani',val:38,pct:76},{name:'Dal Tadka',val:31,pct:62},{name:'Veg Biryani',val:27,pct:54},{name:'Butter Chicken',val:24,pct:48},{name:'Cold Coffee',val:19,pct:38}];document.getElementById('top-items-chart').innerHTML=items.map(function(i){return'<div class="bar-row"><div class="bar-label">'+i.name+'</div><div class="bar-track"><div class="bar-fill" style="width:'+i.pct+'%"></div></div><div class="bar-val">'+i.val+'</div></div>';}).join('');document.getElementById('metrics-list').innerHTML=[{name:'Avg. Order Value',val:'₹301',cls:'amber'},{name:'Orders / Room / Day',val:'2.4',cls:''},{name:'Peak Hour',val:'8–9 PM',cls:'amber'},{name:'Repeat Orders',val:'68%',cls:'green'},{name:'Fastest Delivery',val:'11 min',cls:'green'},{name:'Slowest Delivery',val:'38 min',cls:''}].map(function(m){return'<div class="metric-row"><div class="metric-name">'+m.name+'</div><div class="metric-val '+m.cls+'">'+m.val+'</div></div>';}).join('');var svc=[{name:'Room Cleaning',val:24,pct:80,cls:''},{name:'Towels',val:18,pct:60,cls:'green'},{name:'Water',val:14,pct:47,cls:'blue'},{name:'Other',val:8,pct:27,cls:''}];document.getElementById('svc-breakdown-chart').innerHTML=svc.map(function(i){return'<div class="bar-row"><div class="bar-label">'+i.name+'</div><div class="bar-track"><div class="bar-fill '+i.cls+'" style="width:'+i.pct+'%"></div></div><div class="bar-val">'+i.val+'</div></div>';}).join('');var hours=[{name:'7–8 AM',val:3,pct:15},{name:'8–9 AM',val:9,pct:45},{name:'12–1 PM',val:14,pct:70},{name:'1–2 PM',val:11,pct:55},{name:'7–8 PM',val:18,pct:90},{name:'8–9 PM',val:20,pct:100},{name:'9–10 PM',val:16,pct:80},{name:'10–11 PM',val:8,pct:40}];document.getElementById('hourly-chart').innerHTML=hours.map(function(i){return'<div class="bar-row"><div class="bar-label">'+i.name+'</div><div class="bar-track"><div class="bar-fill blue" style="width:'+i.pct+'%"></div></div><div class="bar-val">'+i.val+'</div></div>';}).join('');}
 function updateStats(){var allActive=orders.filter(function(o){return o.status!=='delivered';});var n=allActive.length;document.getElementById('stat-active').textContent=n;document.getElementById('orders-badge').textContent=n;document.getElementById('orders-count').textContent=n+' active';var rev=orders.filter(function(o){return o.status==='delivered';}).reduce(function(s,o){return s+o.total;},0)+4820;document.getElementById('stat-revenue').textContent=rev.toLocaleString('en-IN');updateUrgencyStrip();}
 var orderCounter=4;
@@ -3699,6 +3834,7 @@ window.showToast=showToast;
 window.animateBars=animateBars;
 window.showRoomQR=showRoomQR;
 window.editRoom=editRoom;
+window.checkoutRoom=checkoutRoom;
 window.drawQR=drawQR;
 window.drawFallbackQR=drawFallbackQR;
 window.handleModalClick=handleModalClick;
