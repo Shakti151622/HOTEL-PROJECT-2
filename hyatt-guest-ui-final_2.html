@@ -1197,13 +1197,31 @@
   <div class="entry-bg"></div>
   <div class="logo-mark"><span>H</span></div>
   <div class="hotel-name">Hyatt Hotel</div>
-  <div class="welcome-text">Good evening,<br>welcome back.</div>
+  <div class="welcome-text" id="welcome-text">Good evening,<br>welcome.</div>
   <div class="room-badge">
     <div class="room-label">Your Room</div>
     <div class="room-number" id="splash-room-num">--</div>
-    <div class="guest-name" id="splash-guest-name">--</div>
+    <!-- Name input shown when no guest name in URL -->
+    <div id="name-input-wrap" style="margin-top:14px;display:none;">
+      <input id="guest-name-input" type="text"
+        placeholder="Enter your name"
+        autocomplete="given-name"
+        style="
+          width:100%;background:var(--dark3);
+          border:1px solid rgba(201,169,110,0.3);
+          border-radius:10px;padding:12px 14px;
+          color:var(--text);font-size:16px;
+          font-family:'DM Sans',sans-serif;
+          outline:none;text-align:center;
+          letter-spacing:0.02em;
+        "
+        onkeydown="if(event.key==='Enter')doCheckin()"
+      >
+    </div>
+    <!-- Returning guest name shown -->
+    <div class="guest-name" id="splash-guest-name" style="display:none;"></div>
   </div>
-  <button class="btn-primary" onclick="go('home')">Continue</button>
+  <button class="btn-primary" id="entry-btn" onclick="doCheckin()">Check In</button>
 </div>
 
 <!-- ════════════════ HOME SCREEN ════════════════ -->
@@ -2254,86 +2272,103 @@ function initTheme() {
   }, 60000);
 }
 
-initTheme();
-
 // ══════════════════════════════════════════
-// ── SUPABASE CONFIG — fill these in
+// ── SUPABASE
 // ══════════════════════════════════════════
 const SUPA_URL      = 'https://webvlxcypqhcwzbcpths.supabase.co';
 const SUPA_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw';
-
 let supa = null;
-try {
-  if (SUPA_URL !== 'YOUR_SUPABASE_URL') {
-    supa = window.supabase.createClient(SUPA_URL, SUPA_ANON_KEY);
-  }
-} catch(e) { console.warn('Supabase init failed', e); }
+try { supa = window.supabase.createClient(SUPA_URL, SUPA_ANON_KEY); } catch(e) {}
 
 // ══════════════════════════════════════════
-// ── INJECT DYNAMIC ROOM / GUEST INTO DOM
+// ── ENTRY SCREEN LOGIC
 // ══════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function() {
-  const rn = window.ROOM_NUM;
-  const gn = window.GUEST_NAME;
+  var rn = window.ROOM_NUM;
+  var gn = window.GUEST_NAME; // from URL ?guest= param (empty for fixed QR)
 
-  // Splash screen
+  // Set room number
   var sRoom = document.getElementById('splash-room-num');
-  var sGuest = document.getElementById('splash-guest-name');
   if (sRoom) sRoom.textContent = rn;
-  if (sGuest) {
-    // Mask: "Rajan" → "R****"
-    var masked = gn.charAt(0).toUpperCase() + '*'.repeat(Math.max(gn.length - 1, 3));
-    sGuest.textContent = masked;
-  }
 
-  // All topbar room spans injected by sed
-  document.querySelectorAll('.dyn-room').forEach(function(el) {
-    el.textContent = 'Room ' + rn;
-  });
-
-  // Success screen
+  // Update all topbar room labels
+  document.querySelectorAll('.dyn-room').forEach(function(el) { el.textContent = 'Room ' + rn; });
   var ss = document.getElementById('success-sub');
   if (ss) ss.textContent = 'Room ' + rn + ' · Your food is being prepared';
-
-  // Merge modal
   var ms = document.getElementById('merge-sub');
   if (ms) ms.textContent = 'Someone in Room ' + rn + ' just ordered. Want to add to it?';
+
+  if (gn && gn !== 'Guest') {
+    // URL has guest name (old flow) — show name, skip input
+    var sGuest = document.getElementById('splash-guest-name');
+    if (sGuest) { sGuest.style.display = 'block'; sGuest.textContent = gn; }
+    document.getElementById('entry-btn').textContent = 'Continue';
+  } else {
+    // Fixed QR — show name input
+    document.getElementById('name-input-wrap').style.display = 'block';
+    document.getElementById('welcome-text').innerHTML = 'Welcome to<br>Room ' + rn;
+    setTimeout(function() {
+      var inp = document.getElementById('guest-name-input');
+      if (inp) inp.focus();
+    }, 400);
+  }
 });
 
+async function doCheckin() {
+  var rn = window.ROOM_NUM;
+  var inp = document.getElementById('guest-name-input');
+  var gn = window.GUEST_NAME;
+
+  // If name input is visible, read from it
+  if (inp && inp.offsetParent !== null) {
+    var typed = inp.value.trim();
+    if (!typed) { inp.style.borderColor = 'rgba(192,57,43,0.6)'; inp.focus(); return; }
+    gn = typed;
+  }
+
+  // Set globally so orders use correct name
+  window.GUEST_NAME = gn || 'Guest';
+
+  // Update all topbar guest references
+  document.querySelectorAll('.dyn-guest').forEach(function(el) { el.textContent = window.GUEST_NAME; });
+
+  // Insert check-in to Supabase
+  if (supa && gn) {
+    try {
+      var checkinId = 'CHK-' + Date.now() + '-' + Math.random().toString(36).slice(2,5).toUpperCase();
+      await supa.from('checkins').insert({
+        id:             checkinId,
+        room:           rn,
+        guest_name:     gn,
+        checked_in_at:  new Date().toISOString(),
+        status:         'active'
+      });
+    } catch(e) { console.warn('Checkin insert failed', e); }
+  }
+
+  go('home');
+}
+
 // ══════════════════════════════════════════
-// ── OVERRIDE placeOrder TO ALSO INSERT TO SUPABASE
+// ── OVERRIDE placeOrder TO INSERT TO SUPABASE
 // ══════════════════════════════════════════
 const _origPlaceOrder = placeOrder;
 placeOrder = async function(isMerge) {
-  // Run original local logic first
   _origPlaceOrder(isMerge);
-
-  if (!supa) return; // no Supabase configured — local only
-
+  if (!supa) return;
   const items = Object.entries(cart).map(([,item]) => ({
-    name: item.name,
-    qty: item.qty,
-    price: item.price,
-    category: item.category || ''
+    name: item.name, qty: item.qty, price: item.price, category: item.category || ''
   }));
   const total = items.reduce((s,i)=>s+i.qty*i.price, 0);
-
   try {
     const orderId = 'ORD-' + Date.now() + '-' + Math.random().toString(36).slice(2,6).toUpperCase();
     const { error } = await supa.from('orders').insert({
-      id:        orderId,
-      room:      window.ROOM_NUM,
-      guest:     window.GUEST_NAME,
-      items:     items,
-      total:     total,
-      status:    'new',
+      id: orderId, room: window.ROOM_NUM, guest: window.GUEST_NAME,
+      items: items, total: total, status: 'new',
       placed_at: new Date().toISOString()
     });
-    if (error) console.error('Supabase insert error:', error.message);
-    else console.log('Order sent to dashboard ✓');
-  } catch(e) {
-    console.error('Supabase insert failed:', e);
-  }
+    if (error) console.error('Order insert error:', error.message);
+  } catch(e) { console.error('Order insert failed:', e); }
 };
 </script>
 </body>
