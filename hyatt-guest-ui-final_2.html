@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Hyatt Hotel</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" async></script>
 <script>
 (function(){
   var p={};
@@ -1197,31 +1197,20 @@
   <div class="entry-bg"></div>
   <div class="logo-mark"><span>H</span></div>
   <div class="hotel-name">Hyatt Hotel</div>
-  <div class="welcome-text" id="welcome-text">Good evening,<br>welcome.</div>
+  <div class="welcome-text">Good evening,<br>welcome.</div>
   <div class="room-badge">
     <div class="room-label">Your Room</div>
     <div class="room-number" id="splash-room-num">--</div>
-    <!-- Name input shown when no guest name in URL -->
-    <div id="name-input-wrap" style="margin-top:14px;display:none;">
+    <div style="margin-top:16px;">
       <input id="guest-name-input" type="text"
         placeholder="Enter your name"
         autocomplete="given-name"
-        style="
-          width:100%;background:var(--dark3);
-          border:1px solid rgba(201,169,110,0.3);
-          border-radius:10px;padding:12px 14px;
-          color:var(--text);font-size:16px;
-          font-family:'DM Sans',sans-serif;
-          outline:none;text-align:center;
-          letter-spacing:0.02em;
-        "
-        onkeydown="if(event.key==='Enter')doCheckin()"
+        style="width:100%;background:var(--dark3);border:1px solid rgba(201,169,110,0.3);border-radius:10px;padding:12px 14px;color:var(--text);font-size:16px;font-family:'DM Sans',sans-serif;outline:none;text-align:center;"
+        onkeydown="if(event.key==='Enter')startOrdering()"
       >
     </div>
-    <!-- Returning guest name shown -->
-    <div class="guest-name" id="splash-guest-name" style="display:none;"></div>
   </div>
-  <button class="btn-primary" id="entry-btn" onclick="doCheckin()">Check In</button>
+  <button class="btn-primary" onclick="startOrdering()">Continue</button>
 </div>
 
 <!-- ════════════════ HOME SCREEN ════════════════ -->
@@ -1658,7 +1647,7 @@ function placeOrder(isMerge) {
     date: now.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
     items,
     total,
-    status: 'preparing',
+    status: 'new',
     placedAt: Date.now(),
     eta: 25,
     isMerge,
@@ -1669,19 +1658,6 @@ function placeOrder(isMerge) {
   // Broadcast to other devices in the room
   broadcastOrder(order);
   broadcastActivity('ordered');
-
-  // Simulate status progression
-  setTimeout(() => {
-    order.status = 'ready';
-    if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
-    updateOrdersBadge();
-  }, 8000);
-  setTimeout(() => {
-    order.status = 'delivered';
-    if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
-    updateOrdersBadge();
-    broadcastActivity('idle');
-  }, 20000);
 
   updateOrdersBadge();
   document.getElementById('cart-body').style.display = 'none';
@@ -1728,25 +1704,27 @@ function renderOrders() {
   const active = orderHistory.filter(o => o.status !== 'delivered');
   const past   = orderHistory.filter(o => o.status === 'delivered');
 
-  const statusLabel = { preparing: 'Preparing', ready: 'Ready', delivered: 'Delivered' };
-  const statusClass = { preparing: 'status-preparing', ready: 'status-active', delivered: 'status-delivered' };
+  const statusLabel = { new: 'Waiting', accepted: 'Accepted', preparing: 'Preparing', ready: 'Ready for delivery', delivered: 'Delivered', rejected: 'Not accepted' };
+  const statusClass = { new: 'status-preparing', accepted: 'status-active', preparing: 'status-preparing', ready: 'status-active', delivered: 'status-delivered', rejected: 'status-delivered' };
 
-  const stepsDef = ['Confirmed', 'Preparing', 'Ready', 'Delivered'];
+  const stepsDef = ['Placed', 'Accepted', 'Preparing', 'Delivered'];
   function stepIndex(status) {
-    var idx = { preparing: 1, ready: 2, delivered: 3 }[status];
-    return idx !== undefined ? idx : 0;
+    return { new:0, accepted:1, preparing:2, ready:2, delivered:3, rejected:-1 }[status] ?? 0;
   }
 
   function renderCard(o) {
     const si = stepIndex(o.status);
-    const steps = stepsDef.map((s, i) => {
-      const cls = i < si ? 'done' : i === si ? 'active' : '';
-      const checkSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polyline points="20 6 9 17 4 12"/></svg>`;
-      return `<div class="tracker-step ${cls}">
-        <div class="tracker-dot">${checkSvg}</div>
-        <div class="tracker-step-name">${s}</div>
-      </div>`;
-    }).join('');
+    const isRejected = o.status === 'rejected';
+    const steps = isRejected
+      ? '<div style="font-size:12px;color:#C0392B;padding:4px 0;">✕ Order was not accepted</div>'
+      : stepsDef.map((s, i) => {
+          const cls = i < si ? 'done' : i === si ? 'active' : '';
+          const checkSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+          return `<div class="tracker-step ${cls}">
+            <div class="tracker-dot">${cls==='done'?checkSvg:''}</div>
+            <div class="tracker-step-name">${s}</div>
+          </div>`;
+        }).join('');
 
     return `<div class="order-card">
       <div class="order-card-head">
@@ -1756,6 +1734,10 @@ function renderOrders() {
         </div>
         <div class="order-status-pill ${statusClass[o.status]}">${statusLabel[o.status]}</div>
       </div>
+      ${o.status === 'rejected' && o.rejection_reason ? `
+      <div style="margin:8px 0;padding:10px 12px;background:rgba(192,57,43,0.1);border-radius:10px;font-size:13px;color:#C0392B;">
+        Reason: ${o.rejection_reason}
+      </div>` : ''}
       <div class="order-card-items">
         ${o.items.map(i => `
           <div class="order-item-row">
@@ -2278,80 +2260,46 @@ function initTheme() {
 const SUPA_URL      = 'https://webvlxcypqhcwzbcpths.supabase.co';
 const SUPA_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw';
 let supa = null;
-try { supa = window.supabase.createClient(SUPA_URL, SUPA_ANON_KEY); } catch(e) {}
+function initSupa(){
+  try {
+    if(window.supabase && window.supabase.createClient){
+      supa = window.supabase.createClient(SUPA_URL, SUPA_ANON_KEY);
+    }
+  } catch(e) {}
+}
+// Try now, and again after load in case async script hasn't run yet
+initSupa();
+window.addEventListener('load', initSupa);
 
 // ══════════════════════════════════════════
-// ── ENTRY SCREEN LOGIC
-// ══════════════════════════════════════════
+// ── ENTRY SCREEN
 document.addEventListener('DOMContentLoaded', function() {
   var rn = window.ROOM_NUM;
-  var gn = window.GUEST_NAME; // from URL ?guest= param (empty for fixed QR)
-
-  // Set room number
   var sRoom = document.getElementById('splash-room-num');
   if (sRoom) sRoom.textContent = rn;
-
-  // Update all topbar room labels
-  document.querySelectorAll('.dyn-room').forEach(function(el) { el.textContent = 'Room ' + rn; });
+  document.querySelectorAll('.dyn-room').forEach(function(el){ el.textContent = 'Room ' + rn; });
   var ss = document.getElementById('success-sub');
   if (ss) ss.textContent = 'Room ' + rn + ' · Your food is being prepared';
   var ms = document.getElementById('merge-sub');
   if (ms) ms.textContent = 'Someone in Room ' + rn + ' just ordered. Want to add to it?';
-
-  if (gn && gn !== 'Guest') {
-    // URL has guest name (old flow) — show name, skip input
-    var sGuest = document.getElementById('splash-guest-name');
-    if (sGuest) { sGuest.style.display = 'block'; sGuest.textContent = gn; }
-    document.getElementById('entry-btn').textContent = 'Continue';
-  } else {
-    // Fixed QR — show name input
-    document.getElementById('name-input-wrap').style.display = 'block';
-    document.getElementById('welcome-text').innerHTML = 'Welcome to<br>Room ' + rn;
-    setTimeout(function() {
-      var inp = document.getElementById('guest-name-input');
-      if (inp) inp.focus();
-    }, 400);
-  }
+  setTimeout(function(){
+    var inp = document.getElementById('guest-name-input');
+    if(inp) inp.focus();
+  }, 500);
 });
 
-async function doCheckin() {
-  var rn = window.ROOM_NUM;
+function startOrdering() {
   var inp = document.getElementById('guest-name-input');
-  var gn = window.GUEST_NAME;
-
-  // If name input is visible, read from it
-  if (inp && inp.offsetParent !== null) {
-    var typed = inp.value.trim();
-    if (!typed) { inp.style.borderColor = 'rgba(192,57,43,0.6)'; inp.focus(); return; }
-    gn = typed;
+  var name = inp ? inp.value.trim() : '';
+  if (!name) {
+    if(inp){ inp.style.borderColor='rgba(192,57,43,0.6)'; inp.focus(); }
+    return;
   }
-
-  // Set globally so orders use correct name
-  window.GUEST_NAME = gn || 'Guest';
-
-  // Update all topbar guest references
-  document.querySelectorAll('.dyn-guest').forEach(function(el) { el.textContent = window.GUEST_NAME; });
-
-  // Insert check-in to Supabase
-  if (supa && gn) {
-    try {
-      var checkinId = 'CHK-' + Date.now() + '-' + Math.random().toString(36).slice(2,5).toUpperCase();
-      await supa.from('checkins').insert({
-        id:             checkinId,
-        room:           rn,
-        guest_name:     gn,
-        checked_in_at:  new Date().toISOString(),
-        status:         'active'
-      });
-    } catch(e) { console.warn('Checkin insert failed', e); }
-  }
-
+  window.GUEST_NAME = name;
   go('home');
 }
 
-// ══════════════════════════════════════════
-// ── OVERRIDE placeOrder TO INSERT TO SUPABASE
-// ══════════════════════════════════════════
+// ── OVERRIDE placeOrder TO INSERT TO SUPABASE + SUBSCRIBE TO STATUS UPDATES
 const _origPlaceOrder = placeOrder;
 placeOrder = async function(isMerge) {
   _origPlaceOrder(isMerge);
@@ -2367,9 +2315,49 @@ placeOrder = async function(isMerge) {
       items: items, total: total, status: 'new',
       placed_at: new Date().toISOString()
     });
-    if (error) console.error('Order insert error:', error.message);
+    if (error) { console.error('Order insert error:', error.message); return; }
+
+    // Subscribe to status updates for this order
+    supa.channel('order-status-' + orderId)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'orders',
+        filter: 'id=eq.' + orderId
+      }, function(payload) {
+        var row = payload.new;
+        var order = orderHistory.find(function(o){ return o.id === orderId; });
+        if (!order) return;
+        order.status = row.status;
+        order.rejection_reason = row.rejection_reason || null;
+        updateOrdersBadge();
+        if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
+        // Show notification to guest
+        if (row.status === 'accepted') {
+          showGuestToast('✓ Order accepted! Being prepared.', 'green');
+        } else if (row.status === 'rejected') {
+          var reason = row.rejection_reason || 'Please contact reception';
+          showGuestToast('Order not accepted: ' + reason, 'red');
+        } else if (row.status === 'delivered') {
+          showGuestToast('Your order has been delivered!', 'green');
+          broadcastActivity('idle');
+        }
+      })
+      .subscribe();
+
   } catch(e) { console.error('Order insert failed:', e); }
 };
+
+function showGuestToast(msg, color) {
+  var toast = document.createElement('div');
+  var bg = color === 'red' ? 'rgba(192,57,43,0.95)' : 'rgba(76,175,125,0.95)';
+  toast.style.cssText = 'position:fixed;top:24px;left:50%;transform:translateX(-50%);'+
+    'background:'+bg+';color:white;border-radius:14px;padding:14px 20px;z-index:999;'+
+    'font-size:14px;font-family:DM Sans,sans-serif;text-align:center;'+
+    'max-width:320px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3);';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(function(){ toast.remove(); }, 5000);
+}
+
 </script>
 </body>
 </html>
