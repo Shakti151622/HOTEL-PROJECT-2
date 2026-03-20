@@ -1692,7 +1692,8 @@ function updateOrdersBadge() {
   const active = orderHistory.filter(o => o.status !== 'delivered' && o.status !== 'rejected' && o.status !== 'cancelled');
   if (active.length > 0) {
     badge.style.display = 'inline-block';
-    const statusText = { new: 'Waiting for confirmation', accepted: 'Accepted · being prepared', preparing: 'Being prepared', ready: 'Ready for delivery' };
+    // Guest visibility mapping: ready is hidden (shows as Preparing per spec)
+    const statusText = { new: 'Waiting for confirmation', accepted: 'Accepted · being prepared', preparing: 'Being prepared', ready: 'Being prepared' };
     desc.textContent = active.length === 1
       ? (statusText[active[0].status] || 'In progress') + ' · ' + active[0].eta + ' min est.'
       : active.length + ' orders in progress';
@@ -2031,8 +2032,8 @@ function submitService() {
           r.status=payload.new.status;
           updateServicesBadge();
           if(document.getElementById('screen-services').classList.contains('active'))renderServices();
-          var t={assigned:'✓ Request assigned to staff',inprogress:'🔧 Staff is on the way…',done:'✓ Request completed!'};
-          if(t[payload.new.status])showGuestToast(t[payload.new.status],'green');
+          var t={assigned:'✓ Request assigned to staff',inprogress:'🚶 Staff is on the way…',done:'✓ Request completed!'};
+          if(t[payload.new.status])showGuestToast(t[payload.new.status], payload.new.status==='done' ? 'green' : 'green');
         }).subscribe();
       });
     }

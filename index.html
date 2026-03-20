@@ -2655,235 +2655,6 @@ function initTheme() {
 }
 
 
-// ══════════════════════════════════════════════════════
-//  SUPABASE — GUEST SIDE
-//  Reads credentials from localStorage (set by staff dashboard).
-//  placeOrder() and submitService() write to Supabase so the
-//  dashboard receives them via realtime subscription.
-//  The guest also subscribes to status changes on its own orders
-//  so the tracker updates live without polling.
-// ══════════════════════════════════════════════════════
-
-var G_SB_URL = (localStorage.getItem('hyatt_sb_url') || '').replace(/\/+$/, '');
-var G_SB_KEY = (localStorage.getItem('hyatt_sb_key') || '').trim();
-var guestRt  = null;   // realtime channel for status updates
-
-// Use a single shared Supabase client (avoids "Multiple instances" error)
-var guestSb = null;
-if (G_SB_URL && G_SB_KEY) {
-  try {
-    // Reuse existing client if already created, otherwise make one
-    if (window._hyattSb) {
-      guestSb = window._hyattSb;
-    } else {
-      guestSb = supabase.createClient(G_SB_URL, G_SB_KEY, {auth:{storageKey:'hyatt-sb-auth'}});
-      window._hyattSb = guestSb;
-    }
-  } catch(e) { console.warn('Guest Supabase init:', e&&e.message); }
-}
-
-// ── Supabase-aware placeOrder (overwrites the local-only version above)
-async function placeOrder(isMerge) {
-  isMerge = isMerge === true;
-  const items = Object.entries(cart).map(([key, item]) => ({...item}));
-  const total  = items.reduce((s,i) => s + i.qty * i.price, 0);
-  const now    = new Date();
-  const orderId = 'ORD-' + String(Math.floor(Date.now() / 1000)).slice(-6)
-                  + '-' + Math.random().toString(36).slice(2,5).toUpperCase();
-  const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-
-  const order = {
-    id:        orderId,
-    time:      timeStr,
-    date:      now.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
-    items,
-    total,
-    status:    'new',
-    placedAt:  Date.now(),
-    eta:       25,
-    isMerge,
-    fromPeer:  false
-  };
-
-  orderHistory.unshift(order);
-  broadcastOrder(order);
-  broadcastActivity('ordered');
-  updateOrdersBadge();
-  document.getElementById('cart-body').style.display = 'none';
-  document.getElementById('order-success').classList.add('visible');
-  cart = {};
-  updateCartBtn();
-
-  // Write to Supabase
-  if (guestSb) {
-    const roomNum = window.ROOM_NUM || document.querySelector('.room-number') && document.querySelector('.room-number').textContent || '203';
-    const guestName = window.GUEST_NAME || document.querySelector('.guest-name') && document.querySelector('.guest-name').textContent || 'Guest';
-    try {
-      await guestSb.from('orders').insert({
-        id:        orderId,
-        room:      roomNum,
-        guest:     guestName,
-        items:     items,
-        total:     total,
-        status:    'new',
-        placed_at: now.toISOString()
-      });
-      // Subscribe to status changes for this order
-      subscribeGuestOrderUpdates(orderId, order);
-    } catch(err) {
-      console.warn('Guest Supabase insert failed:', err.message);
-    }
-  } else {
-    // Fallback: simulate status progression locally
-    setTimeout(() => { order.status = 'preparing'; if (document.getElementById('screen-orders').classList.contains('active')) renderOrders(); updateOrdersBadge(); }, 5000);
-    
-    setTimeout(() => { order.status = 'delivered'; if (document.getElementById('screen-orders').classList.contains('active')) renderOrders(); updateOrdersBadge(); broadcastActivity('idle'); }, 30000);
-  }
-}
-
-// ── Supabase-aware submitService (overwrites local-only version above)
-async function submitService() {
-  const note   = document.getElementById('service-note').value.trim();
-  const hasQty = serviceQtyItems.includes(selectedService);
-  const qty    = hasQty ? serviceQty : null;
-  const now    = new Date();
-  const reqId  = 'REQ-' + String(Math.floor(Date.now() / 1000)).slice(-6)
-                 + '-' + Math.random().toString(36).slice(2,4).toUpperCase();
-  const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-
-  const req = {
-    id:       reqId,
-    type:     selectedService,
-    icon:     serviceIcons[selectedService] || '🔔',
-    qty:      qty,
-    note:     note,
-    time:     timeStr,
-    date:     now.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
-    status:   'received',
-    placedAt: Date.now()
-  };
-  serviceHistory.unshift(req);
-  updateServicesBadge();
-
-  let msg = selectedService;
-  if (qty) msg += ` · ${qty} ${selectedService === 'Water' ? (qty > 1 ? 'bottles' : 'bottle') : (qty > 1 ? 'towels' : 'towel')}`;
-  if (note) msg += ` · "${note}"`;
-  msg += ' — sent to housekeeping.';
-  document.getElementById('service-success-msg').textContent = msg;
-  document.querySelector('.service-body').style.display = 'none';
-  document.getElementById('submit-bar').style.display = 'none';
-  document.getElementById('service-success').style.display = 'flex';
-
-  if (guestSb) {
-    const roomNum   = window.ROOM_NUM || '203';
-    const guestName = window.GUEST_NAME || 'Guest';
-    try {
-      await guestSb.from('service_requests').insert({
-        id:         reqId,
-        room:       roomNum,
-        guest:      guestName,
-        type:       selectedService,
-        icon:       req.icon,
-        qty:        qty,
-        note:       note,
-        status:     'received',
-        placed_at:  now.toISOString()
-      });
-      // Subscribe to status updates for this request
-      subscribeGuestServiceUpdates(reqId, req);
-    } catch(err) {
-      console.warn('Guest service insert failed:', err.message);
-      // Local fallback simulation
-      setTimeout(() => { req.status = 'assigned';   if (document.getElementById('screen-services').classList.contains('active')) renderServices(); updateServicesBadge(); }, 6000);
-      setTimeout(() => { req.status = 'inprogress'; if (document.getElementById('screen-services').classList.contains('active')) renderServices(); updateServicesBadge(); }, 12000);
-      setTimeout(() => { req.status = 'done';       if (document.getElementById('screen-services').classList.contains('active')) renderServices(); updateServicesBadge(); }, 22000);
-    }
-  } else {
-    // Local fallback
-    setTimeout(() => { req.status = 'assigned';   if (document.getElementById('screen-services').classList.contains('active')) renderServices(); updateServicesBadge(); }, 6000);
-    setTimeout(() => { req.status = 'inprogress'; if (document.getElementById('screen-services').classList.contains('active')) renderServices(); updateServicesBadge(); }, 12000);
-    setTimeout(() => { req.status = 'done';       if (document.getElementById('screen-services').classList.contains('active')) renderServices(); updateServicesBadge(); }, 22000);
-  }
-}
-
-// ── Subscribe to real-time order status changes for the guest
-function subscribeGuestOrderUpdates(orderId, localOrder) {
-  if (!guestSb) return;
-  if (guestRt) { try { guestSb.removeChannel(guestRt); } catch(e){} }
-
-  guestRt = guestSb
-    .channel('guest-order-' + orderId)
-    .on('postgres_changes', {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'orders',
-      filter: 'id=eq.' + orderId
-    }, function(payload) {
-      var newStatus = payload.new && payload.new.status;
-      if (!newStatus) return;
-      // Update local order object
-      var found = orderHistory.find(function(o) { return o.id === orderId; });
-      if (found) {
-        found.status = newStatus;
-        if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
-        updateOrdersBadge();
-      }
-    })
-    .subscribe();
-}
-
-// ── Subscribe to real-time service request status changes for the guest
-function subscribeGuestServiceUpdates(reqId, localReq) {
-  if (!guestSb) return;
-
-  guestSb
-    .channel('guest-svc-' + reqId)
-    .on('postgres_changes', {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'service_requests',
-      filter: 'id=eq.' + reqId
-    }, function(payload) {
-      var newStatus = payload.new && payload.new.status;
-      if (!newStatus) return;
-      localReq.status = newStatus;
-      if (document.getElementById('screen-services').classList.contains('active')) renderServices();
-      updateServicesBadge();
-    })
-    .subscribe();
-}
-
-// BroadcastChannel already initialized above with dynamic ROOM_ID
-try {
-  if (roomChannel) roomChannel.close();
-  roomChannel = new BroadcastChannel(ROOM_ID);
-} catch(e) {}
-
-initTheme();
-
-// ── Expose guest functions to window (needed for HTML onclick handlers)
-window.go = go;
-window.filterCat = filterCat;
-window.addItem = addItem;
-window.changeQty = changeQty;
-window.cartQty = cartQty;
-window.cartRemove = cartRemove;
-window.placeOrder = placeOrder;
-window.resetOrder = resetOrder;
-window.updateOrdersBadge = updateOrdersBadge;
-window.selectService = selectService;
-window.changeSvcQty = changeSvcQty;
-window.submitService = submitService;
-window.resetService = resetService;
-window.updateServicesBadge = updateServicesBadge;
-window.callReception = callReception;
-window.setTheme = setTheme;
-window.dismissMerge = dismissMerge;
-window.mergeAndOrder = mergeAndOrder;
-window.newOrderAnyway = newOrderAnyway;
-window.subscribeGuestOrderUpdates = subscribeGuestOrderUpdates;
-window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
-
 })();
 </script>
 </div>
@@ -3502,14 +3273,23 @@ function handleSvcRealtimeEvent(payload){
     if(!services.find(function(x){return x.id===s.id;})){
       services.unshift(s);
       renderServices();updateUrgencyStrip();
+      // New request — single alert
       showToast('service','Service Request — Room '+s.room,s.type+(s.qty?' ×'+s.qty:''));
       playBeep('service');
     }
   } else if(evt==='UPDATE'){
     var idx=services.findIndex(function(x){return x.id===row.id;});
-    if(idx!==-1)services[idx]=rowToService(row);
+    if(idx!==-1) services[idx]=rowToService(row);
     else services.unshift(rowToService(row));
     renderServices();updateUrgencyStrip();
+    // inprogress = staff en route (toast only, no sound)
+    if(row.status==='inprogress'){
+      showToast('service','En Route — Room '+row.room,'Staff is on the way');
+    }
+    // done = completion alert
+    if(row.status==='done'){
+      showToast('service','Completed — Room '+row.room,'Request fulfilled ✓');
+    }
   } else if(evt==='DELETE'){
     services=services.filter(function(x){return x.id!==old.id;});
     renderServices();updateUrgencyStrip();
@@ -3543,7 +3323,33 @@ async function loadCheckinsFromSupabase(){
     }
   }catch(err){console.warn('Checkins load exception:',err&&err.message||String(err));}
 }
-function handleRealtimeEvent(payload){var evt=payload.eventType,row=payload.new||{},old=payload.old||{};if(evt==='INSERT'){var o=rowToOrder(row);if(!orders.find(function(x){return x.id===o.id;})){orders.unshift(o);renderOrders();updateStats();showToast('order','New Order — Room '+o.room,'₹'+o.total+' · '+o.items.length+' item'+(o.items.length!==1?'s':''));startAlertBeep(o.id,'order');}}else if(evt==='UPDATE'){var idx=orders.findIndex(function(x){return x.id===row.id;});if(idx!==-1)orders[idx]=rowToOrder(row);else orders.unshift(rowToOrder(row));renderOrders();updateStats();if(row.status==='accepted'||row.status==='preparing'||row.status==='delivered'||row.status==='rejected')stopAlertBeep(row.id);}else if(evt==='DELETE'){orders=orders.filter(function(x){return x.id!==old.id;});stopAlertBeep(old.id);renderOrders();updateStats();}}
+function handleRealtimeEvent(payload){
+  var evt=payload.eventType,row=payload.new||{},old=payload.old||{};
+  if(evt==='INSERT'){
+    var o=rowToOrder(row);
+    if(!orders.find(function(x){return x.id===o.id;})){
+      orders.unshift(o);renderOrders();updateStats();
+      // Step 1: New order alert — sound + highlight
+      showToast('order','New Order — Room '+o.room,'₹'+o.total+' · '+o.items.length+' item'+(o.items.length!==1?'s':''));
+      startAlertBeep(o.id,'order');
+    }
+  } else if(evt==='UPDATE'){
+    var idx=orders.findIndex(function(x){return x.id===row.id;});
+    if(idx!==-1) orders[idx]=rowToOrder(row);
+    else orders.unshift(rowToOrder(row));
+    renderOrders();updateStats();
+    // Stop new-order beep once actioned
+    if(row.status!=='new') stopAlertBeep(row.id);
+    // Step 4: Ready = delivery queue alert
+    if(row.status==='ready'){
+      showToast('service','🚀 Ready to Deliver — Room '+row.room,'Send to room now');
+      playBeep('order');
+    }
+  } else if(evt==='DELETE'){
+    orders=orders.filter(function(x){return x.id!==old.id;});
+    stopAlertBeep(old.id);renderOrders();updateStats();
+  }
+}
 async function acceptOrder(id){
   var order=orders.find(function(o){return o.id===id;});
   if(!order)return;
@@ -3628,7 +3434,7 @@ function updateClock(){var d=new Date(),el=document.getElementById('clock');if(e
 setInterval(updateClock,1000);updateClock();
 function elapsed(ts){var m=Math.floor((Date.now()-ts)/60000);if(m<1)return'< 1m';if(m<60)return m+'m';return Math.floor(m/60)+'h '+(m%60)+'m';}
 function elapsedClass(ts){var m=Math.floor((Date.now()-ts)/60000);return m<15?'ok':m<25?'warn':'late';}
-function renderOrders(){
+ function renderOrders(){
   var grid=document.getElementById('orders-grid');
   var active=orders.filter(function(o){return o.status!=='delivered'&&o.status!=='rejected'&&o.status!=='cancelled';});
   var filtered=orders.filter(function(o){
@@ -3644,11 +3450,14 @@ function renderOrders(){
     grid.innerHTML='<div class="empty-state"><div class="empty-icon">✓</div><div style="color:var(--text-muted);font-size:15px;font-family:\'Cormorant Garamond\',serif">All clear</div><div style="font-size:12px;margin-top:4px;color:var(--text-dim)">No orders in this category</div></div>';
     return;
   }
+  // Dashboard shows ALL states — full visibility for staff
+  // Ready state = delivery queue alert trigger
   var pills={
-    new:'<span class="status-pill pill-new"><span class="pill-dot"></span>New</span>',
-    accepted:'<span class="status-pill pill-accepted"><span class="pill-dot"></span>Accepted</span>',
+    new:      '<span class="status-pill pill-new"><span class="pill-dot"></span>New</span>',
+    accepted: '<span class="status-pill pill-accepted"><span class="pill-dot"></span>Accepted</span>',
     preparing:'<span class="status-pill pill-preparing"><span class="pill-dot"></span>Preparing</span>',
-    rejected:'<span class="status-pill pill-rejected"><span class="pill-dot"></span>Rejected</span>',
+    ready:    '<span class="status-pill pill-ready"><span class="pill-dot"></span>Ready · Deliver Now</span>',
+    rejected: '<span class="status-pill pill-rejected"><span class="pill-dot"></span>Rejected</span>',
     delivered:'<span class="status-pill pill-delivered"><span class="pill-dot"></span>Delivered</span>',
     cancelled:'<span class="status-pill pill-delivered"><span class="pill-dot"></span>Cancelled</span>'
   };
@@ -3656,19 +3465,23 @@ function renderOrders(){
     var ec=elapsedClass(o.placedAt);
     var pill=pills[o.status]||'';
     var lt=o.fromSupa?'<span style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:var(--green);margin-left:5px;opacity:0.8">● live</span>':'';
+    // Lifecycle buttons — one action per state
     var actions='';
     if(o.status==='new'){
       actions='<button class="btn-status btn-accept" onclick="acceptOrder(\''+o.id+'\')">✓ Accept</button>'+
               '<button class="btn-status btn-reject" onclick="openRejectModal(\''+o.id+'\')">✕ Reject</button>';
     } else if(o.status==='accepted'){
       actions='<button class="btn-status btn-preparing" onclick="advanceOrder(\''+o.id+'\',\'preparing\')">Start Preparing</button>';
-    } else if(o.status==='preparing'||o.status==='ready'){
-      actions='<button class="btn-status btn-done" onclick="advanceOrder(\''+o.id+'\',\'delivered\')">Mark Delivered</button>';
+    } else if(o.status==='preparing'){
+      actions='<button class="btn-status btn-ready" onclick="advanceOrder(\''+o.id+'\',\'ready\')">Mark Ready</button>';
+    } else if(o.status==='ready'){
+      actions='<button class="btn-status btn-done" style="width:100%;background:rgba(76,175,125,0.15);color:var(--green);border-color:rgba(76,175,125,0.3);" onclick="advanceOrder(\''+o.id+'\',\'delivered\')">✓ Mark Delivered</button>';
     }
-    var rejectionInfo = o.rejection_reason
-      ? '<div style="margin:8px 0;padding:8px 10px;background:rgba(192,57,43,0.08);border-radius:8px;font-size:12px;color:var(--red);">Reason: '+o.rejection_reason+'</div>'
-      : '';
-    return '<div class="order-card'+(o.status==='new'?' urgent':'')+'" id="card-'+o.id+'">'+
+    var rejectionInfo=o.rejection_reason
+      ?'<div style="margin:8px 0;padding:8px 10px;background:rgba(192,57,43,0.08);border-radius:8px;font-size:12px;color:var(--red);">Reason: '+o.rejection_reason+'</div>'
+      :'';
+    var isUrgent=(o.status==='new'||o.status==='ready')?' urgent':'';
+    return '<div class="order-card'+isUrgent+'" id="card-'+o.id+'">'+
       '<div class="order-head"><div>'+
         '<div class="order-room">Room '+o.room+lt+'</div>'+
         '<div class="order-id">'+o.id+' · '+o.guest+'</div>'+
@@ -3683,11 +3496,12 @@ function renderOrders(){
       '<div class="order-total-row"><div class="order-total-label">Total</div><div class="order-total-amt">₹'+o.total+'</div></div>'+
       rejectionInfo+
       '<div class="order-actions" style="gap:8px;">'+actions+
-        '<button class="btn-call" onclick="callRoom(\''+o.room+'\')" title="Call room"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6z"/></svg></button>'+
+        '<button class="btn-call" onclick="callRoom(\''+o.room+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6z"/></svg></button>'+
       '</div>'+
     '</div>';
   }).join('');
 }
+
 function filterOrders(f,el){orderFilter=f;document.querySelectorAll('#view-orders .filter-tab').forEach(function(t){t.classList.remove('active');});el.classList.add('active');renderOrders();}
 function renderServices(){var list=document.getElementById('svc-list');var filtered=services.filter(function(s){return svcFilter==='all'||s.status===svcFilter;});document.getElementById('svc-count').textContent=filtered.length+' requests';document.getElementById('service-badge').textContent=services.filter(function(s){return s.status!=='done';}).length;document.getElementById('stat-svc-pending').textContent=services.filter(function(s){return s.status!=='done';}).length;if(!filtered.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">✓</div><div style="color:var(--text-muted);font-size:15px;font-family:&quot;Cormorant Garamond&quot;,serif">No requests</div></div>';return;}var pills={received:'<span class="status-pill pill-received"><span class="pill-dot"></span>New</span>',assigned:'<span class="status-pill pill-assigned"><span class="pill-dot"></span>Assigned</span>',inprogress:'<span class="status-pill pill-inprogress"><span class="pill-dot"></span>In Progress</span>',done:'<span class="status-pill pill-done"><span class="pill-dot"></span>Done</span>'};list.innerHTML=filtered.map(function(s){var qtyStr=s.qty?' ×'+s.qty:'';var btns='';if(s.status==='received')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'assigned\')">Assign to Staff</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='assigned')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'inprogress\')" style="background:rgba(76,175,125,0.08);border-color:rgba(76,175,125,0.22);color:var(--green)">In Progress</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='inprogress')btns='<button class="svc-complete" style="width:100%" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Completed</button>';else btns='<span style="font-size:13px;color:var(--text-muted);padding:4px 0;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>Completed</span>';return'<div class="svc-card" id="svc-card-'+s.id+'"><div class="svc-head"><div class="svc-icon-box">'+s.icon+'</div><div><div class="svc-room">Room '+s.room+'</div><div class="svc-type">'+s.type+qtyStr+'</div>'+(s.note?'<div class="svc-note">"'+ s.note+'"</div>':'')+ '</div><div class="svc-meta">'+(pills[s.status]||'')+'<div class="svc-time" style="margin-top:6px">'+s.id+'</div><div class="svc-elapsed '+elapsedClass(s.placedAt)+'">'+elapsed(s.placedAt)+'</div></div></div><div class="svc-actions">'+btns+'<button class="btn-call" onclick="callRoom(\''+s.room+'\')" title="Call room" style="width:36px;height:36px;border-radius:10px;background:var(--surface2);border:1px solid var(--card-border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6z"/></svg></button></div></div>';}).join('');}
 async function advanceSvc(id,status){
