@@ -1716,7 +1716,7 @@ function renderOrders() {
   const active = orderHistory.filter(o => o.status !== 'delivered' && o.status !== 'rejected' && o.status !== 'cancelled');
   const past   = orderHistory.filter(o => o.status === 'delivered' || o.status === 'rejected' || o.status === 'cancelled');
 
-  const statusLabel = { new: 'Waiting', accepted: 'Accepted', preparing: 'Preparing', ready: 'Ready for delivery', delivered: 'Delivered', rejected: 'Not accepted', cancelled: 'Cancelled' };
+  const statusLabel = { new: 'Waiting', accepted: 'Accepted', preparing: 'Preparing', ready: 'Preparing', delivered: 'Delivered', rejected: 'Not accepted', cancelled: 'Cancelled' };
   const statusClass = { new: 'status-preparing', accepted: 'status-active', preparing: 'status-preparing', ready: 'status-active', delivered: 'status-delivered', rejected: 'status-delivered', cancelled: 'status-delivered' };
 
   const stepsDef = ['Placed', 'Accepted', 'Preparing', 'Delivered'];

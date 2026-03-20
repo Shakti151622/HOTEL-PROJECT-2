@@ -2736,7 +2736,7 @@ async function placeOrder(isMerge) {
   } else {
     // Fallback: simulate status progression locally
     setTimeout(() => { order.status = 'preparing'; if (document.getElementById('screen-orders').classList.contains('active')) renderOrders(); updateOrdersBadge(); }, 5000);
-    setTimeout(() => { order.status = 'ready';     if (document.getElementById('screen-orders').classList.contains('active')) renderOrders(); updateOrdersBadge(); }, 15000);
+    
     setTimeout(() => { order.status = 'delivered'; if (document.getElementById('screen-orders').classList.contains('active')) renderOrders(); updateOrdersBadge(); broadcastActivity('idle'); }, 30000);
   }
 }
@@ -3648,7 +3648,6 @@ function renderOrders(){
     new:'<span class="status-pill pill-new"><span class="pill-dot"></span>New</span>',
     accepted:'<span class="status-pill pill-accepted"><span class="pill-dot"></span>Accepted</span>',
     preparing:'<span class="status-pill pill-preparing"><span class="pill-dot"></span>Preparing</span>',
-    ready:'<span class="status-pill pill-ready"><span class="pill-dot"></span>Ready</span>',
     rejected:'<span class="status-pill pill-rejected"><span class="pill-dot"></span>Rejected</span>',
     delivered:'<span class="status-pill pill-delivered"><span class="pill-dot"></span>Delivered</span>',
     cancelled:'<span class="status-pill pill-delivered"><span class="pill-dot"></span>Cancelled</span>'
@@ -3663,9 +3662,7 @@ function renderOrders(){
               '<button class="btn-status btn-reject" onclick="openRejectModal(\''+o.id+'\')">✕ Reject</button>';
     } else if(o.status==='accepted'){
       actions='<button class="btn-status btn-preparing" onclick="advanceOrder(\''+o.id+'\',\'preparing\')">Start Preparing</button>';
-    } else if(o.status==='preparing'){
-      actions='<button class="btn-status btn-ready" onclick="advanceOrder(\''+o.id+'\',\'ready\')">Mark Ready</button>';
-    } else if(o.status==='ready'){
+    } else if(o.status==='preparing'||o.status==='ready'){
       actions='<button class="btn-status btn-done" onclick="advanceOrder(\''+o.id+'\',\'delivered\')">Mark Delivered</button>';
     }
     var rejectionInfo = o.rejection_reason
