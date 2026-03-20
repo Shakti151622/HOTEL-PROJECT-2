@@ -16,6 +16,12 @@
   window.ROOM_NUM=p.room||'000';
   window.GUEST_NAME=p.guest||'Guest';
   document.title='Hyatt Hotel · Room '+window.ROOM_NUM;
+  // Apply theme IMMEDIATELY before CSS renders — prevents flash of dark mode
+  var saved=sessionStorage.getItem('hyatt-theme');
+  var h=new Date().getHours();
+  var auto=(h>=6&&h<20)?'day':'night';
+  var theme=saved||auto;
+  document.documentElement.classList.add(theme);
 })();
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
@@ -811,9 +817,10 @@
       radial-gradient(ellipse 60% 40% at 50% 0%, rgba(168,117,42,0.10) 0%, transparent 70%),
       radial-gradient(ellipse 40% 30% at 80% 80%, rgba(168,117,42,0.06) 0%, transparent 60%);
   }
-  :root.day .home-content { background: var(--dark2); }
+  :root.day .home-content { background: var(--dark); }
   :root.day .action-card { box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
   :root.day .service-card { box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  :root.day .call-card { background: rgba(201,169,110,0.12); border-color: rgba(201,169,110,0.4); }
 
   /* ── ORDERS SCREEN ── */
   .orders-body {
@@ -1982,17 +1989,17 @@ function renderServices() {
 function callReception() {
   const overlay = document.createElement('div');
   overlay.id = 'call-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;';
   overlay.innerHTML = `
-    <div style="background:#1E1C18;border:1px solid rgba(201,169,110,0.3);border-radius:24px;padding:36px 28px;text-align:center;width:100%;max-width:320px;">
-      <div style="width:64px;height:64px;border-radius:50%;background:rgba(76,175,125,0.15);border:1.5px solid #4CAF7D;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#4CAF7D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <div style="background:var(--surface);border:1px solid rgba(201,169,110,0.3);border-radius:24px;padding:36px 28px;text-align:center;width:100%;max-width:320px;">
+      <div style="width:64px;height:64px;border-radius:50%;background:rgba(76,175,125,0.15);border:1.5px solid var(--green);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/>
         </svg>
       </div>
-      <div style="font-family:'Cormorant Garamond',serif;font-size:24px;color:#F5EFE6;margin-bottom:8px;">Reception</div>
-      <div style="font-size:14px;color:#8A8070;margin-bottom:28px;">Connecting you now…</div>
-      <button id="end-call-btn" style="width:100%;padding:16px;border:1.5px solid rgba(201,169,110,0.35);border-radius:14px;background:transparent;color:#C9A96E;font-family:'DM Sans',sans-serif;font-size:15px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+      <div style="font-family:'Cormorant Garamond',serif;font-size:24px;color:var(--text);margin-bottom:8px;">Reception</div>
+      <div style="font-size:14px;color:var(--text-muted);margin-bottom:28px;">Connecting you now…</div>
+      <button id="end-call-btn" style="width:100%;padding:16px;border:1.5px solid rgba(201,169,110,0.35);border-radius:14px;background:transparent;color:var(--gold);font-family:'DM Sans',sans-serif;font-size:15px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
         Dismiss
       </button>
     </div>`;
@@ -2278,6 +2285,7 @@ function initTheme() {
     if (!sessionStorage.getItem('hyatt-theme')) applyTheme(getAutoTheme());
   }, 60000);
 }
+initTheme();
 
 // ══════════════════════════════════════════
 // ── SUPABASE
@@ -2327,6 +2335,18 @@ function startOrdering() {
 // ── OVERRIDE placeOrder TO INSERT TO SUPABASE + SUBSCRIBE TO STATUS UPDATES
 const _origPlaceOrder = placeOrder;
 placeOrder = async function(isMerge) {
+  // Capture cart BEFORE _origPlaceOrder runs (it clears cart)
+  const cartSnapshot = Object.entries(cart).map(function(entry) {
+    var item = entry[1];
+    return {
+      name: String(item.name || ''),
+      qty: Number(item.qty || 1),
+      price: Number(item.price || 0),
+      category: String(item.category || '')
+    };
+  });
+  const totalSnapshot = cartSnapshot.reduce(function(s,i){ return s + i.qty*i.price; }, 0);
+
   // Generate ID before calling original so both use same ID
   const orderId = 'ORD-' + Date.now() + '-' + Math.random().toString(36).slice(2,6).toUpperCase();
   window._pendingOrderId = orderId;
@@ -2334,14 +2354,14 @@ placeOrder = async function(isMerge) {
   window._pendingOrderId = null;
 
   if (!supa) return;
-  const items = Object.entries(cart).map(([,item]) => ({
-    name: item.name, qty: item.qty, price: item.price, category: item.category || ''
-  }));
-  const total = items.reduce((s,i)=>s+i.qty*i.price, 0);
   try {
     const { error } = await supa.from('orders').insert({
-      id: orderId, room: window.ROOM_NUM, guest: window.GUEST_NAME,
-      items: items, total: total, status: 'new',
+      id: orderId,
+      room: String(window.ROOM_NUM || '000'),
+      guest: String(window.GUEST_NAME || 'Guest'),
+      items: cartSnapshot,
+      total: totalSnapshot,
+      status: 'new',
       placed_at: new Date().toISOString()
     });
     if (error) { console.error('Order insert error:', error.message); return; }
@@ -2353,7 +2373,6 @@ placeOrder = async function(isMerge) {
         filter: 'id=eq.' + orderId
       }, function(payload) {
         var row = payload.new;
-        // Update local order history
         var order = orderHistory.find(function(o){ return o.id === orderId; });
         if (!order) return;
         order.status = row.status;
