@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Hyatt Hotel</title>
+<title>Shakti Hotels</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 (function(){
@@ -15,26 +15,9 @@
   try{window.location.search.slice(1).split('&').forEach(function(s){var kv=s.split('=');if(kv[0])p[decodeURIComponent(kv[0])]=decodeURIComponent((kv[1]||'').replace(/\+/g,' '));});}catch(e){}
   window.ROOM_NUM=p.room||'000';
   window.GUEST_NAME=p.guest||'Guest';
-  window.HOTEL_NAME = p.hotel || localStorage.getItem('hyatt_hotel_name') || 'Hyatt Hotel';
-  if(p.hotel) localStorage.setItem('hyatt_hotel_name', p.hotel);
-  document.title = window.HOTEL_NAME + ' · Room ' + window.ROOM_NUM;
-  // Apply hotel name immediately to prevent flash of default text
-  document.addEventListener('DOMContentLoaded', function(){
-    var hn = window.HOTEL_NAME;
-    var initial = hn.trim().charAt(0).toUpperCase();
-    document.querySelectorAll('.hotel-name').forEach(function(el){ el.textContent = hn; });
-    // Logo: check localStorage first (same-origin shared storage with dashboard)
-    var logo = localStorage.getItem('hyatt_hotel_logo');
-    var logoMark = document.querySelector('.logo-mark');
-    if(logoMark){
-      if(logo){
-        logoMark.innerHTML = '<img src="'+logo+'" style="width:56px;height:56px;object-fit:contain;border-radius:50%;border:1.5px solid rgba(201,169,110,0.4);background:var(--surface);padding:6px;" alt="'+hn+'">';
-      } else {
-        var span = logoMark.querySelector('span');
-        if(span) span.textContent = initial;
-      }
-    }
-  }, {once:true});
+  window.HOTEL_NAME=p.hotel||localStorage.getItem('hyatt_hotel_name')||'Shakti Hotels';
+  if(p.hotel)localStorage.setItem('hyatt_hotel_name',p.hotel);
+  document.title=window.HOTEL_NAME+' · Room '+window.ROOM_NUM;
   // Apply theme IMMEDIATELY before CSS renders — prevents flash of dark mode
   var saved=sessionStorage.getItem('hyatt-theme');
   var h=new Date().getHours();
@@ -219,15 +202,15 @@
 
   .btn-primary {
     width: 100%;
-    padding: 15px 20px;
+    padding: 20px;
     background: var(--gold);
     color: var(--dark);
     border: none;
-    border-radius: 12px;
+    border-radius: 14px;
     font-family: 'DM Sans', sans-serif;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 500;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
     cursor: pointer;
     transition: all 0.2s;
     position: relative;
@@ -459,13 +442,13 @@
   }
   .cart-btn {
     width: 100%;
-    padding: 14px 20px;
+    padding: 18px 24px;
     background: var(--gold);
     color: var(--dark);
     border: none;
-    border-radius: 14px;
+    border-radius: 16px;
     font-family: 'DM Sans', sans-serif;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 500;
     cursor: pointer;
     display: flex; align-items: center; justify-content: space-between;
@@ -515,17 +498,16 @@
   }
 
   .place-btn {
-    margin: 20px 0 0;
+    margin: 24px 0 0;
     width: 100%;
-    padding: 15px 20px;
+    padding: 20px;
     background: var(--gold);
     color: var(--dark);
     border: none;
-    border-radius: 12px;
+    border-radius: 16px;
     font-family: 'DM Sans', sans-serif;
-    font-size: 15px;
+    font-size: 17px;
     font-weight: 500;
-    letter-spacing: 0.03em;
     cursor: pointer;
     transition: all 0.2s;
   }
@@ -938,96 +920,64 @@
     font-size: 22px; color: var(--gold);
   }
 
-  /* ── Active order tracker ── */
-  .order-tracker {
-    padding: 16px 18px 18px;
-    border-top: 1px solid var(--topbar-border);
-  }
-  .tracker-header {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 16px;
-  }
-  .tracker-label {
-    font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase;
-    color: var(--text-muted);
-  }
-  .tracker-eta {
-    font-size: 12px; font-weight: 500; color: var(--green);
-    display: flex; align-items: center; gap: 5px;
-  }
-  .tracker-eta-dot {
-    width: 6px; height: 6px; border-radius: 50%;
-    background: var(--green);
-    animation: eta-pulse 1.2s ease-in-out infinite;
-  }
-  @keyframes eta-pulse {
-    0%,100% { opacity: 1; transform: scale(1); }
-    50%      { opacity: 0.4; transform: scale(0.7); }
-  }
-
-  /* ── Progress bar ── */
-  .tracker-bar-wrap {
-    position: relative; height: 6px;
-    background: var(--surface2); border-radius: 3px;
-    margin-bottom: 10px; overflow: hidden;
-  }
-  .tracker-bar-fill {
-    position: absolute; top: 0; left: 0; bottom: 0;
-    background: linear-gradient(90deg, #3a9e6a, #4CAF7D, #6fcfa0);
-    border-radius: 3px;
-    transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  .tracker-bar-shimmer {
-    position: absolute; top: 0; left: -60%; width: 60%; height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
-    animation: shimmer 2s infinite;
-    border-radius: 3px;
-  }
-  @keyframes shimmer {
-    0%   { left: -60%; }
-    100% { left: 120%; }
-  }
-
-  /* ── Step dots row ── */
+  /* ── Active order tracker (progress steps) ── */
+  .order-tracker { padding: 16px 18px 18px; border-top: 1px solid var(--topbar-border); }
+  .tracker-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .tracker-label { font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted); }
+  .tracker-eta { font-size:12px; font-weight:500; color:var(--green); display:flex; align-items:center; gap:5px; }
+  .tracker-eta-dot { width:6px; height:6px; border-radius:50%; background:var(--green); animation:eta-pulse 1.2s ease-in-out infinite; }
+  @keyframes eta-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
+  .tracker-bar-wrap { position:relative; height:5px; background:var(--surface2); border-radius:3px; margin-bottom:12px; overflow:hidden; }
+  .tracker-bar-fill { position:absolute; top:0; left:0; bottom:0; background:linear-gradient(90deg,#3a9e6a,#4CAF7D); border-radius:3px; transition:width 1s ease; }
+  .tracker-bar-shimmer { position:absolute; top:0; left:-60%; width:60%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent); animation:shimmer 2s infinite; }
+  @keyframes shimmer { 0%{left:-60%} 100%{left:120%} }
   .tracker-steps {
-    display: flex; align-items: flex-start; gap: 0;
-    margin-top: 4px;
+    display: flex; align-items: center; gap: 0;
   }
   .tracker-step {
     display: flex; flex-direction: column; align-items: center; flex: 1;
     position: relative;
   }
+  .tracker-step::before {
+    content: '';
+    position: absolute; top: 11px; left: 50%; right: -50%;
+    height: 2px;
+    background: var(--surface2);
+    z-index: 0;
+  }
+  .tracker-step:last-child::before { display: none; }
+  .tracker-step.done::before { background: var(--gold); }
   .tracker-dot {
-    width: 20px; height: 20px;
+    width: 22px; height: 22px;
     border-radius: 50%;
     border: 2px solid var(--surface2);
     background: var(--surface);
     display: flex; align-items: center; justify-content: center;
     z-index: 1;
-    transition: all 0.5s cubic-bezier(0.34,1.3,0.64,1);
+    transition: all 0.3s;
   }
   .tracker-step.done .tracker-dot {
     border-color: var(--green);
     background: var(--green);
-    transform: scale(1.05);
   }
   .tracker-step.active .tracker-dot {
     border-color: var(--green);
     background: var(--surface);
     box-shadow: 0 0 0 4px rgba(76,175,125,0.18);
-    animation: pulse-green 1.6s ease-in-out infinite;
+    animation: pulse-dot 1.5s infinite;
   }
-  @keyframes pulse-green {
+  @keyframes pulse-dot {
     0%,100% { box-shadow: 0 0 0 4px rgba(76,175,125,0.18); }
-    50%      { box-shadow: 0 0 0 8px rgba(76,175,125,0.06); }
+    50% { box-shadow: 0 0 0 8px rgba(76,175,125,0.06); }
   }
   .tracker-step.done .tracker-dot svg { display: block; }
   .tracker-step-name {
     font-size: 10px; color: var(--text-dim); margin-top: 5px;
-    letter-spacing: 0.04em; text-align: center; white-space: nowrap;
+    letter-spacing: 0.05em; text-align: center;
+    white-space: nowrap;
   }
-  .tracker-step.done .tracker-step-name { color: var(--green); font-weight: 500; }
-  .tracker-step.active .tracker-step-name { color: var(--green); font-weight: 500; }
+  .tracker-step.done .tracker-step-name,
+  .tracker-step.active .tracker-step-name { color: var(--green); font-weight:500; }
 
   .orders-empty {
     text-align: center; padding: 60px 24px;
@@ -1256,8 +1206,8 @@
 <!-- ════════════════ ENTRY SCREEN ════════════════ -->
 <div class="screen active" id="screen-entry">
   <div class="entry-bg"></div>
-  <div class="logo-mark"><span>H</span></div>
-  <div class="hotel-name">Hyatt Hotel</div>
+  <div class="logo-mark"><span>S</span></div>
+  <div class="hotel-name">Shakti Hotels</div>
   <div class="welcome-text" id="welcome-text">Good evening,<br>welcome.</div>
   <div class="room-badge">
     <div class="room-label">Your Room</div>
@@ -1742,7 +1692,7 @@ function updateOrdersBadge() {
   const active = orderHistory.filter(o => o.status !== 'delivered' && o.status !== 'rejected' && o.status !== 'cancelled');
   if (active.length > 0) {
     badge.style.display = 'inline-block';
-    const statusText = { new: 'Waiting for confirmation', accepted: 'Confirmed · being prepared', preparing: 'Being prepared…', ready: 'Almost ready!' };
+    const statusText = { new: 'Waiting for confirmation', accepted: 'Accepted · being prepared', preparing: 'Being prepared', ready: 'Ready for delivery' };
     desc.textContent = active.length === 1
       ? (statusText[active[0].status] || 'In progress') + ' · ' + active[0].eta + ' min est.'
       : active.length + ' orders in progress';
@@ -1766,35 +1716,23 @@ function renderOrders() {
   const active = orderHistory.filter(o => o.status !== 'delivered' && o.status !== 'rejected' && o.status !== 'cancelled');
   const past   = orderHistory.filter(o => o.status === 'delivered' || o.status === 'rejected' || o.status === 'cancelled');
 
-  const statusLabel = { new: 'Waiting', accepted: 'Accepted', preparing: 'Preparing', ready: 'Preparing', delivered: 'Delivered', rejected: 'Not accepted', cancelled: 'Cancelled' };
+  const statusLabel = { new: 'Waiting', accepted: 'Accepted', preparing: 'Preparing', ready: 'Ready for delivery', delivered: 'Delivered', rejected: 'Not accepted', cancelled: 'Cancelled' };
   const statusClass = { new: 'status-preparing', accepted: 'status-active', preparing: 'status-preparing', ready: 'status-active', delivered: 'status-delivered', rejected: 'status-delivered', cancelled: 'status-delivered' };
 
   const stepsDef = ['Placed', 'Accepted', 'Preparing', 'Delivered'];
   function stepIndex(status) {
     return { new:0, accepted:1, preparing:2, ready:2, delivered:3, rejected:-1 }[status] ?? 0;
   }
-
-  // Progress bar % per status
-  const barPctMap = { new: 8, accepted: 33, preparing: 66, ready: 75, delivered: 100 };
-
-  // ETA countdown — counts from when kitchen accepted the order
+  const barPctMap = { new:8, accepted:33, preparing:66, ready:75, delivered:100 };
   function getEtaHtml(o) {
-    if (o.status === 'delivered' || o.status === 'rejected' || o.status === 'cancelled') return '';
-    if (o.status === 'new') return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Waiting for kitchen…</div>';
-    // Count down from when kitchen accepted (acceptedAt), fallback to placedAt
+    if(o.status==='delivered'||o.status==='rejected'||o.status==='cancelled') return '';
+    if(o.status==='new') return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Waiting for kitchen…</div>';
     const startTime = o.acceptedAt || o.placedAt;
-    const ETA_MINS = o.eta || 25;
-    const elapsed = Math.floor((Date.now() - startTime) / 60000);
-    const remaining = Math.max(0, ETA_MINS - elapsed);
-    if (o.status === 'accepted') {
-      return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Est. ' + remaining + ' min</div>';
-    }
-    if (o.status === 'preparing' || o.status === 'ready') {
-      return remaining <= 0
-        ? '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Almost ready!</div>'
-        : '<div class="tracker-eta"><div class="tracker-eta-dot"></div>' + remaining + ' min remaining</div>';
-    }
-    return '';
+    const remaining = Math.max(0, (o.eta||25) - Math.floor((Date.now()-startTime)/60000));
+    if(o.status==='accepted') return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Est. '+remaining+' min</div>';
+    return remaining<=0
+      ? '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Almost ready!</div>'
+      : '<div class="tracker-eta"><div class="tracker-eta-dot"></div>'+remaining+' min remaining</div>';
   }
 
   function renderCard(o) {
@@ -1859,8 +1797,8 @@ function renderOrders() {
           ${etaHtml}
         </div>
         <div class="tracker-bar-wrap">
-          <div class="tracker-bar-fill" id="bar-${o.id}" style="width:${barPct}%">
-            ${o.status === 'preparing' ? '<div class="tracker-bar-shimmer"></div>' : ''}
+          <div class="tracker-bar-fill" style="width:${barPct}%">
+            ${o.status==='preparing'?'<div class="tracker-bar-shimmer"></div>':''}
           </div>
         </div>
         <div class="tracker-steps">${steps}</div>
@@ -2001,11 +1939,11 @@ window.confirmModify = async function(orderId) {
   }
 };
 
-// Re-render orders every 30s to keep ETA countdown ticking
-setInterval(function() {
-  var hasActive = orderHistory.some(function(o){ return o.status==='accepted'||o.status==='preparing'||o.status==='ready'; });
-  if (hasActive) { updateOrdersBadge(); if (document.getElementById('screen-orders').classList.contains('active')) renderOrders(); }
-}, 30000);
+// Re-render every 30s so ETA countdown ticks
+setInterval(function(){
+  var hasActive=orderHistory.some(function(o){return o.status==='accepted'||o.status==='preparing';});
+  if(hasActive){updateOrdersBadge();if(document.getElementById('screen-orders').classList.contains('active'))renderOrders();}
+},30000);
 
 // ── Service
 const serviceIcons = {
@@ -2075,53 +2013,32 @@ function submitService() {
   document.getElementById('submit-bar').style.display = 'none';
   document.getElementById('service-success').style.display = 'flex';
 
-  // Write to Supabase + subscribe to status updates
-  var svcPayload = JSON.stringify({
-    id: reqId,
-    room: String(window.ROOM_NUM || '000'),
-    guest: String(window.GUEST_NAME || 'Guest'),
-    type: selectedService,
-    icon: req.icon,
-    qty: qty,
-    note: note || null,
-    status: 'received',
-    placed_at: now.toISOString()
-  });
+  // Write to Supabase + subscribe to live status updates
+  var svcData = JSON.stringify({id:reqId, room:String(window.ROOM_NUM||'000'), guest:String(window.GUEST_NAME||'Guest'), type:selectedService, icon:req.icon, qty:qty, note:note||null, status:'received', placed_at:now.toISOString()});
   var xhrSvc = new XMLHttpRequest();
   xhrSvc.open('POST', 'https://webvlxcypqhcwzbcpths.supabase.co/rest/v1/service_requests', true);
-  xhrSvc.setRequestHeader('Content-Type', 'application/json');
-  xhrSvc.setRequestHeader('apikey', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw');
-  xhrSvc.setRequestHeader('Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw');
-  xhrSvc.setRequestHeader('Prefer', 'return=minimal');
-  xhrSvc.onload = function() {
-    if (xhrSvc.status >= 200 && xhrSvc.status < 300) {
-      // Subscibe to live status updates for this request
-      waitForSupa().then(function(s) {
-        if (!s) return;
-        s.channel('svc-' + reqId)
-          .on('postgres_changes', {
-            event: 'UPDATE', schema: 'public', table: 'service_requests',
-            filter: 'id=eq.' + reqId
-          }, function(payload) {
-            var r = serviceHistory.find(function(x) { return x.id === reqId; });
-            if (!r) return;
-            r.status = payload.new.status;
-            updateServicesBadge();
-            if (document.getElementById('screen-services').classList.contains('active')) renderServices();
-            var toastMap = {
-              assigned:   '✓ Request assigned to staff',
-              inprogress: '🔧 Staff is on the way…',
-              done:       '✓ Request completed!'
-            };
-            if (toastMap[payload.new.status]) showGuestToast(toastMap[payload.new.status], 'green');
-          }).subscribe();
+  xhrSvc.setRequestHeader('Content-Type','application/json');
+  xhrSvc.setRequestHeader('apikey','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw');
+  xhrSvc.setRequestHeader('Authorization','Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw');
+  xhrSvc.setRequestHeader('Prefer','return=minimal');
+  xhrSvc.onload = function(){
+    if(xhrSvc.status>=200&&xhrSvc.status<300){
+      waitForSupa().then(function(s){
+        if(!s)return;
+        s.channel('svc-'+reqId).on('postgres_changes',{event:'UPDATE',schema:'public',table:'service_requests',filter:'id=eq.'+reqId},function(payload){
+          var r=serviceHistory.find(function(x){return x.id===reqId;});
+          if(!r)return;
+          r.status=payload.new.status;
+          updateServicesBadge();
+          if(document.getElementById('screen-services').classList.contains('active'))renderServices();
+          var t={assigned:'✓ Request assigned to staff',inprogress:'🔧 Staff is on the way…',done:'✓ Request completed!'};
+          if(t[payload.new.status])showGuestToast(t[payload.new.status],'green');
+        }).subscribe();
       });
-    } else {
-      console.warn('Service insert failed:', xhrSvc.status, xhrSvc.responseText);
     }
   };
-  xhrSvc.onerror = function() { console.warn('Service XHR network error'); };
-  xhrSvc.send(svcPayload);
+  xhrSvc.onerror=function(){console.warn('Service XHR error');};
+  xhrSvc.send(svcData);
 }
 
 function resetService() {
@@ -2517,18 +2434,18 @@ function setTheme(theme) {
 
 function initTheme() {
   // Hotel name + logo from dashboard localStorage
-  var hotelName = window.HOTEL_NAME || localStorage.getItem('hyatt_hotel_name') || 'Hyatt Hotel';
+  var hotelName = window.HOTEL_NAME || localStorage.getItem('hyatt_hotel_name') || 'Shakti Hotels';
   var initial = hotelName.trim().charAt(0).toUpperCase();
   // Update all hotel name elements
   document.querySelectorAll('.hotel-name').forEach(function(el){ el.textContent = hotelName; });
   // Update page title
   document.title = hotelName + ' · Room ' + (window.ROOM_NUM || '');
-  // Logo: image from localStorage, or fallback to initial letter
+  // Logo: image if set, else letter initial
   var savedLogo = localStorage.getItem('hyatt_hotel_logo');
   var logoMark = document.querySelector('.logo-mark');
   if(logoMark){
     if(savedLogo){
-      logoMark.innerHTML = '<img src="'+savedLogo+'" style="width:56px;height:56px;object-fit:contain;border-radius:50%;border:1.5px solid rgba(201,169,110,0.4);background:var(--surface);padding:6px;" alt="'+hotelName+'">';
+      logoMark.innerHTML = '<img src="'+savedLogo+'" style="width:56px;height:56px;object-fit:contain;border-radius:50%;border:1.5px solid rgba(201,169,110,0.4);padding:6px;" alt="'+hotelName+'">';
     } else {
       var logoSpan = logoMark.querySelector('span');
       if(logoSpan) logoSpan.textContent = initial;
@@ -2682,19 +2599,16 @@ placeOrder = async function(isMerge) {
         if (!order) return;
         order.status = row.status;
         order.rejection_reason = row.rejection_reason || null;
-        if ((row.status === 'accepted' || row.status === 'preparing') && !order.acceptedAt) { order.acceptedAt = Date.now(); order.eta = 25; }
+        if (row.status === 'accepted') order.acceptedAt = Date.now();
         updateOrdersBadge();
         if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
         if (row.status === 'accepted') {
-          showGuestToast('✓ Order confirmed by kitchen!', 'green');
-        } else if (row.status === 'preparing') {
-          showGuestToast('👨‍🍳 Being prepared — est. 25 min', 'green');
-        
+          showGuestToast('✓ Order accepted! You can modify/cancel within 5 mins.', 'green');
         } else if (row.status === 'rejected') {
           var reason = row.rejection_reason || 'Please contact reception';
-          showGuestToast('❌ Order not accepted: ' + reason, 'red');
+          showGuestToast('Order not accepted: ' + reason, 'red');
         } else if (row.status === 'delivered') {
-          showGuestToast('✓ Order delivered! Enjoy your meal.', 'green');
+          showGuestToast('Your order has been delivered!', 'green');
           broadcastActivity('idle');
         }
       })
