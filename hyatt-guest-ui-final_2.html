@@ -169,7 +169,7 @@
     border: 1px solid rgba(201,169,110,0.25);
     border-radius: 16px;
     padding: 20px 28px;
-    margin-bottom: 48px;
+    margin-bottom: 32px;
     width: 100%;
   }
   .room-badge .room-label {
@@ -1197,15 +1197,15 @@
   <div class="entry-bg"></div>
   <div class="logo-mark"><span>H</span></div>
   <div class="hotel-name">Hyatt Hotel</div>
-  <div class="welcome-text">Good evening,<br>welcome.</div>
+  <div class="welcome-text" id="welcome-text">Good evening,<br>welcome.</div>
   <div class="room-badge">
     <div class="room-label">Your Room</div>
     <div class="room-number" id="splash-room-num">--</div>
-    <div style="margin-top:16px;">
+    <div class="guest-name" style="margin-top:14px;">
       <input id="guest-name-input" type="text"
         placeholder="Enter your name"
         autocomplete="given-name"
-        style="width:100%;background:var(--dark3);border:1px solid rgba(201,169,110,0.3);border-radius:10px;padding:12px 14px;color:var(--text);font-size:16px;font-family:'DM Sans',sans-serif;outline:none;text-align:center;"
+        style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(201,169,110,0.35);border-radius:10px;padding:11px 14px;color:var(--text);font-size:15px;font-family:'DM Sans',sans-serif;outline:none;text-align:center;letter-spacing:0.02em;"
         onkeydown="if(event.key==='Enter')startOrdering()"
       >
     </div>
@@ -1638,7 +1638,7 @@ function placeOrder(isMerge) {
   const items = Object.entries(cart).map(([key, item]) => ({...item}));
   const total = items.reduce((s,i)=>s+i.qty*i.price, 0);
   const now = new Date();
-  const orderId = 'ORD-' + String(orderHistory.length + 1).padStart(3, '0');
+  const orderId = window._pendingOrderId || ('ORD-' + String(orderHistory.length + 1).padStart(3, '0'));
   const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   const order = {
@@ -1678,12 +1678,13 @@ function updateOrdersBadge() {
     return;
   }
   card.style.display = 'flex';
-  const active = orderHistory.filter(o => o.status === 'preparing' || o.status === 'ready');
+  const active = orderHistory.filter(o => o.status !== 'delivered' && o.status !== 'rejected');
   if (active.length > 0) {
     badge.style.display = 'inline-block';
+    const statusText = { new: 'Waiting for confirmation', accepted: 'Accepted · being prepared', preparing: 'Being prepared', ready: 'Ready for delivery' };
     desc.textContent = active.length === 1
-      ? `1 order in progress · ${active[0].eta} min`
-      : `${active.length} orders in progress`;
+      ? (statusText[active[0].status] || 'In progress') + ' · ' + active[0].eta + ' min est.'
+      : active.length + ' orders in progress';
   } else {
     badge.style.display = 'none';
     desc.textContent = `${orderHistory.length} order${orderHistory.length > 1 ? 's' : ''} placed today`;
@@ -2217,8 +2218,16 @@ function newOrderAnyway() {
 
 let currentTheme = 'auto';
 
+function getGreeting() {
+  var h = new Date().getHours();
+  if (h >= 5 && h < 12) return 'Good morning,';
+  if (h >= 12 && h < 17) return 'Good afternoon,';
+  return 'Good evening,';
+}
+
 function getAutoTheme() {
-  const h = new Date().getHours();
+  var h = new Date().getHours();
+  // Day: 6am–8pm, Night: 8pm–6am
   return (h >= 6 && h < 20) ? 'day' : 'night';
 }
 
@@ -2226,7 +2235,6 @@ function applyTheme(theme) {
   const root = document.documentElement;
   root.classList.remove('day', 'night');
   root.classList.add(theme);
-  // update all pill buttons
   document.querySelectorAll('.theme-opt').forEach(btn => {
     const isDay = btn.id.includes('day');
     const isNight = btn.id.includes('night');
@@ -2241,6 +2249,21 @@ function setTheme(theme) {
 }
 
 function initTheme() {
+  // Hotel name + logo from dashboard localStorage
+  var hotelName = localStorage.getItem('hyatt_hotel_name') || 'Hyatt Hotel';
+  var initial = hotelName.trim().charAt(0).toUpperCase();
+  // Update all hotel name elements
+  document.querySelectorAll('.hotel-name').forEach(function(el){ el.textContent = hotelName; });
+  // Update logo initial
+  var logoSpan = document.querySelector('.logo-mark span');
+  if (logoSpan) logoSpan.textContent = initial;
+  // Update page title
+  document.title = hotelName + ' · Room ' + (window.ROOM_NUM || '');
+
+  // Set dynamic greeting
+  var greetEl = document.getElementById('welcome-text');
+  if (greetEl) greetEl.innerHTML = getGreeting() + '<br>welcome.';
+
   const saved = sessionStorage.getItem('hyatt-theme');
   if (saved === 'day' || saved === 'night') {
     currentTheme = saved;
@@ -2248,8 +2271,10 @@ function initTheme() {
   } else {
     applyTheme(getAutoTheme());
   }
-  // re-check every minute in case midnight crosses
+  // Re-check every minute
   setInterval(() => {
+    var el = document.getElementById('welcome-text');
+    if (el) el.innerHTML = getGreeting() + '<br>welcome.';
     if (!sessionStorage.getItem('hyatt-theme')) applyTheme(getAutoTheme());
   }, 60000);
 }
@@ -2302,14 +2327,18 @@ function startOrdering() {
 // ── OVERRIDE placeOrder TO INSERT TO SUPABASE + SUBSCRIBE TO STATUS UPDATES
 const _origPlaceOrder = placeOrder;
 placeOrder = async function(isMerge) {
+  // Generate ID before calling original so both use same ID
+  const orderId = 'ORD-' + Date.now() + '-' + Math.random().toString(36).slice(2,6).toUpperCase();
+  window._pendingOrderId = orderId;
   _origPlaceOrder(isMerge);
+  window._pendingOrderId = null;
+
   if (!supa) return;
   const items = Object.entries(cart).map(([,item]) => ({
     name: item.name, qty: item.qty, price: item.price, category: item.category || ''
   }));
   const total = items.reduce((s,i)=>s+i.qty*i.price, 0);
   try {
-    const orderId = 'ORD-' + Date.now() + '-' + Math.random().toString(36).slice(2,6).toUpperCase();
     const { error } = await supa.from('orders').insert({
       id: orderId, room: window.ROOM_NUM, guest: window.GUEST_NAME,
       items: items, total: total, status: 'new',
@@ -2324,13 +2353,13 @@ placeOrder = async function(isMerge) {
         filter: 'id=eq.' + orderId
       }, function(payload) {
         var row = payload.new;
+        // Update local order history
         var order = orderHistory.find(function(o){ return o.id === orderId; });
         if (!order) return;
         order.status = row.status;
         order.rejection_reason = row.rejection_reason || null;
         updateOrdersBadge();
         if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
-        // Show notification to guest
         if (row.status === 'accepted') {
           showGuestToast('✓ Order accepted! Being prepared.', 'green');
         } else if (row.status === 'rejected') {
