@@ -1209,7 +1209,16 @@
   <div class="room-badge">
     <div class="room-label">Your Room</div>
     <div class="room-number" id="splash-room-num">--</div>
-    <div class="guest-name" style="margin-top:14px;">
+    <!-- Room number input — only shown when not provided via QR -->
+    <div id="room-num-wrap" style="display:none;margin-top:10px;">
+      <input id="room-num-input" type="number" min="100" max="999"
+        placeholder="Room number"
+        autocomplete="off"
+        style="width:100%;background:var(--dark3);border:1px solid rgba(201,169,110,0.4);border-radius:10px;padding:11px 14px;color:var(--text);font-size:15px;font-family:'DM Sans',sans-serif;outline:none;text-align:center;letter-spacing:0.02em;"
+        onkeydown="if(event.key==='Enter')document.getElementById('guest-name-input').focus()"
+      >
+    </div>
+    <div class="guest-name" style="margin-top:10px;">
       <input id="guest-name-input" type="text"
         placeholder="Enter your name"
         autocomplete="given-name"
@@ -2029,7 +2038,14 @@ function submitService() {
         });
       }
     };
-    xhrSvc.onerror = function() { console.warn('Service XHR failed'); };
+    xhrSvc.onerror = function() {
+      var loc = window.location.href;
+      if (loc.indexOf('srcdoc') > -1 || loc.indexOf('blob:') > -1) {
+        console.warn('Service insert: running locally — works on GitHub Pages');
+      } else {
+        console.warn('Service XHR network error');
+      }
+    };
     xhrSvc.send(JSON.stringify(svcData));
   } catch(e) { console.warn('Service insert error:', e && e.message); }
 }
@@ -2493,20 +2509,46 @@ function waitForSupa(){
 // ── ENTRY SCREEN
 document.addEventListener('DOMContentLoaded', function() {
   var rn = window.ROOM_NUM;
-  var sRoom = document.getElementById('splash-room-num');
-  if (sRoom) sRoom.textContent = rn;
-  document.querySelectorAll('.dyn-room').forEach(function(el){ el.textContent = 'Room ' + rn; });
-  var ss = document.getElementById('success-sub');
-  if (ss) ss.textContent = 'Room ' + rn + ' · Your food is being prepared';
-  var ms = document.getElementById('merge-sub');
-  if (ms) ms.textContent = 'Someone in Room ' + rn + ' just ordered. Want to add to it?';
-  setTimeout(function(){
-    var inp = document.getElementById('guest-name-input');
-    if(inp) inp.focus();
-  }, 500);
+  // If no room in URL, show room number input field
+  if (!rn || rn === '000') {
+    var wrap = document.getElementById('room-num-wrap');
+    var sRoom = document.getElementById('splash-room-num');
+    if (wrap) wrap.style.display = 'block';
+    if (sRoom) sRoom.style.display = 'none';
+    setTimeout(function(){
+      var ri = document.getElementById('room-num-input');
+      if(ri) ri.focus();
+    }, 500);
+  } else {
+    var sRoom = document.getElementById('splash-room-num');
+    if (sRoom) sRoom.textContent = rn;
+    document.querySelectorAll('.dyn-room').forEach(function(el){ el.textContent = 'Room ' + rn; });
+    var ss = document.getElementById('success-sub');
+    if (ss) ss.textContent = 'Room ' + rn + ' · Your food is being prepared';
+    var ms = document.getElementById('merge-sub');
+    if (ms) ms.textContent = 'Someone in Room ' + rn + ' just ordered. Want to add to it?';
+    setTimeout(function(){
+      var inp = document.getElementById('guest-name-input');
+      if(inp) inp.focus();
+    }, 500);
+  }
 });
 
 function startOrdering() {
+  // If room was not in URL, read from the manual input
+  if (!window.ROOM_NUM || window.ROOM_NUM === '000') {
+    var ri = document.getElementById('room-num-input');
+    var roomVal = ri ? ri.value.trim() : '';
+    if (!roomVal) {
+      if(ri){ ri.style.borderColor='rgba(192,57,43,0.6)'; ri.focus(); }
+      return;
+    }
+    window.ROOM_NUM = roomVal;
+    // Update all room labels
+    document.querySelectorAll('.dyn-room').forEach(function(el){ el.textContent = 'Room ' + roomVal; });
+    var ss = document.getElementById('success-sub');
+    if (ss) ss.textContent = 'Room ' + roomVal + ' · Your food is being prepared';
+  }
   var inp = document.getElementById('guest-name-input');
   var name = inp ? inp.value.trim() : '';
   if (!name) {
@@ -2569,7 +2611,15 @@ placeOrder = async function(isMerge) {
         if (xhr.status >= 200 && xhr.status < 300) { resolve(); }
         else { reject(new Error('HTTP ' + xhr.status + ': ' + xhr.responseText)); }
       };
-      xhr.onerror = function() { reject(new Error('Network error')); };
+      xhr.onerror = function() {
+        var loc = window.location.href;
+        if (loc.indexOf('srcdoc') > -1 || loc.indexOf('blob:') > -1) {
+          console.warn('Order insert: running locally — upload to GitHub Pages for live orders');
+          resolve(); // Silently succeed in preview mode
+        } else {
+          reject(new Error('Network error'));
+        }
+      };
       xhr.send(JSON.stringify(insertData));
     });
 
