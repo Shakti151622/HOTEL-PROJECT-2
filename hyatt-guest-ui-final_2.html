@@ -15,8 +15,26 @@
   try{window.location.search.slice(1).split('&').forEach(function(s){var kv=s.split('=');if(kv[0])p[decodeURIComponent(kv[0])]=decodeURIComponent((kv[1]||'').replace(/\+/g,' '));});}catch(e){}
   window.ROOM_NUM=p.room||'000';
   window.GUEST_NAME=p.guest||'Guest';
-  window.HOTEL_NAME=p.hotel||localStorage.getItem('hyatt_hotel_name')||'Hyatt Hotel';
-  document.title=window.HOTEL_NAME+' · Room '+window.ROOM_NUM;
+  window.HOTEL_NAME = p.hotel || localStorage.getItem('hyatt_hotel_name') || 'Hyatt Hotel';
+  if(p.hotel) localStorage.setItem('hyatt_hotel_name', p.hotel);
+  document.title = window.HOTEL_NAME + ' · Room ' + window.ROOM_NUM;
+  // Apply hotel name immediately to prevent flash of default text
+  document.addEventListener('DOMContentLoaded', function(){
+    var hn = window.HOTEL_NAME;
+    var initial = hn.trim().charAt(0).toUpperCase();
+    document.querySelectorAll('.hotel-name').forEach(function(el){ el.textContent = hn; });
+    // Logo: check localStorage first (same-origin shared storage with dashboard)
+    var logo = localStorage.getItem('hyatt_hotel_logo');
+    var logoMark = document.querySelector('.logo-mark');
+    if(logoMark){
+      if(logo){
+        logoMark.innerHTML = '<img src="'+logo+'" style="width:56px;height:56px;object-fit:contain;border-radius:50%;border:1.5px solid rgba(201,169,110,0.4);background:var(--surface);padding:6px;" alt="'+hn+'">';
+      } else {
+        var span = logoMark.querySelector('span');
+        if(span) span.textContent = initial;
+      }
+    }
+  }, {once:true});
   // Apply theme IMMEDIATELY before CSS renders — prevents flash of dark mode
   var saved=sessionStorage.getItem('hyatt-theme');
   var h=new Date().getHours();
@@ -201,15 +219,15 @@
 
   .btn-primary {
     width: 100%;
-    padding: 20px;
+    padding: 15px 20px;
     background: var(--gold);
     color: var(--dark);
     border: none;
-    border-radius: 14px;
+    border-radius: 12px;
     font-family: 'DM Sans', sans-serif;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 500;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.04em;
     cursor: pointer;
     transition: all 0.2s;
     position: relative;
@@ -441,13 +459,13 @@
   }
   .cart-btn {
     width: 100%;
-    padding: 18px 24px;
+    padding: 14px 20px;
     background: var(--gold);
     color: var(--dark);
     border: none;
-    border-radius: 16px;
+    border-radius: 14px;
     font-family: 'DM Sans', sans-serif;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 500;
     cursor: pointer;
     display: flex; align-items: center; justify-content: space-between;
@@ -497,16 +515,17 @@
   }
 
   .place-btn {
-    margin: 24px 0 0;
+    margin: 20px 0 0;
     width: 100%;
-    padding: 20px;
+    padding: 15px 20px;
     background: var(--gold);
     color: var(--dark);
     border: none;
-    border-radius: 16px;
+    border-radius: 12px;
     font-family: 'DM Sans', sans-serif;
-    font-size: 17px;
+    font-size: 15px;
     font-weight: 500;
+    letter-spacing: 0.03em;
     cursor: pointer;
     transition: all 0.2s;
   }
@@ -1758,13 +1777,18 @@ function renderOrders() {
   // Progress bar % per status
   const barPctMap = { new: 8, accepted: 33, preparing: 66, ready: 75, delivered: 100 };
 
-  // ETA countdown (25 min from placement)
+  // ETA countdown — counts from when kitchen accepted the order
   function getEtaHtml(o) {
     if (o.status === 'delivered' || o.status === 'rejected' || o.status === 'cancelled') return '';
-    const elapsed = Math.floor((Date.now() - o.placedAt) / 60000);
-    const remaining = Math.max(0, (o.eta || 25) - elapsed);
-    if (o.status === 'new') return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Waiting for kitchen</div>';
-    if (o.status === 'accepted') return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Est. ' + remaining + ' min</div>';
+    if (o.status === 'new') return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Waiting for kitchen…</div>';
+    // Count down from when kitchen accepted (acceptedAt), fallback to placedAt
+    const startTime = o.acceptedAt || o.placedAt;
+    const ETA_MINS = o.eta || 25;
+    const elapsed = Math.floor((Date.now() - startTime) / 60000);
+    const remaining = Math.max(0, ETA_MINS - elapsed);
+    if (o.status === 'accepted') {
+      return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Est. ' + remaining + ' min</div>';
+    }
     if (o.status === 'preparing' || o.status === 'ready') {
       return remaining <= 0
         ? '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Almost ready!</div>'
@@ -1977,11 +2001,11 @@ window.confirmModify = async function(orderId) {
   }
 };
 
-// Re-render orders every 60s to keep ETA countdown live
+// Re-render orders every 30s to keep ETA countdown ticking
 setInterval(function() {
   var hasActive = orderHistory.some(function(o){ return o.status==='accepted'||o.status==='preparing'||o.status==='ready'; });
-  if (hasActive && document.getElementById('screen-orders').classList.contains('active')) renderOrders();
-}, 60000);
+  if (hasActive) { updateOrdersBadge(); if (document.getElementById('screen-orders').classList.contains('active')) renderOrders(); }
+}, 30000);
 
 // ── Service
 const serviceIcons = {
@@ -2050,6 +2074,54 @@ function submitService() {
   document.querySelector('.service-body').style.display = 'none';
   document.getElementById('submit-bar').style.display = 'none';
   document.getElementById('service-success').style.display = 'flex';
+
+  // Write to Supabase + subscribe to status updates
+  var svcPayload = JSON.stringify({
+    id: reqId,
+    room: String(window.ROOM_NUM || '000'),
+    guest: String(window.GUEST_NAME || 'Guest'),
+    type: selectedService,
+    icon: req.icon,
+    qty: qty,
+    note: note || null,
+    status: 'received',
+    placed_at: now.toISOString()
+  });
+  var xhrSvc = new XMLHttpRequest();
+  xhrSvc.open('POST', 'https://webvlxcypqhcwzbcpths.supabase.co/rest/v1/service_requests', true);
+  xhrSvc.setRequestHeader('Content-Type', 'application/json');
+  xhrSvc.setRequestHeader('apikey', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw');
+  xhrSvc.setRequestHeader('Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw');
+  xhrSvc.setRequestHeader('Prefer', 'return=minimal');
+  xhrSvc.onload = function() {
+    if (xhrSvc.status >= 200 && xhrSvc.status < 300) {
+      // Subscibe to live status updates for this request
+      waitForSupa().then(function(s) {
+        if (!s) return;
+        s.channel('svc-' + reqId)
+          .on('postgres_changes', {
+            event: 'UPDATE', schema: 'public', table: 'service_requests',
+            filter: 'id=eq.' + reqId
+          }, function(payload) {
+            var r = serviceHistory.find(function(x) { return x.id === reqId; });
+            if (!r) return;
+            r.status = payload.new.status;
+            updateServicesBadge();
+            if (document.getElementById('screen-services').classList.contains('active')) renderServices();
+            var toastMap = {
+              assigned:   '✓ Request assigned to staff',
+              inprogress: '🔧 Staff is on the way…',
+              done:       '✓ Request completed!'
+            };
+            if (toastMap[payload.new.status]) showGuestToast(toastMap[payload.new.status], 'green');
+          }).subscribe();
+      });
+    } else {
+      console.warn('Service insert failed:', xhrSvc.status, xhrSvc.responseText);
+    }
+  };
+  xhrSvc.onerror = function() { console.warn('Service XHR network error'); };
+  xhrSvc.send(svcPayload);
 }
 
 function resetService() {
@@ -2449,11 +2521,19 @@ function initTheme() {
   var initial = hotelName.trim().charAt(0).toUpperCase();
   // Update all hotel name elements
   document.querySelectorAll('.hotel-name').forEach(function(el){ el.textContent = hotelName; });
-  // Update logo initial
-  var logoSpan = document.querySelector('.logo-mark span');
-  if (logoSpan) logoSpan.textContent = initial;
   // Update page title
   document.title = hotelName + ' · Room ' + (window.ROOM_NUM || '');
+  // Logo: image from localStorage, or fallback to initial letter
+  var savedLogo = localStorage.getItem('hyatt_hotel_logo');
+  var logoMark = document.querySelector('.logo-mark');
+  if(logoMark){
+    if(savedLogo){
+      logoMark.innerHTML = '<img src="'+savedLogo+'" style="width:56px;height:56px;object-fit:contain;border-radius:50%;border:1.5px solid rgba(201,169,110,0.4);background:var(--surface);padding:6px;" alt="'+hotelName+'">';
+    } else {
+      var logoSpan = logoMark.querySelector('span');
+      if(logoSpan) logoSpan.textContent = initial;
+    }
+  }
 
   // Set dynamic greeting
   var greetEl = document.getElementById('welcome-text');
@@ -2602,11 +2682,13 @@ placeOrder = async function(isMerge) {
         if (!order) return;
         order.status = row.status;
         order.rejection_reason = row.rejection_reason || null;
-        if (row.status === 'preparing' && !order.acceptedAt) order.acceptedAt = Date.now();
+        if ((row.status === 'accepted' || row.status === 'preparing') && !order.acceptedAt) { order.acceptedAt = Date.now(); order.eta = 25; }
         updateOrdersBadge();
         if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
-        if (row.status === 'preparing') {
-          showGuestToast('✓ Order accepted — being prepared now!', 'green');
+        if (row.status === 'accepted') {
+          showGuestToast('✓ Order confirmed by kitchen!', 'green');
+        } else if (row.status === 'preparing') {
+          showGuestToast('👨‍🍳 Being prepared — est. 25 min', 'green');
         
         } else if (row.status === 'rejected') {
           var reason = row.rejection_reason || 'Please contact reception';

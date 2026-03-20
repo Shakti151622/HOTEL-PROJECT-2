@@ -2950,12 +2950,51 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
     <div class="settings-row">
       <div class="settings-label">
         <div class="settings-label-title">Hotel Name</div>
-        <div class="settings-label-sub">Shown on QR codes & guest page</div>
+        <div class="settings-label-sub">Shown on QR codes &amp; guest page</div>
       </div>
       <input id="hotel-name-input" type="text"
         style="background:var(--surface);border:1px solid var(--card-border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:13px;width:130px;outline:none;text-align:right;"
         onchange="saveHotelName(this.value)"
         onfocus="this.select()">
+    </div>
+    <!-- Hotel Logo -->
+    <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
+      <div class="settings-label" style="width:100%;">
+        <div class="settings-label-title">Hotel Logo</div>
+        <div class="settings-label-sub">Shown on guest welcome screen</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;width:100%;">
+        <div id="logo-preview-wrap" style="width:48px;height:48px;border-radius:50%;border:1.5px solid var(--gold);display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--surface);flex-shrink:0;">
+          <span id="logo-preview-initial" style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--gold);">H</span>
+          <img id="logo-preview-img" style="width:100%;height:100%;object-fit:cover;display:none;" alt="Logo">
+        </div>
+        <div style="flex:1;">
+          <label style="display:inline-block;padding:7px 14px;background:var(--surface);border:1px solid var(--card-border);border-radius:8px;color:var(--text-muted);font-size:12px;cursor:pointer;letter-spacing:0.04em;">
+            Upload Logo
+            <input type="file" accept="image/*" id="logo-file-input" style="display:none;" onchange="uploadHotelLogo(this)">
+          </label>
+          <button onclick="clearHotelLogo()" style="margin-left:8px;padding:7px 12px;background:transparent;border:1px solid var(--card-border);border-radius:8px;color:var(--text-muted);font-size:12px;cursor:pointer;">Remove</button>
+        </div>
+      </div>
+    </div>
+    <!-- Hotel Logo -->
+    <div class="settings-row" style="align-items:flex-start;gap:12px;">
+      <div class="settings-label">
+        <div class="settings-label-title">Hotel Logo</div>
+        <div class="settings-label-sub">Shown on guest welcome page</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+        <div id="logo-preview-wrap" style="display:none;">
+          <img id="logo-preview" style="width:48px;height:48px;object-fit:contain;border-radius:8px;background:var(--surface);border:1px solid var(--card-border);padding:4px;" alt="Logo">
+        </div>
+        <div style="display:flex;gap:8px;">
+          <label style="padding:6px 12px;background:var(--surface);border:1px solid var(--card-border);border-radius:8px;color:var(--text);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;">
+            Upload
+            <input type="file" accept="image/*" style="display:none;" onchange="uploadLogo(this)">
+          </label>
+          <button onclick="removeLogo()" style="padding:6px 10px;background:transparent;border:1px solid var(--card-border);border-radius:8px;color:var(--text-muted);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;">Remove</button>
+        </div>
+      </div>
     </div>
     <!-- Theme -->
     <div class="settings-row">
@@ -3527,16 +3566,15 @@ async function loadCheckinsFromSupabase(){
     }
   }catch(err){console.warn('Checkins load exception:',err&&err.message||String(err));}
 }
-function handleRealtimeEvent(payload){var evt=payload.eventType,row=payload.new||{},old=payload.old||{};if(evt==='INSERT'){var o=rowToOrder(row);if(!orders.find(function(x){return x.id===o.id;})){orders.unshift(o);renderOrders();updateStats();showToast('order','New Order — Room '+o.room,'₹'+o.total+' · '+o.items.length+' item'+(o.items.length!==1?'s':''));startAlertBeep(o.id,'order');}}else if(evt==='UPDATE'){var idx=orders.findIndex(function(x){return x.id===row.id;});if(idx!==-1)orders[idx]=rowToOrder(row);else orders.unshift(rowToOrder(row));renderOrders();updateStats();if(row.status!=='new')stopAlertBeep(row.id);}else if(evt==='DELETE'){orders=orders.filter(function(x){return x.id!==old.id;});stopAlertBeep(old.id);renderOrders();updateStats();}}
+function handleRealtimeEvent(payload){var evt=payload.eventType,row=payload.new||{},old=payload.old||{};if(evt==='INSERT'){var o=rowToOrder(row);if(!orders.find(function(x){return x.id===o.id;})){orders.unshift(o);renderOrders();updateStats();showToast('order','New Order — Room '+o.room,'₹'+o.total+' · '+o.items.length+' item'+(o.items.length!==1?'s':''));startAlertBeep(o.id,'order');}}else if(evt==='UPDATE'){var idx=orders.findIndex(function(x){return x.id===row.id;});if(idx!==-1)orders[idx]=rowToOrder(row);else orders.unshift(rowToOrder(row));renderOrders();updateStats();if(row.status==='accepted'||row.status==='preparing'||row.status==='delivered'||row.status==='rejected')stopAlertBeep(row.id);}else if(evt==='DELETE'){orders=orders.filter(function(x){return x.id!==old.id;});stopAlertBeep(old.id);renderOrders();updateStats();}}
 async function acceptOrder(id){
   var order=orders.find(function(o){return o.id===id;});
   if(!order)return;
-  // Accept → immediately moves to preparing
-  order.status='preparing';
+  order.status='accepted';
   stopAlertBeep(id);
   renderOrders();updateStats();
   if(sbClient){
-    try{await sbClient.from('orders').update({status:'preparing'}).eq('id',id);}
+    try{await sbClient.from('orders').update({status:'accepted'}).eq('id',id);}
     catch(e){console.warn('Accept failed',e);}
   }
 }
@@ -3635,8 +3673,8 @@ function renderOrders(){
   }
   var pills={
     new:'<span class="status-pill pill-new"><span class="pill-dot"></span>New</span>',
+    accepted:'<span class="status-pill pill-preparing"><span class="pill-dot"></span>Accepted</span>',
     preparing:'<span class="status-pill pill-preparing"><span class="pill-dot"></span>Preparing</span>',
-    out_for_delivery:'<span class="status-pill pill-ready"><span class="pill-dot"></span>Out for Delivery</span>',
     rejected:'<span class="status-pill pill-rejected"><span class="pill-dot"></span>Rejected</span>',
     delivered:'<span class="status-pill pill-delivered"><span class="pill-dot"></span>Delivered</span>',
     cancelled:'<span class="status-pill pill-delivered"><span class="pill-dot"></span>Cancelled</span>'
@@ -3649,10 +3687,10 @@ function renderOrders(){
     if(o.status==='new'){
       actions='<button class="btn-status btn-accept" onclick="acceptOrder(\''+o.id+'\')">✓ Accept</button>'+
               '<button class="btn-status btn-reject" onclick="openRejectModal(\''+o.id+'\')">✕ Reject</button>';
+    } else if(o.status==='accepted'){
+      actions='<button class="btn-status btn-preparing" onclick="advanceOrder(\''+o.id+'\',\'preparing\')">Start Preparing</button>';
     } else if(o.status==='preparing'){
-      actions='<button class="btn-status btn-ready" onclick="advanceOrder(\''+o.id+'\',\'out_for_delivery\')">📦 Prepared</button>';
-    } else if(o.status==='out_for_delivery'){
-      actions='<button class="btn-status btn-done" onclick="advanceOrder(\''+o.id+'\',\'delivered\')">✓ Delivered</button>';
+      actions='<button class="btn-status btn-done" onclick="advanceOrder(\''+o.id+'\',\'delivered\')">Mark Delivered</button>';
     }
     var rejectionInfo = o.rejection_reason
       ? '<div style="margin:8px 0;padding:8px 10px;background:rgba(192,57,43,0.08);border-radius:8px;font-size:12px;color:var(--red);">Reason: '+o.rejection_reason+'</div>'
@@ -3730,7 +3768,9 @@ function renderRooms(){
     if(r.services>0)dots+='<div class="room-dot service">'+r.services+'🛎</div>';
     var isOccupied = r.status === 'occupied' || r.status === 'checkout';
     // QR uses only room number — fixed per room
-    var fixedUrl = getGuestBaseUrl() + '?room=' + encodeURIComponent(r.num);
+    var _hn = localStorage.getItem('hyatt_hotel_name') || '';
+    var _hl = localStorage.getItem('hyatt_hotel_logo') ? '1' : '';
+    var fixedUrl = getGuestBaseUrl() + '?room=' + encodeURIComponent(r.num) + (_hn ? '&hotel=' + encodeURIComponent(_hn) : '') + (_hl ? '&logo=1' : '');
     var qrSrc = 'https://chart.googleapis.com/chart?chs=72x72&cht=qr&chl=' + encodeURIComponent(fixedUrl) + '&choe=UTF-8&chld=M|0';
     return '<div class="room-tile '+r.status+'" onclick="showRoomQR(\''+r.num+'\')">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
@@ -3769,7 +3809,8 @@ var currentQRUrl='',currentQRRoom='';
 function showRoomQR(roomNum){
   currentQRRoom=roomNum;
   var hn = encodeURIComponent(localStorage.getItem('hyatt_hotel_name')||'');
-  var url=getGuestBaseUrl()+'?room='+encodeURIComponent(roomNum)+(hn?'&hotel='+hn:'');
+  var hl = localStorage.getItem('hyatt_hotel_logo') ? '&logo=1' : '';
+  var url=getGuestBaseUrl()+'?room='+encodeURIComponent(roomNum)+(hn?'&hotel='+hn:'')+hl;
   currentQRUrl=url;
   document.getElementById('qr-modal-sub').textContent='Room '+roomNum+' · Guest scans to check in';
   document.getElementById('qr-url-text').textContent=url;
@@ -3917,7 +3958,7 @@ function updateUrgencyStrip(){
   // ── ORDERS STRIP ──
   var allActive = orders.filter(function(o){return o.status!=='delivered';});
   var kitchen   = orders.filter(function(o){return o.status==='new'||o.status==='preparing';});
-  var outForDel = orders.filter(function(o){return o.status==='out_for_delivery';});
+  var outForDel = orders.filter(function(o){return o.status==='preparing';});
   var oStrip = document.getElementById('orders-urgency-strip');
   var oTxt   = document.getElementById('orders-urgency-text');
   if(oStrip && oTxt){
@@ -4534,18 +4575,50 @@ function saveHotelName(val){
   applyHotelName(val);
 }
 function applyHotelName(name){
-  // Update all places showing hotel name
   document.querySelectorAll('.hotel-name-text').forEach(function(el){el.textContent=name;});
   var inp = document.getElementById('hotel-name-input');
   if(inp) inp.value = name;
-  // Update page title
   document.title = name + ' · Staff Dashboard';
+  var initial = name.trim().charAt(0).toUpperCase();
+  var el = document.getElementById('logo-preview-initial');
+  if(el) el.textContent = initial;
+}
+function uploadHotelLogo(input){
+  var file = input.files && input.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    try{ localStorage.setItem('hyatt_hotel_logo', e.target.result); }
+    catch(err){ alert('Image too large. Please use a smaller file (under 200KB).'); return; }
+    applyHotelLogo(e.target.result);
+    showToast('service','Logo Updated','Guest welcome screen will show new logo');
+  };
+  reader.readAsDataURL(file);
+}
+function applyHotelLogo(dataUrl){
+  var img = document.getElementById('logo-preview-img');
+  var ini = document.getElementById('logo-preview-initial');
+  if(dataUrl){ if(img){img.src=dataUrl;img.style.display='block';} if(ini)ini.style.display='none'; }
+  else{ if(img){img.src='';img.style.display='none';} if(ini)ini.style.display=''; }
+}
+function clearHotelLogo(){
+  localStorage.removeItem('hyatt_hotel_logo');
+  applyHotelLogo(null);
+  var inp=document.getElementById('logo-file-input');
+  if(inp)inp.value='';
+  showToast('service','Logo Removed','Guest page will show initial letter');
 }
 (function(){
-  var saved = localStorage.getItem('hyatt_hotel_name') || 'Hyatt Hotel';
-  applyHotelName(saved);
+  var savedName = localStorage.getItem('hyatt_hotel_name') || 'Hyatt Hotel';
+  applyHotelName(savedName);
+  var savedLogo = localStorage.getItem('hyatt_hotel_logo');
+  if(savedLogo) applyHotelLogo(savedLogo);
 })();
 window.saveHotelName = saveHotelName;
+window.uploadHotelLogo = uploadHotelLogo;
+window.clearHotelLogo = clearHotelLogo;
+window.uploadLogo    = uploadLogo;
+window.removeLogo    = removeLogo;
 
 maybeShowCfgOnLoad();
 })();
