@@ -3716,8 +3716,7 @@ async function checkoutRoom(roomNum, e) {
 }
 
 function roomGuestUrl(roomNum, guestName) {
-  var base = localStorage.getItem('hyatt_guest_url') ||
-    window.location.href.split('?')[0].replace('index.html','hyatt-guest-ui-final_2.html');
+  var base = localStorage.getItem('hyatt_guest_url') || 'https://shakti151622.github.io/HOTEL-PROJECT-2/hyatt-guest-ui-final_2.html';
   var clean = (!guestName || guestName === '—' || guestName === 'Vacant') ? 'Guest' : guestName;
   return base + '?room=' + encodeURIComponent(roomNum) + '&guest=' + encodeURIComponent(clean);
 }
@@ -4180,11 +4179,10 @@ function downloadQR(){
   a.click();
 }
 function getGuestBaseUrl(){
+  // Allow staff to override via Settings
   var saved=localStorage.getItem('hyatt_guest_url');
   if(saved&&saved.indexOf('http')===0)return saved.replace(/\?.*$/,'');
-  var loc=window.location.href;
-  if(loc.indexOf('shakti151622.github.io')>-1)return loc.split('?')[0].replace('index.html','hyatt-guest-ui-final_2.html');
-  if(loc.indexOf('http')===0&&loc.indexOf('srcdoc')===-1&&loc.indexOf('blob:')===-1)return loc.split('?')[0].replace('index.html','hyatt-guest-ui-final_2.html');
+  // Always point to the definitive guest UI URL
   return 'https://shakti151622.github.io/HOTEL-PROJECT-2/hyatt-guest-ui-final_2.html';
 }
 
