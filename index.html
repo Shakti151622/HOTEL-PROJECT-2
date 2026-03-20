@@ -2793,8 +2793,8 @@ function initTheme() {
   <!-- TOPBAR: simple, clean, no overflow -->
   <div class="topbar">
     <div style="display:flex;flex-direction:column;min-width:0;">
-      <div class="topbar-title" id="view-title">Food Orders</div>
-      <div class="topbar-sub" id="view-sub">Live incoming orders</div>
+      <div class="topbar-title" id="view-title">Inbox</div>
+      <div class="topbar-sub" id="view-sub">All active food & service requests</div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
       <div class="live-pill"><div class="live-dot"></div>LIVE</div>
@@ -2818,94 +2818,58 @@ function initTheme() {
   <div class="content" id="main-content">
 
     <!-- ── ORDERS VIEW ── -->
+    <!-- ── INBOX VIEW (all incoming food + service, active/pending only) ── -->
     <div class="view active" id="view-orders">
-
-      <!-- Urgency strip -->
       <div class="urgency-strip" id="orders-urgency-strip">
         <div class="urgency-dot"></div>
-        <div class="urgency-text" id="orders-urgency-text">3 orders active · oldest 28m</div>
+        <div class="urgency-text" id="orders-urgency-text">All clear</div>
       </div>
-
-      <!-- Filters -->
       <div class="quick-filters">
         <div class="quick-filters-top">
-          <div class="section-title" style="font-size:17px;">Orders</div>
-          <div class="section-count" id="orders-count">3 active</div>
+          <div class="section-title" style="font-size:17px;">Inbox</div>
+          <div class="section-count" id="orders-count">0 active</div>
         </div>
         <div class="filter-tabs">
           <button class="filter-tab active" onclick="filterOrders('all',this)">All</button>
+          <button class="filter-tab" onclick="filterOrders('food',this)">🍽 Food</button>
+          <button class="filter-tab" onclick="filterOrders('service',this)">🔔 Service</button>
           <button class="filter-tab" onclick="filterOrders('new',this)">🟡 New</button>
           <button class="filter-tab" onclick="filterOrders('accepted',this)">🟢 Accepted</button>
           <button class="filter-tab" onclick="filterOrders('rejected',this)">🔴 Rejected</button>
-          <button class="filter-tab" onclick="filterOrders('delivered',this)">⚪ Delivered</button>
         </div>
       </div>
-
-      <!-- Live order cards -->
       <div class="orders-grid" id="orders-grid"></div>
-
-      <!-- Collapsible stats -->
-      <div class="stats-collapse">
-        <button class="stats-collapse-btn" onclick="toggleStats('orders-stats')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-          Today's Stats
-          <svg class="collapse-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        <div class="stats-collapse-body" id="orders-stats">
-          <div class="stats-row" style="margin-top:12px;margin-bottom:0;">
-            <div class="stat-card amber"><div class="stat-label">Active</div><div class="stat-value" id="stat-active">3</div><div class="stat-change alert" id="stat-pending-label">2 &gt;20 min</div></div>
-            <div class="stat-card green"><div class="stat-label">Delivered</div><div class="stat-value" id="stat-delivered">14</div><div class="stat-change up">↑ 3 vs yesterday</div></div>
-            <div class="stat-card blue"><div class="stat-label">Avg Time</div><div class="stat-value">22<span style="font-size:14px;color:var(--text-dim)">m</span></div><div class="stat-change up">↓ 3min</div></div>
-            <div class="stat-card red"><div class="stat-label">Revenue</div><div class="stat-value" style="font-size:24px;">₹<span id="stat-revenue">4,820</span></div><div class="stat-change up">↑ ₹640</div></div>
-          </div>
-        </div>
-      </div>
     </div>
 
-    <!-- ── SERVICE VIEW ── -->
-    <div class="view" id="view-service">
-
-      <!-- Urgency strip -->
-      <div class="urgency-strip" id="svc-urgency-strip">
-        <div class="urgency-dot"></div>
-        <div class="urgency-text" id="svc-urgency-text">2 requests pending · oldest 22m</div>
-      </div>
-
-      <!-- Filters -->
+    <!-- ── FOOD HISTORY VIEW ── -->
+    <div class="view" id="view-food">
       <div class="quick-filters">
         <div class="quick-filters-top">
-          <div class="section-title" style="font-size:17px;">Requests</div>
-          <div class="section-count" id="svc-count">2 active</div>
+          <div class="section-title" style="font-size:17px;">Food Orders</div>
+          <div class="section-count" id="food-count">7 days</div>
         </div>
-        <div class="filter-tabs">
-          <button class="filter-tab active" onclick="filterSvc('all',this)">All</button>
-          <button class="filter-tab" onclick="filterSvc('received',this)">New</button>
-          <button class="filter-tab" onclick="filterSvc('assigned',this)">Assigned</button>
-          <button class="filter-tab" onclick="filterSvc('done',this)">Done</button>
-        </div>
+        <div class="filter-tabs" id="food-day-tabs"></div>
       </div>
-
-      <!-- Live request cards -->
-      <div id="svc-list"></div>
-
-      <!-- Collapsible stats -->
-      <div class="stats-collapse">
-        <button class="stats-collapse-btn" onclick="toggleStats('svc-stats')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-          Today's Stats
-          <svg class="collapse-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        <div class="stats-collapse-body" id="svc-stats">
-          <div class="stats-row" style="margin-top:12px;margin-bottom:0;">
-            <div class="stat-card amber"><div class="stat-label">Pending</div><div class="stat-value" id="stat-svc-pending">2</div><div class="stat-change">Needs attention</div></div>
-            <div class="stat-card green"><div class="stat-label">Done Today</div><div class="stat-value" id="stat-svc-done">8</div><div class="stat-change up">↑ Good pace</div></div>
-            <div class="stat-card blue"><div class="stat-label">Avg Response</div><div class="stat-value">7<span style="font-size:14px;color:var(--text-dim)">m</span></div><div class="stat-change up">Within SLA</div></div>
-            <div class="stat-card red"><div class="stat-label">Overdue</div><div class="stat-value" id="stat-svc-overdue">0</div><div class="stat-change">None ✓</div></div>
-          </div>
-        </div>
-      </div>
+      <div class="orders-grid" id="food-history-grid"></div>
     </div>
 
+    <!-- ── SERVICE HISTORY VIEW ── -->
+    <div class="view" id="view-service">
+      <div class="urgency-strip" id="svc-urgency-strip">
+        <div class="urgency-dot"></div>
+        <div class="urgency-text" id="svc-urgency-text">All clear</div>
+      </div>
+      <div class="quick-filters">
+        <div class="quick-filters-top">
+          <div class="section-title" style="font-size:17px;">Service</div>
+          <div class="section-count" id="svc-count">0 requests</div>
+        </div>
+        <div class="filter-tabs" id="svc-day-tabs"></div>
+      </div>
+      <div id="svc-list"></div>
+    </div>
+
+    <!-- ── ROOMS VIEW ── -->
     <div class="view" id="view-rooms">
       <div class="stats-row">
         <div class="stat-card green"><div class="stat-label">Occupied</div><div class="stat-value">12</div><div class="stat-change">of 50 rooms</div></div>
@@ -2931,21 +2895,26 @@ function initTheme() {
       <div class="rooms-grid" id="rooms-grid"></div>
     </div>
 
+    <!-- ── ANALYTICS VIEW ── -->
     <div class="view" id="view-analytics">
       <div class="stats-row">
-        <div class="stat-card amber"><div class="stat-label">Orders/Week</div><div class="stat-value">127</div><div class="stat-change up">↑ 18%</div></div>
-        <div class="stat-card green"><div class="stat-label">Revenue/Week</div><div class="stat-value" style="font-size:26px;">₹38.2k</div><div class="stat-change up">↑ ₹4.1k</div></div>
-        <div class="stat-card blue"><div class="stat-label">Satisfaction</div><div class="stat-value">4.8</div><div class="stat-change up">⭐ Excellent</div></div>
-        <div class="stat-card red"><div class="stat-label">Avg Order</div><div class="stat-value" style="font-size:26px;">₹301</div><div class="stat-change up">↑ ₹22</div></div>
+        <div class="stat-card amber"><div class="stat-label">Orders/Week</div><div class="stat-value" id="ana-orders-week">0</div><div class="stat-change" id="ana-orders-change">—</div></div>
+        <div class="stat-card green"><div class="stat-label">Revenue/Week</div><div class="stat-value" style="font-size:26px;">₹<span id="ana-revenue-week">0</span></div><div class="stat-change" id="ana-revenue-change">—</div></div>
+        <div class="stat-card blue"><div class="stat-label">Avg Deliver</div><div class="stat-value"><span id="ana-avg-time">—</span><span style="font-size:14px;color:var(--text-dim)">m</span></div><div class="stat-change" id="ana-avg-change">—</div></div>
+        <div class="stat-card red"><div class="stat-label">Avg Order</div><div class="stat-value" style="font-size:26px;">₹<span id="ana-avg-order">0</span></div><div class="stat-change" id="ana-order-change">—</div></div>
       </div>
       <div class="analytics-grid">
         <div class="analytics-card"><div class="analytics-card-title">Top Ordered Items</div><div class="bar-chart" id="top-items-chart"></div></div>
-        <div class="analytics-card"><div class="analytics-card-title">Key Metrics</div><div class="metric-list" id="metrics-list"></div></div>
+        <div class="analytics-card"><div class="analytics-card-title">Service Breakdown</div><div class="bar-chart" id="svc-breakdown-chart"></div></div>
       </div>
       <div style="height:16px"></div>
       <div class="analytics-grid">
-        <div class="analytics-card"><div class="analytics-card-title">Service Breakdown</div><div class="bar-chart" id="svc-breakdown-chart"></div></div>
-        <div class="analytics-card"><div class="analytics-card-title">Hourly Volume</div><div class="bar-chart" id="hourly-chart"></div></div>
+        <div class="analytics-card"><div class="analytics-card-title">Daily Orders (7 days)</div><div class="bar-chart" id="daily-orders-chart"></div></div>
+        <div class="analytics-card"><div class="analytics-card-title">Avg Delivery Time (min)</div><div class="bar-chart" id="delivery-time-chart"></div></div>
+      </div>
+    </div>
+  </div>
+  <!-- Permanent bottom spacer so last card always clears fixed nav -->iv>
       </div>
     </div>
   </div>
@@ -2956,17 +2925,23 @@ function initTheme() {
   <nav class="bottom-nav">
     <button class="bnav-item active" id="bnav-orders" onclick="switchView('orders',this)">
       <div class="bnav-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
-        <span class="bnav-badge" id="orders-badge">3</span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span class="bnav-badge" id="orders-badge">0</span>
       </div>
-      <span class="bnav-label">Orders</span>
+      <span class="bnav-label">Inbox</span>
+    </button>
+    <button class="bnav-item" id="bnav-food" onclick="switchView('food',this)">
+      <div class="bnav-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+      </div>
+      <span class="bnav-label">Food</span>
     </button>
     <button class="bnav-item" id="bnav-service" onclick="switchView('service',this)">
       <div class="bnav-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-        <span class="bnav-badge amber" id="service-badge">2</span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>
+        <span class="bnav-badge amber" id="service-badge">0</span>
       </div>
-      <span class="bnav-label">Requests</span>
+      <span class="bnav-label">Service</span>
     </button>
     <button class="bnav-item" id="bnav-rooms" onclick="switchView('rooms',this)">
       <div class="bnav-icon">
@@ -3272,8 +3247,7 @@ function handleSvcRealtimeEvent(payload){
     var s=rowToService(row);
     if(!services.find(function(x){return x.id===s.id;})){
       services.unshift(s);
-      renderServices();updateUrgencyStrip();
-      // New request — single alert
+      renderOrders();renderSvcHistory();updateUrgencyStrip();
       showToast('service','Service Request — Room '+s.room,s.type+(s.qty?' ×'+s.qty:''));
       playBeep('service');
     }
@@ -3281,18 +3255,18 @@ function handleSvcRealtimeEvent(payload){
     var idx=services.findIndex(function(x){return x.id===row.id;});
     if(idx!==-1) services[idx]=rowToService(row);
     else services.unshift(rowToService(row));
-    renderServices();updateUrgencyStrip();
-    // inprogress = staff en route (toast only, no sound)
     if(row.status==='inprogress'){
       showToast('service','En Route — Room '+row.room,'Staff is on the way');
     }
-    // done = completion alert
     if(row.status==='done'){
+      var svc=services.find(function(x){return x.id===row.id;});
+      if(svc) addToSvcHistory(svc);
       showToast('service','Completed — Room '+row.room,'Request fulfilled ✓');
     }
+    renderOrders();renderSvcHistory();updateUrgencyStrip();
   } else if(evt==='DELETE'){
     services=services.filter(function(x){return x.id!==old.id;});
-    renderServices();updateUrgencyStrip();
+    renderOrders();renderSvcHistory();updateUrgencyStrip();
   }
 }
 
@@ -3329,7 +3303,6 @@ function handleRealtimeEvent(payload){
     var o=rowToOrder(row);
     if(!orders.find(function(x){return x.id===o.id;})){
       orders.unshift(o);renderOrders();updateStats();
-      // Step 1: New order alert — sound + highlight
       showToast('order','New Order — Room '+o.room,'₹'+o.total+' · '+o.items.length+' item'+(o.items.length!==1?'s':''));
       startAlertBeep(o.id,'order');
     }
@@ -3337,14 +3310,20 @@ function handleRealtimeEvent(payload){
     var idx=orders.findIndex(function(x){return x.id===row.id;});
     if(idx!==-1) orders[idx]=rowToOrder(row);
     else orders.unshift(rowToOrder(row));
-    renderOrders();updateStats();
-    // Stop new-order beep once actioned
+    // Stop beep once actioned
     if(row.status!=='new') stopAlertBeep(row.id);
-    // Step 4: Ready = delivery queue alert
+    // Ready = delivery queue alert
     if(row.status==='ready'){
       showToast('service','🚀 Ready to Deliver — Room '+row.room,'Send to room now');
       playBeep('order');
     }
+    // Delivered = save to food history
+    if(row.status==='delivered'){
+      var order=orders.find(function(x){return x.id===row.id;});
+      if(order) addToFoodHistory(order);
+      setTimeout(function(){ orders=orders.filter(function(x){return x.id!==row.id;}); renderOrders(); }, 1000);
+    }
+    renderOrders();updateStats();
   } else if(evt==='DELETE'){
     orders=orders.filter(function(x){return x.id!==old.id;});
     stopAlertBeep(old.id);renderOrders();updateStats();
@@ -3411,7 +3390,13 @@ async function confirmReject(){
 async function advanceOrder(id,toStatus){
   var order=orders.find(function(o){return o.id===id;});
   if(!order)return;
+  if(toStatus==='accepted') order.acceptedAt = Date.now();
   order.status=toStatus;
+  if(toStatus==='delivered'){
+    addToFoodHistory(order);
+    // Remove from active orders after saving
+    setTimeout(function(){ orders=orders.filter(function(o){return o.id!==id;}); renderOrders(); }, 1000);
+  }
   renderOrders();updateStats();
   if(sbClient){
     try{await sbClient.from('orders').update({status:toStatus}).eq('id',id);}
@@ -3422,6 +3407,13 @@ function openCfg(){document.getElementById('sql-code').textContent=SETUP_SQL;if(
 function closeCfg(){document.getElementById('cfg-overlay').style.display='none';}
 function cfgOverlayClick(e){if(e.target.id==='cfg-overlay')closeCfg();}
 function maybeShowCfgOnLoad(){
+  if(!SUPABASE_URL||!SUPABASE_KEY){
+    // No credentials — show demo orders and prompt to connect
+    orders=_demoOrders ? _demoOrders.slice() : [];
+    renderOrders();updateStats();
+    setTimeout(openCfg,800);
+    return;
+  }
   setConnBadge('connecting','Connecting…');
   SUPABASE_URL=SUPABASE_URL.replace(/\/+$/,'');
   sbClient=window._hyattSb||supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storageKey:'hyatt-sb-auth'}});
@@ -3434,79 +3426,323 @@ function updateClock(){var d=new Date(),el=document.getElementById('clock');if(e
 setInterval(updateClock,1000);updateClock();
 function elapsed(ts){var m=Math.floor((Date.now()-ts)/60000);if(m<1)return'< 1m';if(m<60)return m+'m';return Math.floor(m/60)+'h '+(m%60)+'m';}
 function elapsedClass(ts){var m=Math.floor((Date.now()-ts)/60000);return m<15?'ok':m<25?'warn':'late';}
- function renderOrders(){
-  var grid=document.getElementById('orders-grid');
-  var active=orders.filter(function(o){return o.status!=='delivered'&&o.status!=='rejected'&&o.status!=='cancelled';});
-  var filtered=orders.filter(function(o){
-    if(orderFilter==='all') return o.status!=='delivered'&&o.status!=='rejected'&&o.status!=='cancelled';
-    if(orderFilter==='rejected') return o.status==='rejected'||o.status==='cancelled';
-    if(orderFilter==='delivered') return o.status==='delivered';
-    return o.status===orderFilter;
-  });
-  document.getElementById('orders-count').textContent=active.length+' active';
-  document.getElementById('orders-badge').textContent=active.length;
-  document.getElementById('stat-active').textContent=active.length;
-  if(!filtered.length){
-    grid.innerHTML='<div class="empty-state"><div class="empty-icon">✓</div><div style="color:var(--text-muted);font-size:15px;font-family:\'Cormorant Garamond\',serif">All clear</div><div style="font-size:12px;margin-top:4px;color:var(--text-dim)">No orders in this category</div></div>';
+
+// ══════════════════════════════════════
+// HISTORY STORAGE — 7-day rolling
+// ══════════════════════════════════════
+var HISTORY_KEY_FOOD = 'hyatt_food_history';
+var HISTORY_KEY_SVC  = 'hyatt_svc_history';
+var SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+
+function loadHistory(key) {
+  try {
+    var raw = localStorage.getItem(key);
+    if (!raw) return [];
+    var items = JSON.parse(raw);
+    // Auto-delete older than 7 days
+    var cutoff = Date.now() - SEVEN_DAYS;
+    return items.filter(function(x){ return x.completedAt > cutoff; });
+  } catch(e) { return []; }
+}
+
+function saveHistory(key, items) {
+  try { localStorage.setItem(key, JSON.stringify(items)); } catch(e) {}
+}
+
+function addToFoodHistory(order) {
+  var items = loadHistory(HISTORY_KEY_FOOD);
+  // Avoid duplicates
+  if (items.find(function(x){ return x.id === order.id; })) return;
+  var rec = {
+    id: order.id,
+    room: order.room,
+    guest: order.guest,
+    items: order.items,
+    total: order.total,
+    placedAt: order.placedAt,
+    acceptedAt: order.acceptedAt || null,
+    completedAt: Date.now(),
+    timeToAccept: order.acceptedAt ? Math.round((order.acceptedAt - order.placedAt)/60000) : null,
+    timeToDeliver: Math.round((Date.now() - order.placedAt)/60000)
+  };
+  items.unshift(rec);
+  saveHistory(HISTORY_KEY_FOOD, items);
+}
+
+function addToSvcHistory(svc) {
+  var items = loadHistory(HISTORY_KEY_SVC);
+  if (items.find(function(x){ return x.id === svc.id; })) return;
+  var rec = {
+    id: svc.id,
+    room: svc.room,
+    guest: svc.guest || 'Guest',
+    type: svc.type,
+    icon: svc.icon,
+    qty: svc.qty,
+    note: svc.note,
+    placedAt: svc.placedAt,
+    completedAt: Date.now(),
+    timeToComplete: Math.round((Date.now() - svc.placedAt)/60000)
+  };
+  items.unshift(rec);
+  saveHistory(HISTORY_KEY_SVC, items);
+}
+
+
+// ══════════════════════════════════════
+// INBOX renderOrders — unified food + service active items
+// ══════════════════════════════════════
+function foodActionBtn(id, status) {
+  if (status==='new') return '<button class="btn-status btn-accept" onclick="acceptOrder(\''+id+'\')">✓ Accept</button><button class="btn-status btn-reject" onclick="openRejectModal(\''+id+'\')">✕ Reject</button>';
+  if (status==='accepted') return '<button class="btn-status btn-preparing" onclick="advanceOrder(\''+id+'\',\'preparing\')">Start Preparing</button>';
+  if (status==='preparing') return '<button class="btn-status btn-ready" onclick="advanceOrder(\''+id+'\',\'ready\')">Mark Ready</button>';
+  if (status==='ready') return '<button class="btn-status btn-done" style="width:100%;background:rgba(76,175,125,0.15);color:var(--green);border-color:rgba(76,175,125,0.3);" onclick="advanceOrder(\''+id+'\',\'delivered\')">✓ Delivered</button>';
+  return '';
+}
+function svcActionBtn(id, status) {
+  if (status==='received') return '<button class="svc-assign" onclick="advanceSvc(\''+id+'\',\'assigned\')">Assign Staff</button><button class="svc-complete" onclick="advanceSvc(\''+id+'\',\'done\')">Done</button>';
+  if (status==='assigned') return '<button class="svc-assign" onclick="advanceSvc(\''+id+'\',\'inprogress\')" style="background:rgba(76,175,125,0.08);border-color:rgba(76,175,125,0.22);color:var(--green)">En Route</button><button class="svc-complete" onclick="advanceSvc(\''+id+'\',\'done\')">Done</button>';
+  if (status==='inprogress') return '<button class="svc-complete" style="width:100%" onclick="advanceSvc(\''+id+'\',\'done\')">Mark Completed</button>';
+  return '';
+}
+
+function renderOrders(){
+  var grid = document.getElementById('orders-grid');
+  var activeOrders = orders.filter(function(o){ return o.status!=='delivered'&&o.status!=='rejected'&&o.status!=='cancelled'; });
+  var activeSvcs   = services.filter(function(s){ return s.status!=='done'; });
+  var filteredOrders = activeOrders, filteredSvcs = activeSvcs;
+  if (orderFilter==='food')     { filteredSvcs=[]; }
+  else if (orderFilter==='service') { filteredOrders=[]; }
+  else if (orderFilter==='new') { filteredOrders=activeOrders.filter(function(o){return o.status==='new';}); filteredSvcs=activeSvcs.filter(function(s){return s.status==='received';}); }
+  else if (orderFilter==='accepted') { filteredOrders=activeOrders.filter(function(o){return o.status==='accepted'||o.status==='preparing'||o.status==='ready';}); filteredSvcs=activeSvcs.filter(function(s){return s.status==='assigned'||s.status==='inprogress';}); }
+  else if (orderFilter==='rejected') { filteredOrders=orders.filter(function(o){return o.status==='rejected'||o.status==='cancelled';}); filteredSvcs=[]; }
+
+  var total = activeOrders.length + activeSvcs.length;
+  var badge=document.getElementById('orders-badge'); if(badge) badge.textContent=total||'';
+  var cnt=document.getElementById('orders-count'); if(cnt) cnt.textContent=total+' active';
+
+  if (!filteredOrders.length && !filteredSvcs.length) {
+    grid.innerHTML='<div class="empty-state"><div class="empty-icon">✓</div><div style="color:var(--text-muted);font-size:15px;font-family:Cormorant Garamond,serif">All clear</div><div style="font-size:12px;margin-top:4px;color:var(--text-dim)">No pending orders or requests</div></div>';
     return;
   }
-  // Dashboard shows ALL states — full visibility for staff
-  // Ready state = delivery queue alert trigger
-  var pills={
-    new:      '<span class="status-pill pill-new"><span class="pill-dot"></span>New</span>',
-    accepted: '<span class="status-pill pill-accepted"><span class="pill-dot"></span>Accepted</span>',
-    preparing:'<span class="status-pill pill-preparing"><span class="pill-dot"></span>Preparing</span>',
-    ready:    '<span class="status-pill pill-ready"><span class="pill-dot"></span>Ready · Deliver Now</span>',
-    rejected: '<span class="status-pill pill-rejected"><span class="pill-dot"></span>Rejected</span>',
-    delivered:'<span class="status-pill pill-delivered"><span class="pill-dot"></span>Delivered</span>',
-    cancelled:'<span class="status-pill pill-delivered"><span class="pill-dot"></span>Cancelled</span>'
-  };
-  grid.innerHTML=filtered.map(function(o){
+
+  var foodPills={new:'<span class="status-pill pill-new"><span class="pill-dot"></span>New</span>',accepted:'<span class="status-pill pill-accepted"><span class="pill-dot"></span>Accepted</span>',preparing:'<span class="status-pill pill-preparing"><span class="pill-dot"></span>Preparing</span>',ready:'<span class="status-pill pill-ready"><span class="pill-dot"></span>Ready·Deliver</span>',rejected:'<span class="status-pill pill-rejected"><span class="pill-dot"></span>Rejected</span>',cancelled:'<span class="status-pill pill-delivered"><span class="pill-dot"></span>Cancelled</span>'};
+  var svcPills={received:'<span class="status-pill pill-new"><span class="pill-dot"></span>New</span>',assigned:'<span class="status-pill pill-preparing"><span class="pill-dot"></span>Assigned</span>',inprogress:'<span class="status-pill pill-accepted"><span class="pill-dot"></span>En Route</span>',done:'<span class="status-pill pill-delivered"><span class="pill-dot"></span>Done</span>'};
+  var phoneIcon='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6z"/></svg>';
+
+  var foodCards=filteredOrders.map(function(o){
     var ec=elapsedClass(o.placedAt);
-    var pill=pills[o.status]||'';
-    var lt=o.fromSupa?'<span style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:var(--green);margin-left:5px;opacity:0.8">● live</span>':'';
-    // Lifecycle buttons — one action per state
-    var actions='';
-    if(o.status==='new'){
-      actions='<button class="btn-status btn-accept" onclick="acceptOrder(\''+o.id+'\')">✓ Accept</button>'+
-              '<button class="btn-status btn-reject" onclick="openRejectModal(\''+o.id+'\')">✕ Reject</button>';
-    } else if(o.status==='accepted'){
-      actions='<button class="btn-status btn-preparing" onclick="advanceOrder(\''+o.id+'\',\'preparing\')">Start Preparing</button>';
-    } else if(o.status==='preparing'){
-      actions='<button class="btn-status btn-ready" onclick="advanceOrder(\''+o.id+'\',\'ready\')">Mark Ready</button>';
-    } else if(o.status==='ready'){
-      actions='<button class="btn-status btn-done" style="width:100%;background:rgba(76,175,125,0.15);color:var(--green);border-color:rgba(76,175,125,0.3);" onclick="advanceOrder(\''+o.id+'\',\'delivered\')">✓ Mark Delivered</button>';
-    }
-    var rejectionInfo=o.rejection_reason
-      ?'<div style="margin:8px 0;padding:8px 10px;background:rgba(192,57,43,0.08);border-radius:8px;font-size:12px;color:var(--red);">Reason: '+o.rejection_reason+'</div>'
-      :'';
-    var isUrgent=(o.status==='new'||o.status==='ready')?' urgent':'';
-    return '<div class="order-card'+isUrgent+'" id="card-'+o.id+'">'+
-      '<div class="order-head"><div>'+
-        '<div class="order-room">Room '+o.room+lt+'</div>'+
-        '<div class="order-id">'+o.id+' · '+o.guest+'</div>'+
-      '</div><div>'+
-        '<div style="display:flex;justify-content:flex-end;margin-bottom:4px">'+pill+'</div>'+
-        '<div class="order-time-ago">'+new Date(o.placedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true})+'</div>'+
-        '<div class="order-elapsed '+ec+'">'+elapsed(o.placedAt)+'</div>'+
-      '</div></div>'+
-      '<div class="order-items">'+o.items.map(function(i){
-        return '<div class="order-item-row"><div><span class="order-item-qty">×'+i.qty+'</span>'+i.name+'</div><div class="order-item-price">₹'+(i.qty*i.price)+'</div></div>';
-      }).join('')+'</div>'+
+    var pill=foodPills[o.status]||'';
+    var lt=o.fromSupa?'<span style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:var(--green);margin-left:5px;opacity:0.8">●live</span>':'';
+    var actions=foodActionBtn(o.id,o.status);
+    var rejInfo=o.rejection_reason?'<div style="margin:6px 0;padding:6px 10px;background:rgba(192,57,43,0.08);border-radius:8px;font-size:12px;color:var(--red);">'+o.rejection_reason+'</div>':'';
+    var urgent=(o.status==='new'||o.status==='ready')?' urgent':'';
+    return '<div class="order-card'+urgent+'" id="card-'+o.id+'">'+
+      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;"><span style="font-size:10px;background:rgba(201,169,110,0.12);color:var(--gold);border-radius:4px;padding:2px 7px;font-weight:500;">🍽 FOOD</span>'+pill+'</div>'+
+      '<div class="order-head"><div><div class="order-room">Room '+o.room+lt+'</div><div class="order-id">'+o.id+' · '+o.guest+'</div></div>'+
+      '<div><div class="order-time-ago">'+new Date(o.placedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true})+'</div><div class="order-elapsed '+ec+'">'+elapsed(o.placedAt)+'</div></div></div>'+
+      '<div class="order-items">'+o.items.map(function(i){return'<div class="order-item-row"><div><span class="order-item-qty">×'+i.qty+'</span>'+i.name+'</div><div class="order-item-price">₹'+(i.qty*i.price)+'</div></div>';}).join('')+'</div>'+
       '<div class="order-total-row"><div class="order-total-label">Total</div><div class="order-total-amt">₹'+o.total+'</div></div>'+
-      rejectionInfo+
-      '<div class="order-actions" style="gap:8px;">'+actions+
-        '<button class="btn-call" onclick="callRoom(\''+o.room+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6z"/></svg></button>'+
-      '</div>'+
+      rejInfo+
+      '<div class="order-actions" style="gap:8px;">'+actions+'<button class="btn-call" onclick="callRoom(\''+o.room+'\')">'+phoneIcon+'</button></div>'+
     '</div>';
+  });
+
+  var svcCards=filteredSvcs.map(function(s){
+    var ec=elapsedClass(s.placedAt);
+    var pill=svcPills[s.status]||'';
+    var btns=svcActionBtn(s.id,s.status);
+    var qtyStr=s.qty?' ×'+s.qty:'';
+    return '<div class="order-card'+(s.status==='received'?' urgent':'')+'" id="svc-card-'+s.id+'">'+
+      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;"><span style="font-size:10px;background:rgba(76,175,125,0.1);color:var(--green);border-radius:4px;padding:2px 7px;font-weight:500;">🔔 SERVICE</span>'+pill+'</div>'+
+      '<div class="order-head"><div><div class="order-room">Room '+s.room+'</div><div class="order-id">'+s.id+' · '+s.type+qtyStr+'</div>'+(s.note?'<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">"'+s.note+'"</div>':'')+'</div>'+
+      '<div><div class="order-time-ago">'+new Date(s.placedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true})+'</div><div class="order-elapsed '+ec+'">'+elapsed(s.placedAt)+'</div></div></div>'+
+      '<div class="order-actions" style="gap:8px;margin-top:10px;">'+btns+'<button class="btn-call" onclick="callRoom(\''+s.room+'\')">'+phoneIcon+'</button></div>'+
+    '</div>';
+  });
+
+  var allCards=filteredOrders.map(function(o,i){return{ts:o.placedAt,html:foodCards[i]};})
+    .concat(filteredSvcs.map(function(s,i){return{ts:s.placedAt,html:svcCards[i]};}));
+  allCards.sort(function(a,b){return b.ts-a.ts;});
+  grid.innerHTML=allCards.map(function(x){return x.html;}).join('');
+}
+
+// ══════════════════════════════════════
+// FOOD HISTORY VIEW
+// ══════════════════════════════════════
+var selectedFoodDay = 'today';
+
+function buildDayTabs(containerId, selectedKey, clickFn, history) {
+  var el = document.getElementById(containerId);
+  if (!el) return;
+  var days = getDayTabs();
+  el.innerHTML = days.map(function(d) {
+    var cnt = history.filter(function(x){ return sameDay(x.completedAt, d.ts); }).length;
+    var active = d.key === selectedKey ? ' active' : '';
+    var badge = cnt ? ' (' + cnt + ')' : '';
+    return '<button class="filter-tab' + active + '" data-key="' + d.key + '" data-ts="' + d.ts + '" onclick="' + clickFn + '(this)">'
+      + d.label + badge + '</button>';
   }).join('');
 }
 
-function filterOrders(f,el){orderFilter=f;document.querySelectorAll('#view-orders .filter-tab').forEach(function(t){t.classList.remove('active');});el.classList.add('active');renderOrders();}
-function renderServices(){var list=document.getElementById('svc-list');var filtered=services.filter(function(s){return svcFilter==='all'||s.status===svcFilter;});document.getElementById('svc-count').textContent=filtered.length+' requests';document.getElementById('service-badge').textContent=services.filter(function(s){return s.status!=='done';}).length;document.getElementById('stat-svc-pending').textContent=services.filter(function(s){return s.status!=='done';}).length;if(!filtered.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">✓</div><div style="color:var(--text-muted);font-size:15px;font-family:&quot;Cormorant Garamond&quot;,serif">No requests</div></div>';return;}var pills={received:'<span class="status-pill pill-received"><span class="pill-dot"></span>New</span>',assigned:'<span class="status-pill pill-assigned"><span class="pill-dot"></span>Assigned</span>',inprogress:'<span class="status-pill pill-inprogress"><span class="pill-dot"></span>In Progress</span>',done:'<span class="status-pill pill-done"><span class="pill-dot"></span>Done</span>'};list.innerHTML=filtered.map(function(s){var qtyStr=s.qty?' ×'+s.qty:'';var btns='';if(s.status==='received')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'assigned\')">Assign to Staff</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='assigned')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'inprogress\')" style="background:rgba(76,175,125,0.08);border-color:rgba(76,175,125,0.22);color:var(--green)">In Progress</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='inprogress')btns='<button class="svc-complete" style="width:100%" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Completed</button>';else btns='<span style="font-size:13px;color:var(--text-muted);padding:4px 0;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>Completed</span>';return'<div class="svc-card" id="svc-card-'+s.id+'"><div class="svc-head"><div class="svc-icon-box">'+s.icon+'</div><div><div class="svc-room">Room '+s.room+'</div><div class="svc-type">'+s.type+qtyStr+'</div>'+(s.note?'<div class="svc-note">"'+ s.note+'"</div>':'')+ '</div><div class="svc-meta">'+(pills[s.status]||'')+'<div class="svc-time" style="margin-top:6px">'+s.id+'</div><div class="svc-elapsed '+elapsedClass(s.placedAt)+'">'+elapsed(s.placedAt)+'</div></div></div><div class="svc-actions">'+btns+'<button class="btn-call" onclick="callRoom(\''+s.room+'\')" title="Call room" style="width:36px;height:36px;border-radius:10px;background:var(--surface2);border:1px solid var(--card-border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6z"/></svg></button></div></div>';}).join('');}
+function selectFoodDay(btn) {
+  selectedFoodDay = btn.dataset.key;
+  renderFoodHistory();
+}
+
+function renderFoodHistory() {
+  var items = loadHistory(HISTORY_KEY_FOOD);
+  var grid = document.getElementById('food-history-grid');
+  if (!grid) return;
+
+  buildDayTabs('food-day-tabs', selectedFoodDay, 'selectFoodDay', items);
+
+  var days = getDayTabs();
+  var dayObj = days.find(function(d){ return d.key === selectedFoodDay; });
+  var dayItems = dayObj ? items.filter(function(x){ return sameDay(x.completedAt, dayObj.ts); }) : items;
+
+  document.getElementById('food-count').textContent = dayItems.length + ' orders';
+
+  if (!dayItems.length) {
+    grid.innerHTML = '<div class="empty-state"><div class="empty-icon">🍽</div><div style="color:var(--text-muted);font-size:15px;">No orders this day</div></div>';
+    return;
+  }
+
+  var totalRev = dayItems.reduce(function(s,o){return s+o.total;},0);
+  var ts2 = dayItems.filter(function(o){return o.timeToDeliver;});
+  var avgTime = ts2.length ? Math.round(ts2.reduce(function(s,o){return s+o.timeToDeliver;},0)/ts2.length) : 0;
+
+  var summary = '<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;">'
+    + '<div class="stat-card green" style="flex:1;min-width:80px;"><div class="stat-label">Orders</div><div class="stat-value" style="font-size:24px;">' + dayItems.length + '</div></div>'
+    + '<div class="stat-card amber" style="flex:1;min-width:80px;"><div class="stat-label">Revenue</div><div class="stat-value" style="font-size:18px;">₹' + totalRev.toLocaleString('en-IN') + '</div></div>'
+    + '<div class="stat-card blue" style="flex:1;min-width:80px;"><div class="stat-label">Avg Time</div><div class="stat-value" style="font-size:20px;">' + (avgTime ? avgTime + 'm' : '—') + '</div></div>'
+    + '</div>';
+
+  var cards = dayItems.map(function(o) {
+    var acceptStr = o.timeToAccept != null ? o.timeToAccept + 'm to accept' : '—';
+    var deliverStr = o.timeToDeliver != null ? o.timeToDeliver + 'm total' : '—';
+    return '<div class="order-card" style="margin-bottom:10px;">'
+      + '<div class="order-head"><div>'
+        + '<div class="order-room">Room ' + o.room + '</div>'
+        + '<div class="order-id">' + o.id + ' · ' + o.guest + '</div>'
+      + '</div><div>'
+        + '<div class="order-time-ago">' + new Date(o.completedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}) + '</div>'
+        + '<div style="font-size:11px;color:var(--green);margin-top:2px;">✓ Delivered</div>'
+      + '</div></div>'
+      + '<div class="order-items">' + o.items.map(function(i){
+          return '<div class="order-item-row"><div><span class="order-item-qty">×' + i.qty + '</span>' + i.name + '</div><div class="order-item-price">₹' + (i.qty*i.price) + '</div></div>';
+        }).join('') + '</div>'
+      + '<div class="order-total-row"><div class="order-total-label">Total</div><div class="order-total-amt">₹' + o.total + '</div></div>'
+      + '<div style="display:flex;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--card-border);">'
+        + '<span style="font-size:11px;color:var(--text-dim);">⏱ ' + acceptStr + '</span>'
+        + '<span style="font-size:11px;color:var(--text-dim);">·</span>'
+        + '<span style="font-size:11px;color:var(--text-dim);">🚀 ' + deliverStr + '</span>'
+      + '</div>'
+    + '</div>';
+  }).join('');
+
+  grid.innerHTML = summary + cards;
+}
+
+// ══════════════════════════════════════
+// SERVICE HISTORY VIEW
+// ══════════════════════════════════════
+var selectedSvcDay = 'today';
+
+function selectSvcDay(btn) {
+  selectedSvcDay = btn.dataset.key;
+  renderSvcHistory();
+}
+
+function renderSvcHistory() {
+  var items   = loadHistory(HISTORY_KEY_SVC);
+  var active  = services.filter(function(s){ return s.status !== 'done'; });
+  var list    = document.getElementById('svc-list');
+  if (!list) return;
+
+  document.getElementById('service-badge').textContent = active.length || '';
+  buildDayTabs('svc-day-tabs', selectedSvcDay, 'selectSvcDay', items);
+
+  var days   = getDayTabs();
+  var dayObj = days.find(function(d){ return d.key === selectedSvcDay; });
+  var dayItems = dayObj ? items.filter(function(x){ return sameDay(x.completedAt, dayObj.ts); }) : items;
+
+  document.getElementById('svc-count').textContent = active.length + ' active · ' + dayItems.length + ' done';
+  updateUrgencyStrip();
+
+  var svcPills = {received:'<span class="status-pill pill-new"><span class="pill-dot"></span>New</span>',assigned:'<span class="status-pill pill-preparing"><span class="pill-dot"></span>Assigned</span>',inprogress:'<span class="status-pill pill-accepted"><span class="pill-dot"></span>En Route</span>'};
+
+  var activeHtml = active.length
+    ? '<div style="font-size:11px;letter-spacing:0.1em;color:var(--gold);margin-bottom:8px;text-transform:uppercase;">Active</div>'
+      + active.map(function(s) {
+          var qtyStr = s.qty ? ' ×' + s.qty : '';
+          var btns = svcActionBtn(s.id, s.status);
+          var ph = '<button class="btn-call" onclick="callRoom(\''+s.room+'\')" style="width:36px;height:36px;border-radius:10px;background:var(--surface2);border:1px solid var(--card-border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6z"/></svg></button>';
+          return '<div class="svc-card" id="svc-card-' + s.id + '">'
+            + '<div class="svc-head">'
+              + '<div class="svc-icon-box">' + s.icon + '</div>'
+              + '<div><div class="svc-room">Room ' + s.room + '</div>'
+                + '<div class="svc-type">' + s.type + qtyStr + '</div>'
+                + (s.note ? '<div class="svc-note">"' + s.note + '"</div>' : '')
+              + '</div>'
+              + '<div class="svc-meta">' + (svcPills[s.status]||'') + '<div class="svc-elapsed ' + elapsedClass(s.placedAt) + '">' + elapsed(s.placedAt) + '</div></div>'
+            + '</div>'
+            + '<div class="svc-actions">' + btns + ph + '</div>'
+          + '</div>';
+        }).join('')
+    : '';
+
+  var histHtml = dayItems.length
+    ? '<div style="font-size:11px;letter-spacing:0.1em;color:var(--text-muted);margin:' + (active.length?'14':'0') + 'px 0 8px;text-transform:uppercase;">Completed</div>'
+      + dayItems.map(function(r) {
+          return '<div class="svc-card">'
+            + '<div class="svc-head">'
+              + '<div class="svc-icon-box">' + r.icon + '</div>'
+              + '<div><div class="svc-room">Room ' + r.room + '</div>'
+                + '<div class="svc-type">' + r.type + (r.qty?' ×'+r.qty:'') + '</div>'
+                + (r.note ? '<div class="svc-note">"' + r.note + '"</div>' : '')
+                + '<div style="font-size:11px;color:var(--text-dim);margin-top:3px;">⏱ ' + r.timeToComplete + 'm · ' + new Date(r.completedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}) + '</div>'
+              + '</div>'
+              + '<span class="status-pill pill-done"><span class="pill-dot"></span>Done</span>'
+            + '</div>'
+          + '</div>';
+        }).join('')
+    : '';
+
+  list.innerHTML = (activeHtml || histHtml)
+    ? activeHtml + histHtml
+    : '<div class="empty-state"><div class="empty-icon">✓</div><div style="color:var(--text-muted);font-size:15px;">All clear</div></div>';
+}
+
+// ── Helper: get last 7 day tabs
+function getDayTabs() {
+  var tabs = [];
+  var now = new Date();
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(now);
+    d.setDate(d.getDate() - i);
+    d.setHours(0,0,0,0);
+    var label = i===0 ? 'Today' : i===1 ? 'Yesterday' : d.toLocaleDateString('en-IN',{weekday:'short',day:'numeric'});
+    tabs.push({ key: i===0?'today':i===1?'yesterday':('day'+i), label: label, ts: d.getTime() });
+  }
+  return tabs;
+}
+
+function sameDay(ts1, ts2) {
+  var d1 = new Date(ts1); d1.setHours(0,0,0,0);
+  var d2 = new Date(ts2); d2.setHours(0,0,0,0);
+  return d1.getTime() === d2.getTime();
+}
+
 async function advanceSvc(id,status){
-  for(var i=0;i<services.length;i++){if(services[i].id===id){services[i].status=status;break;}}
-  renderServices();updateUrgencyStrip();
+  for(var i=0;i<services.length;i++){
+    if(services[i].id===id){
+      services[i].status=status;
+      if(status==='done') addToSvcHistory(services[i]);
+      break;
+    }
+  }
+  renderOrders();renderSvcHistory();updateUrgencyStrip();
   if(sbClient){
     try{
       var{error}=await sbClient.from('service_requests').update({status:status}).eq('id',id);
@@ -3514,6 +3750,9 @@ async function advanceSvc(id,status){
     }catch(e){console.warn('Supabase svc update failed:',e);}
   }
 }
+
+function filterSvc(f,el){}  // kept for compat, no longer used
+
 function filterSvc(f,el){svcFilter=f;document.querySelectorAll('#view-service .filter-tab').forEach(function(t){t.classList.remove('active');});el.classList.add('active');renderServices();}
 async function checkoutRoom(roomNum, e) {
   e.stopPropagation();
@@ -3583,8 +3822,59 @@ function renderRooms(){
     '</div>';
   }).join('');
 }
-function renderAnalytics(){var items=[{name:'Paneer Butter Masala',val:42,pct:84},{name:'Chicken Biryani',val:38,pct:76},{name:'Dal Tadka',val:31,pct:62},{name:'Veg Biryani',val:27,pct:54},{name:'Butter Chicken',val:24,pct:48},{name:'Cold Coffee',val:19,pct:38}];document.getElementById('top-items-chart').innerHTML=items.map(function(i){return'<div class="bar-row"><div class="bar-label">'+i.name+'</div><div class="bar-track"><div class="bar-fill" style="width:'+i.pct+'%"></div></div><div class="bar-val">'+i.val+'</div></div>';}).join('');document.getElementById('metrics-list').innerHTML=[{name:'Avg. Order Value',val:'₹301',cls:'amber'},{name:'Orders / Room / Day',val:'2.4',cls:''},{name:'Peak Hour',val:'8–9 PM',cls:'amber'},{name:'Repeat Orders',val:'68%',cls:'green'},{name:'Fastest Delivery',val:'11 min',cls:'green'},{name:'Slowest Delivery',val:'38 min',cls:''}].map(function(m){return'<div class="metric-row"><div class="metric-name">'+m.name+'</div><div class="metric-val '+m.cls+'">'+m.val+'</div></div>';}).join('');var svc=[{name:'Room Cleaning',val:24,pct:80,cls:''},{name:'Towels',val:18,pct:60,cls:'green'},{name:'Water',val:14,pct:47,cls:'blue'},{name:'Other',val:8,pct:27,cls:''}];document.getElementById('svc-breakdown-chart').innerHTML=svc.map(function(i){return'<div class="bar-row"><div class="bar-label">'+i.name+'</div><div class="bar-track"><div class="bar-fill '+i.cls+'" style="width:'+i.pct+'%"></div></div><div class="bar-val">'+i.val+'</div></div>';}).join('');var hours=[{name:'7–8 AM',val:3,pct:15},{name:'8–9 AM',val:9,pct:45},{name:'12–1 PM',val:14,pct:70},{name:'1–2 PM',val:11,pct:55},{name:'7–8 PM',val:18,pct:90},{name:'8–9 PM',val:20,pct:100},{name:'9–10 PM',val:16,pct:80},{name:'10–11 PM',val:8,pct:40}];document.getElementById('hourly-chart').innerHTML=hours.map(function(i){return'<div class="bar-row"><div class="bar-label">'+i.name+'</div><div class="bar-track"><div class="bar-fill blue" style="width:'+i.pct+'%"></div></div><div class="bar-val">'+i.val+'</div></div>';}).join('');}
-function updateStats(){var allActive=orders.filter(function(o){return o.status!=='delivered';});var n=allActive.length;document.getElementById('stat-active').textContent=n;document.getElementById('orders-badge').textContent=n;document.getElementById('orders-count').textContent=n+' active';var rev=orders.filter(function(o){return o.status==='delivered';}).reduce(function(s,o){return s+o.total;},0)+4820;document.getElementById('stat-revenue').textContent=rev.toLocaleString('en-IN');updateUrgencyStrip();}
+function renderAnalytics(){
+  var foodHistory = loadHistory(HISTORY_KEY_FOOD);
+  var svcHistory  = loadHistory(HISTORY_KEY_SVC);
+  var weekOrders  = foodHistory.length;
+  var weekRevenue = foodHistory.reduce(function(s,o){return s+o.total;},0);
+  var timeSamples = foodHistory.filter(function(o){return o.timeToDeliver;});
+  var avgDeliver  = timeSamples.length ? timeSamples.reduce(function(s,o){return s+o.timeToDeliver;},0)/timeSamples.length : 0;
+  var avgOrderVal = weekOrders ? Math.round(weekRevenue/weekOrders) : 0;
+  document.getElementById('ana-orders-week').textContent  = weekOrders;
+  document.getElementById('ana-revenue-week').textContent = weekRevenue.toLocaleString('en-IN');
+  document.getElementById('ana-avg-time').textContent     = avgDeliver ? Math.round(avgDeliver) : '—';
+  document.getElementById('ana-avg-order').textContent    = avgOrderVal;
+  var itemCounts = {};
+  foodHistory.forEach(function(o){ o.items.forEach(function(i){ itemCounts[i.name]=(itemCounts[i.name]||0)+i.qty; }); });
+  var topItems = Object.entries(itemCounts).sort(function(a,b){return b[1]-a[1];}).slice(0,6);
+  var maxItem = topItems.length ? topItems[0][1] : 1;
+  document.getElementById('top-items-chart').innerHTML = topItems.length ?
+    topItems.map(function(x){ return '<div class="bar-row"><div class="bar-label">'+x[0]+'</div><div class="bar-track"><div class="bar-fill" style="width:'+Math.round(x[1]/maxItem*100)+'%"></div></div><div class="bar-val">'+x[1]+'</div></div>'; }).join('') :
+    '<div style="color:var(--text-dim);font-size:13px;padding:12px 0;">No data yet</div>';
+  var svcCounts = {};
+  svcHistory.forEach(function(s){ svcCounts[s.type]=(svcCounts[s.type]||0)+1; });
+  var svcItems = Object.entries(svcCounts).sort(function(a,b){return b[1]-a[1];});
+  var maxSvc = svcItems.length ? svcItems[0][1] : 1;
+  document.getElementById('svc-breakdown-chart').innerHTML = svcItems.length ?
+    svcItems.map(function(x){ return '<div class="bar-row"><div class="bar-label">'+x[0]+'</div><div class="bar-track"><div class="bar-fill green" style="width:'+Math.round(x[1]/maxSvc*100)+'%"></div></div><div class="bar-val">'+x[1]+'</div></div>'; }).join('') :
+    '<div style="color:var(--text-dim);font-size:13px;padding:12px 0;">No data yet</div>';
+  var dayLabels=[],dayCounts=[],dayTimes=[];
+  for(var i=6;i>=0;i--){
+    var d=new Date(); d.setDate(d.getDate()-i); d.setHours(0,0,0,0);
+    var label=i===0?'Today':d.toLocaleDateString('en-IN',{weekday:'short'});
+    var dayFood=foodHistory.filter(function(o){return sameDay(o.completedAt,d.getTime());});
+    var ts2=dayFood.filter(function(o){return o.timeToDeliver;}); 
+    var avgT=ts2.length?ts2.reduce(function(s,o){return s+o.timeToDeliver;},0)/ts2.length:0;
+    dayLabels.push(label); dayCounts.push(dayFood.length); dayTimes.push(avgT?Math.round(avgT):0);
+  }
+  var maxCount=Math.max.apply(null,dayCounts)||1;
+  var maxTime=Math.max.apply(null,dayTimes)||1;
+  document.getElementById('daily-orders-chart').innerHTML =
+    dayLabels.map(function(l,i){ return '<div class="bar-row"><div class="bar-label">'+l+'</div><div class="bar-track"><div class="bar-fill blue" style="width:'+Math.round(dayCounts[i]/maxCount*100)+'%"></div></div><div class="bar-val">'+dayCounts[i]+'</div></div>'; }).join('');
+  document.getElementById('delivery-time-chart').innerHTML =
+    dayLabels.map(function(l,i){ return '<div class="bar-row"><div class="bar-label">'+l+'</div><div class="bar-track"><div class="bar-fill" style="width:'+Math.round(dayTimes[i]/maxTime*100)+'%"></div></div><div class="bar-val">'+(dayTimes[i]?dayTimes[i]+'m':'—')+'</div></div>'; }).join('');
+}
+
+function updateStats(){
+  var activeOrders=orders.filter(function(o){return o.status!=='delivered'&&o.status!=='rejected'&&o.status!=='cancelled';});
+  var activeSvcs=services.filter(function(s){return s.status!=='done';});
+  var total=activeOrders.length+activeSvcs.length;
+  var badge=document.getElementById('orders-badge');
+  if(badge) badge.textContent=total||'';
+  var cnt=document.getElementById('orders-count');
+  if(cnt) cnt.textContent=total+' active';
+  updateUrgencyStrip();
+}
 var orderCounter=4;
 var roomPool=['101','207','301','303','105'];
 var menuPool=[{name:'Butter Chicken',price:340},{name:'Egg Fried Rice',price:210},{name:'Masala Chai',price:60},{name:'Mango Lassi',price:120},{name:'Chicken Tikka',price:380},{name:'Fresh Lime Soda',price:90}];
@@ -3675,15 +3965,22 @@ function handleModalClick(e){if(e.target.id==='qr-modal')closeQRModal();}
 function closeQRModal(){document.getElementById('qr-modal').classList.remove('open');}
 function copyURL(){var url=currentQRUrl||document.getElementById('qr-url-text').textContent;if(navigator.clipboard)navigator.clipboard.writeText(url);else{var ta=document.createElement('textarea');ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);}var btn=document.getElementById('copy-btn');btn.textContent='✓ Copied!';setTimeout(function(){btn.textContent='Copy URL';},2000);}
 function callRoom(room){showToast('service','Calling Room '+room,'Connecting to in-room phone…');}
-setInterval(function(){var av=document.querySelector('.view.active');if(av&&av.id==='view-orders'){if(sbClient)loadOrdersFromSupabase();else renderOrders();}if(av&&av.id==='view-service'){if(sbClient)loadServicesFromSupabase();else renderServices();}},30000);
+setInterval(function(){
+  var av=document.querySelector('.view.active');
+  if(!av) return;
+  if(av.id==='view-orders'){if(sbClient){loadOrdersFromSupabase();loadServicesFromSupabase();}else renderOrders();}
+  if(av.id==='view-food') renderFoodHistory();
+  if(av.id==='view-service') renderSvcHistory();
+},30000);
 var currentDashTheme='auto';
 
 /* ── VIEW TITLES ── */
 var viewTitles={
-  orders:{title:'Food Orders',sub:'Live incoming orders'},
-  service:{title:'Service Requests',sub:'Housekeeping & guest requests'},
+  orders:{title:'Inbox',sub:'All active food & service requests'},
+  food:{title:'Food Orders',sub:'Delivered orders · 7-day record'},
+  service:{title:'Service Requests',sub:'Completed requests · 7-day record'},
   rooms:{title:'Room Management',sub:'Tap any room for QR code'},
-  analytics:{title:'Analytics',sub:'Performance metrics · This week'}
+  analytics:{title:'Analytics',sub:'Live data · 7-day performance'}
 };
 
 /* ── NAVIGATION ── */
@@ -3699,8 +3996,9 @@ function switchView(name,el){
     document.getElementById('view-title').textContent=t.title;
     document.getElementById('view-sub').textContent=t.sub;
   }
-  if(name==='orders') renderOrders();
-  if(name==='service') renderServices();
+  if(name==='orders'){renderOrders();}
+  if(name==='food'){renderFoodHistory();}
+  if(name==='service'){renderSvcHistory();}
   if(name==='rooms'){if(window.renderRooms)window.renderRooms();else renderRooms();}
   if(name==='analytics'){renderAnalytics();setTimeout(animateBars,100);}
 }
@@ -3849,7 +4147,19 @@ window.elapsed=elapsed;
 window.elapsedClass=elapsedClass;
 window.renderOrders=renderOrders;
 window.filterOrders=filterOrders;
-window.renderServices=renderServices;
+window.renderFoodHistory=renderFoodHistory;
+window.renderSvcHistory=renderSvcHistory;
+window.selectFoodDay=selectFoodDay;
+window.selectSvcDay=selectSvcDay;
+window.foodActionBtn=foodActionBtn;
+window.svcActionBtn=svcActionBtn;
+window.buildDayTabs=buildDayTabs;
+window.addToFoodHistory=addToFoodHistory;
+window.addToSvcHistory=addToSvcHistory;
+window.loadHistory=loadHistory;
+window.sameDay=sameDay;
+window.getDayTabs=getDayTabs;
+window.renderServices=renderSvcHistory;
 window.loadServicesFromSupabase=loadServicesFromSupabase;
 window.rowToService=rowToService;
 window.handleSvcRealtimeEvent=handleSvcRealtimeEvent;
