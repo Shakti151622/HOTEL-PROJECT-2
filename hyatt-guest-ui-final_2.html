@@ -1988,6 +1988,50 @@ function submitService() {
   document.querySelector('.service-body').style.display = 'none';
   document.getElementById('submit-bar').style.display = 'none';
   document.getElementById('service-success').style.display = 'flex';
+
+  // Write to Supabase via XHR (Safari safe)
+  try {
+    var svcData = {
+      id: reqId,
+      room: String(window.ROOM_NUM || '000'),
+      guest: String(window.GUEST_NAME || 'Guest'),
+      type: selectedService,
+      icon: req.icon,
+      qty: qty,
+      note: note || null,
+      status: 'received',
+      placed_at: now.toISOString()
+    };
+    var xhrSvc = new XMLHttpRequest();
+    xhrSvc.open('POST', 'https://webvlxcypqhcwzbcpths.supabase.co/rest/v1/service_requests', true);
+    xhrSvc.setRequestHeader('Content-Type', 'application/json');
+    xhrSvc.setRequestHeader('apikey', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw');
+    xhrSvc.setRequestHeader('Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw');
+    xhrSvc.setRequestHeader('Prefer', 'return=minimal');
+    xhrSvc.onload = function() {
+      if (xhrSvc.status >= 200 && xhrSvc.status < 300) {
+        // Subscribe to status updates for this request
+        waitForSupa().then(function(s) {
+          if (!s) return;
+          s.channel('svc-status-' + reqId)
+            .on('postgres_changes', {
+              event: 'UPDATE', schema: 'public', table: 'service_requests',
+              filter: 'id=eq.' + reqId
+            }, function(payload) {
+              var r = serviceHistory.find(function(x){ return x.id === reqId; });
+              if (!r) return;
+              r.status = payload.new.status;
+              updateServicesBadge();
+              if (document.getElementById('screen-services').classList.contains('active')) renderServices();
+              if (payload.new.status === 'done') showGuestToast('✓ Your request has been completed!', 'green');
+              else if (payload.new.status === 'inprogress') showGuestToast('🔧 Staff is on the way…', 'green');
+            }).subscribe();
+        });
+      }
+    };
+    xhrSvc.onerror = function() { console.warn('Service XHR failed'); };
+    xhrSvc.send(JSON.stringify(svcData));
+  } catch(e) { console.warn('Service insert error:', e && e.message); }
 }
 
 function resetService() {
@@ -2544,12 +2588,16 @@ placeOrder = async function(isMerge) {
         updateOrdersBadge();
         if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
         if (row.status === 'accepted') {
-          showGuestToast('✓ Order accepted! You can modify/cancel within 5 mins.', 'green');
+          showGuestToast('✓ Order confirmed — kitchen is preparing it!', 'green');
+        } else if (row.status === 'preparing') {
+          showGuestToast('👨‍🍳 Your order is being prepared…', 'green');
+        } else if (row.status === 'ready') {
+          showGuestToast('🛎️ Order is ready — on its way to you!', 'green');
         } else if (row.status === 'rejected') {
           var reason = row.rejection_reason || 'Please contact reception';
-          showGuestToast('Order not accepted: ' + reason, 'red');
+          showGuestToast('❌ Order not accepted: ' + reason, 'red');
         } else if (row.status === 'delivered') {
-          showGuestToast('Your order has been delivered!', 'green');
+          showGuestToast('✓ Order delivered! Enjoy your meal.', 'green');
           broadcastActivity('idle');
         }
       })
