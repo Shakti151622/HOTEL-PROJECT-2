@@ -2529,6 +2529,7 @@ placeOrder = async function(isMerge) {
       status: 'new',
       placed_at: new Date().toISOString()
     };
+    console.log('Inserting order:', JSON.stringify(insertData));
     const { error } = await supaReady.from('orders').insert(insertData);
     if (error) { console.error('Order insert error:', error.message, error.code); return; }
 
