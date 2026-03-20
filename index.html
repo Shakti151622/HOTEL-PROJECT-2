@@ -3405,6 +3405,8 @@ async function loadOrdersFromSupabase(){
     var since=new Date(Date.now()-24*60*60*1000).toISOString();
     var res=await sbClient.from('orders').select('*')
       .not('status','eq','delivered')
+      .not('status','eq','rejected')
+      .not('status','eq','cancelled')
       .gte('placed_at',since)
       .order('placed_at',{ascending:false})
       .limit(200);
@@ -3605,10 +3607,10 @@ function elapsed(ts){var m=Math.floor((Date.now()-ts)/60000);if(m<1)return'< 1m'
 function elapsedClass(ts){var m=Math.floor((Date.now()-ts)/60000);return m<15?'ok':m<25?'warn':'late';}
 function renderOrders(){
   var grid=document.getElementById('orders-grid');
-  var active=orders.filter(function(o){return o.status!=='delivered'&&o.status!=='rejected';});
+  var active=orders.filter(function(o){return o.status!=='delivered'&&o.status!=='rejected'&&o.status!=='cancelled';});
   var filtered=orders.filter(function(o){
-    if(orderFilter==='all') return o.status!=='delivered'&&o.status!=='rejected';
-    if(orderFilter==='rejected') return o.status==='rejected';
+    if(orderFilter==='all') return o.status!=='delivered'&&o.status!=='rejected'&&o.status!=='cancelled';
+    if(orderFilter==='rejected') return o.status==='rejected'||o.status==='cancelled';
     if(orderFilter==='delivered') return o.status==='delivered';
     return o.status===orderFilter;
   });
@@ -3625,7 +3627,8 @@ function renderOrders(){
     preparing:'<span class="status-pill pill-preparing"><span class="pill-dot"></span>Preparing</span>',
     ready:'<span class="status-pill pill-ready"><span class="pill-dot"></span>Ready</span>',
     rejected:'<span class="status-pill pill-rejected"><span class="pill-dot"></span>Rejected</span>',
-    delivered:'<span class="status-pill pill-delivered"><span class="pill-dot"></span>Delivered</span>'
+    delivered:'<span class="status-pill pill-delivered"><span class="pill-dot"></span>Delivered</span>',
+    cancelled:'<span class="status-pill pill-delivered"><span class="pill-dot"></span>Cancelled</span>'
   };
   grid.innerHTML=filtered.map(function(o){
     var ec=elapsedClass(o.placedAt);
@@ -3756,7 +3759,8 @@ function animateBars(){document.querySelectorAll('.bar-fill').forEach(function(b
 var currentQRUrl='',currentQRRoom='';
 function showRoomQR(roomNum){
   currentQRRoom=roomNum;
-  var url=getGuestBaseUrl()+'?room='+encodeURIComponent(roomNum);
+  var hn = encodeURIComponent(localStorage.getItem('hyatt_hotel_name')||'');
+  var url=getGuestBaseUrl()+'?room='+encodeURIComponent(roomNum)+(hn?'&hotel='+hn:'');
   currentQRUrl=url;
   document.getElementById('qr-modal-sub').textContent='Room '+roomNum+' · Guest scans to check in';
   document.getElementById('qr-url-text').textContent=url;
