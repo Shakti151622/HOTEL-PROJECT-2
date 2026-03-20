@@ -1294,19 +1294,18 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 /* ── BOTTOM NAV ── */
 .bottom-nav {
   position: fixed; bottom:0; left:0; right:0;
-  height: auto;
-  min-height: 60px;
   background: var(--dark2);
   border-top: 1px solid var(--topbar-border);
-  display: flex; align-items: stretch;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
   z-index: 50;
-  padding-bottom: env(safe-area-inset-bottom, 8px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 @media(min-width:1280px){ .bottom-nav{display:none;} }
 .bnav-item {
-  flex: 1;
   display: flex; flex-direction:column; align-items:center; justify-content:center;
-  gap: 4px;
+  gap: 2px;
+  padding: 7px 0 9px;
   border: none; background: transparent;
   color: var(--text-muted);
   cursor: pointer;
@@ -1314,24 +1313,24 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
   touch-action: manipulation;
   transition: color 0.15s;
   position: relative;
+  overflow: hidden;
 }
 .bnav-item.active { color: var(--gold); }
 .bnav-item.active .bnav-icon svg { stroke: var(--gold); }
 .bnav-item:active { opacity: 0.7; }
 .bnav-icon { position:relative; display:flex; align-items:center; justify-content:center; }
-.bnav-label { font-size: 10px; font-family:'DM Sans',sans-serif; font-weight:500; letter-spacing:0.04em; }
+.bnav-label { font-size: 9px; font-family:'DM Sans',sans-serif; font-weight:500; white-space:nowrap; }
 .bnav-badge {
-  position: absolute; top:-6px; right:-10px;
+  position: absolute; top:-4px; right:-6px;
   background: var(--red); color: white;
-  font-size: 9px; font-weight: 600;
-  padding: 1px 5px; border-radius: 10px;
-  font-family: 'DM Sans', sans-serif;
-  min-width: 16px; text-align:center;
+  font-size: 8px; font-weight: 700;
+  padding: 1px 4px; border-radius: 10px;
+  min-width: 14px; text-align:center;
+  display: none;
 }
+.bnav-badge:not(:empty) { display: block; }
 .bnav-badge.amber { background:var(--gold); color:var(--dark); }
 .bnav-badge.green  { background:var(--green); color:white; }
-
-/* Active indicator bar */
 .bnav-item.active::before {
   content: '';
   position: absolute; top: 0; left: 20%; right: 20%;
@@ -2925,36 +2924,36 @@ function initTheme() {
   <nav class="bottom-nav">
     <button class="bnav-item active" id="bnav-orders" onclick="switchView('orders',this)">
       <div class="bnav-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-        <span class="bnav-badge" id="orders-badge">0</span>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span class="bnav-badge" id="orders-badge"></span>
       </div>
       <span class="bnav-label">Inbox</span>
     </button>
     <button class="bnav-item" id="bnav-food" onclick="switchView('food',this)">
       <div class="bnav-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
       </div>
       <span class="bnav-label">Food</span>
     </button>
     <button class="bnav-item" id="bnav-service" onclick="switchView('service',this)">
       <div class="bnav-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>
-        <span class="bnav-badge amber" id="service-badge">0</span>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z"/><path d="M7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/></svg>
+        <span class="bnav-badge amber" id="service-badge"></span>
       </div>
       <span class="bnav-label">Service</span>
     </button>
     <button class="bnav-item" id="bnav-rooms" onclick="switchView('rooms',this)">
       <div class="bnav-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-        <span class="bnav-badge green" id="rooms-badge">0</span>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span class="bnav-badge green" id="rooms-badge"></span>
       </div>
       <span class="bnav-label">Rooms</span>
     </button>
     <button class="bnav-item" id="bnav-analytics" onclick="switchView('analytics',this)">
       <div class="bnav-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
       </div>
-      <span class="bnav-label">Analytics</span>
+      <span class="bnav-label">Stats</span>
     </button>
   </nav>
 </div>
@@ -4045,10 +4044,11 @@ function updateUrgencyStrip(){
   var oStrip = document.getElementById('orders-urgency-strip');
   var oTxt   = document.getElementById('orders-urgency-text');
   if(oStrip && oTxt){
+    var oDot = oStrip.querySelector('.urgency-dot');
     if(allActive.length===0){
       oStrip.className='urgency-strip clear';
       oTxt.style.color='var(--green)';
-      oStrip.querySelector('.urgency-dot').style.background='var(--green)';
+      if(oDot) oDot.style.background='var(--green)';
       oTxt.textContent='All clear — no pending orders';
     } else {
       var oldest = Math.max.apply(null, allActive.map(function(o){return Math.floor((Date.now()-o.placedAt)/60000);}));
@@ -4061,12 +4061,12 @@ function updateUrgencyStrip(){
       if(overdue.length>0){
         oStrip.style.background='rgba(192,57,43,0.1)';
         oStrip.style.borderColor='rgba(192,57,43,0.25)';
-        oStrip.querySelector('.urgency-dot').style.background='var(--red)';
+        if(oDot) oDot.style.background='var(--red)';
         oTxt.style.color='var(--red)';
       } else {
         oStrip.style.background='rgba(201,169,110,0.08)';
         oStrip.style.borderColor='rgba(201,169,110,0.2)';
-        oStrip.querySelector('.urgency-dot').style.background='var(--gold)';
+        if(oDot) oDot.style.background='var(--gold)';
         oTxt.style.color='var(--gold)';
       }
       oTxt.textContent = msg;
