@@ -2157,12 +2157,12 @@ function renderOrders() {
   const active = orderHistory.filter(o => o.status !== 'delivered');
   const past   = orderHistory.filter(o => o.status === 'delivered');
 
-  const statusLabel = { preparing: 'Preparing', ready: 'Ready', delivered: 'Delivered' };
-  const statusClass = { preparing: 'status-preparing', ready: 'status-active', delivered: 'status-delivered' };
+  const statusLabel = { preparing: 'Preparing', ready: 'Preparing', delivered: 'Delivered' };
+  const statusClass = { preparing: 'status-preparing', ready: 'status-preparing', delivered: 'status-delivered' };
 
-  const stepsDef = ['Confirmed', 'Preparing', 'Ready', 'Delivered'];
+  const stepsDef = ['Confirmed', 'Preparing', 'Delivered'];
   function stepIndex(status) {
-    var idx = { preparing: 1, ready: 2, delivered: 3 }[status];
+    var idx = { preparing: 1, ready: 1, delivered: 2 }[status];
     return idx !== undefined ? idx : 0;
   }
 
@@ -3503,8 +3503,7 @@ function handleSvcRealtimeEvent(payload){
 async function loadServicesFromSupabase(){  if(!sbClient)return;
   try{
     var res=await sbClient.from('service_requests').select('*').not('status','eq','done').order('placed_at',{ascending:false}).limit(200);
-    var hasSvcErr=false;try{if(res&&res.error)hasSvcErr=true;}catch(e){}
-    if(hasSvcErr){try{console.warn('Services fetch:',String(res.error&&res.error.message||'unknown'));}catch(e){}return;}
+    if(res.error){console.warn('Services fetch:',res.error.message||res.error.code);return;}
     if(res.data&&res.data.length>0&&typeof rowToService==='function')services=res.data.map(rowToService);
     renderServices();updateUrgencyStrip();
   }catch(err){console.warn('Services load exception:',err&&err.message||String(err));}
@@ -3532,11 +3531,12 @@ function handleRealtimeEvent(payload){var evt=payload.eventType,row=payload.new|
 async function acceptOrder(id){
   var order=orders.find(function(o){return o.id===id;});
   if(!order)return;
-  order.status='accepted';
+  // Accept → immediately moves to preparing
+  order.status='preparing';
   stopAlertBeep(id);
   renderOrders();updateStats();
   if(sbClient){
-    try{await sbClient.from('orders').update({status:'accepted'}).eq('id',id);}
+    try{await sbClient.from('orders').update({status:'preparing'}).eq('id',id);}
     catch(e){console.warn('Accept failed',e);}
   }
 }
@@ -3601,7 +3601,6 @@ function openCfg(){document.getElementById('sql-code').textContent=SETUP_SQL;if(
 function closeCfg(){document.getElementById('cfg-overlay').style.display='none';}
 function cfgOverlayClick(e){if(e.target.id==='cfg-overlay')closeCfg();}
 function maybeShowCfgOnLoad(){
-  // Always auto-connect — credentials hardcoded
   setConnBadge('connecting','Connecting…');
   SUPABASE_URL=SUPABASE_URL.replace(/\/+$/,'');
   sbClient=window._hyattSb||supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storageKey:'hyatt-sb-auth'}});
@@ -3636,9 +3635,8 @@ function renderOrders(){
   }
   var pills={
     new:'<span class="status-pill pill-new"><span class="pill-dot"></span>New</span>',
-    accepted:'<span class="status-pill pill-accepted"><span class="pill-dot"></span>Accepted</span>',
     preparing:'<span class="status-pill pill-preparing"><span class="pill-dot"></span>Preparing</span>',
-    ready:'<span class="status-pill pill-ready"><span class="pill-dot"></span>Ready</span>',
+    out_for_delivery:'<span class="status-pill pill-ready"><span class="pill-dot"></span>Out for Delivery</span>',
     rejected:'<span class="status-pill pill-rejected"><span class="pill-dot"></span>Rejected</span>',
     delivered:'<span class="status-pill pill-delivered"><span class="pill-dot"></span>Delivered</span>',
     cancelled:'<span class="status-pill pill-delivered"><span class="pill-dot"></span>Cancelled</span>'
@@ -3651,12 +3649,10 @@ function renderOrders(){
     if(o.status==='new'){
       actions='<button class="btn-status btn-accept" onclick="acceptOrder(\''+o.id+'\')">✓ Accept</button>'+
               '<button class="btn-status btn-reject" onclick="openRejectModal(\''+o.id+'\')">✕ Reject</button>';
-    } else if(o.status==='accepted'){
-      actions='<button class="btn-status btn-preparing" onclick="advanceOrder(\''+o.id+'\',\'preparing\')">Start Preparing</button>';
     } else if(o.status==='preparing'){
-      actions='<button class="btn-status btn-ready" onclick="advanceOrder(\''+o.id+'\',\'ready\')">Mark Ready</button>';
-    } else if(o.status==='ready'){
-      actions='<button class="btn-status btn-done" onclick="advanceOrder(\''+o.id+'\',\'delivered\')">Mark Delivered</button>';
+      actions='<button class="btn-status btn-ready" onclick="advanceOrder(\''+o.id+'\',\'out_for_delivery\')">📦 Prepared</button>';
+    } else if(o.status==='out_for_delivery'){
+      actions='<button class="btn-status btn-done" onclick="advanceOrder(\''+o.id+'\',\'delivered\')">✓ Delivered</button>';
     }
     var rejectionInfo = o.rejection_reason
       ? '<div style="margin:8px 0;padding:8px 10px;background:rgba(192,57,43,0.08);border-radius:8px;font-size:12px;color:var(--red);">Reason: '+o.rejection_reason+'</div>'
@@ -3716,7 +3712,8 @@ async function checkoutRoom(roomNum, e) {
 }
 
 function roomGuestUrl(roomNum, guestName) {
-  var base = localStorage.getItem('hyatt_guest_url') || 'https://shakti151622.github.io/HOTEL-PROJECT-2/hyatt-guest-ui-final_2.html';
+  var base = localStorage.getItem('hyatt_guest_url') ||
+    window.location.href.split('?')[0].replace('index.html','hyatt-guest-ui-final_2.html');
   var clean = (!guestName || guestName === '—' || guestName === 'Vacant') ? 'Guest' : guestName;
   return base + '?room=' + encodeURIComponent(roomNum) + '&guest=' + encodeURIComponent(clean);
 }
@@ -3920,7 +3917,7 @@ function updateUrgencyStrip(){
   // ── ORDERS STRIP ──
   var allActive = orders.filter(function(o){return o.status!=='delivered';});
   var kitchen   = orders.filter(function(o){return o.status==='new'||o.status==='preparing';});
-  var ready     = orders.filter(function(o){return o.status==='ready';});
+  var outForDel = orders.filter(function(o){return o.status==='out_for_delivery';});
   var oStrip = document.getElementById('orders-urgency-strip');
   var oTxt   = document.getElementById('orders-urgency-text');
   if(oStrip && oTxt){
@@ -3934,7 +3931,7 @@ function updateUrgencyStrip(){
       var overdue = kitchen.filter(function(o){return Math.floor((Date.now()-o.placedAt)/60000)>=20;});
       var parts = [];
       if(kitchen.length>0) parts.push(kitchen.length+' in kitchen');
-      if(ready.length>0)   parts.push(ready.length+' ready ✓');
+      if(outForDel.length>0) parts.push(outForDel.length+' out for delivery 🚚');
       var msg = (parts.length ? parts.join(' · ')+' · ' : '') + 'oldest '+oldest+'m';
       if(overdue.length>0) msg += ' ⚠ '+overdue.length+' overdue';
       if(overdue.length>0){
@@ -4120,8 +4117,7 @@ var _soundUnlocked = localStorage.getItem('hyatt_sound_unlocked') === '1';
 function unlockSound(){
   try{
     var ctx = getAudioCtx();
-    if(ctx && ctx.state==='suspended') ctx.resume();
-    // Play a silent buffer to fully unlock
+    if(ctx && ctx.state==='suspended') ctx.resume().catch(function(){});
     var buf = ctx.createBuffer(1,1,22050);
     var src = ctx.createBufferSource();
     src.buffer = buf;
@@ -4132,9 +4128,18 @@ function unlockSound(){
   localStorage.setItem('hyatt_sound_unlocked','1');
   var banner = document.getElementById('sound-banner');
   if(banner) banner.remove();
-  // Play a test chime so staff knows it worked
   setTimeout(function(){ playBeep('order'); }, 100);
 }
+
+// Resume AudioContext on any user interaction (handles iOS auto-suspend)
+document.addEventListener('touchstart', function(){
+  var ctx = _audioCtx;
+  if(ctx && ctx.state === 'suspended') ctx.resume().catch(function(){});
+}, {passive:true});
+document.addEventListener('click', function(){
+  var ctx = _audioCtx;
+  if(ctx && ctx.state === 'suspended') ctx.resume().catch(function(){});
+});
 
 function showSoundBanner(){
   if(_soundUnlocked) return;
@@ -4145,16 +4150,27 @@ function showSoundBanner(){
     'position:fixed;top:0;left:0;right:0;z-index:9999;'+
     'background:#C9A96E;color:#0D0D0D;'+
     'display:flex;align-items:center;justify-content:space-between;'+
-    'padding:10px 16px;font-family:DM Sans,sans-serif;font-size:13px;font-weight:500;'+
-    'cursor:pointer;';
+    'padding:12px 16px;font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;'+
+    'cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,0.3);letter-spacing:0.02em;';
   banner.innerHTML =
-    '<div style="display:flex;align-items:center;gap:8px;">'+
-      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>'+
-      'Tap to enable order alert sounds'+
+    '<div style="display:flex;align-items:center;gap:10px;">'+
+      '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>'+
+      '🔔 TAP HERE to enable order alert sounds'+
     '</div>'+
-    '<span style="font-size:18px;line-height:1;">×</span>';
+    '<span style="font-size:20px;line-height:1;opacity:0.6;">×</span>';
   banner.onclick = unlockSound;
   document.body.appendChild(banner);
+
+  // Also unlock on FIRST touch anywhere on the page (one-time)
+  function unlockOnTouch(e){
+    document.removeEventListener('touchstart', unlockOnTouch);
+    document.removeEventListener('click', unlockOnTouch);
+    if(!_soundUnlocked) unlockSound();
+  }
+  setTimeout(function(){
+    document.addEventListener('touchstart', unlockOnTouch, {once:true, passive:true});
+    document.addEventListener('click', unlockOnTouch, {once:true});
+  }, 2000); // wait 2s so page loads first
 }
 
 // Show banner after page loads
@@ -4179,10 +4195,8 @@ function downloadQR(){
   a.click();
 }
 function getGuestBaseUrl(){
-  // Allow staff to override via Settings
   var saved=localStorage.getItem('hyatt_guest_url');
   if(saved&&saved.indexOf('http')===0)return saved.replace(/\?.*$/,'');
-  // Always point to the definitive guest UI URL
   return 'https://shakti151622.github.io/HOTEL-PROJECT-2/hyatt-guest-ui-final_2.html';
 }
 

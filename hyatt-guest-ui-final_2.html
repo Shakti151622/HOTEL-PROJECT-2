@@ -1753,11 +1753,12 @@ function renderOrders() {
   const stepsDef = ['Placed', 'Accepted', 'Preparing', 'Delivered'];
   function stepIndex(status) {
     return { new:0, accepted:1, preparing:2, ready:2, delivered:3, rejected:-1 }[status] ?? 0;
+  }
 
   // Progress bar % per status
   const barPctMap = { new: 8, accepted: 33, preparing: 66, ready: 75, delivered: 100 };
 
-  // ETA countdown (25 min total from placement)
+  // ETA countdown (25 min from placement)
   function getEtaHtml(o) {
     if (o.status === 'delivered' || o.status === 'rejected' || o.status === 'cancelled') return '';
     const elapsed = Math.floor((Date.now() - o.placedAt) / 60000);
@@ -1770,7 +1771,6 @@ function renderOrders() {
         : '<div class="tracker-eta"><div class="tracker-eta-dot"></div>' + remaining + ' min remaining</div>';
     }
     return '';
-  }
   }
 
   function renderCard(o) {
