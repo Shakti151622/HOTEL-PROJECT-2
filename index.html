@@ -1589,8 +1589,12 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 .room-dot { width:18px; height:18px; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; }
 .room-dot.order{background:rgba(201,169,110,0.12);color:var(--gold);} .room-dot.service{background:rgba(107,159,191,0.12);color:var(--blue);}
 .alert-container { position:fixed; top:20px; right:20px; z-index:999; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
+/* Undo toast — bottom center above nav */
+#undo-toast { position:fixed !important; bottom:80px; left:50%; transform:translateX(-50%); z-index:1000; width:calc(100% - 32px); max-width:400px; min-width:unset !important; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
 .alert-toast { background:var(--dark2); border:1px solid rgba(201,169,110,0.18); border-radius:14px; padding:14px 18px; display:flex; align-items:flex-start; gap:12px; min-width:300px; max-width:360px; animation:toastIn 0.3s cubic-bezier(0.34,1.4,0.64,1); pointer-events:all; cursor:pointer; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
 @keyframes toastIn{from{opacity:0;transform:translateX(60px);}to{opacity:1;transform:translateX(0);}}
+@keyframes toastUp{from{opacity:0;transform:translateX(-50%) translateY(20px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+@keyframes toastUp{from{opacity:0;transform:translateX(-50%) translateY(20px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
 .alert-toast.fade-out { animation:toastOut 0.25s ease forwards; }
 @keyframes toastOut{to{opacity:0;transform:translateX(60px);}}
 .toast-icon{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
@@ -1881,7 +1885,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 
 <style id="s-ops">
 .smart-strip{display:flex;align-items:center;background:var(--surface);border:1px solid var(--topbar-border);border-radius:12px;margin-bottom:12px;overflow:hidden;}
-.strip-segment{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 4px;gap:2px;}
+.strip-segment{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 4px;gap:2px;cursor:pointer;transition:background 0.15s;-webkit-tap-highlight-color:transparent;}.strip-segment:active{background:rgba(201,169,110,0.08);}
 .urgent-segment{background:rgba(192,57,43,0.06);}
 .strip-divider{width:1px;height:36px;background:var(--topbar-border);flex-shrink:0;}
 .strip-num{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;line-height:1;}
@@ -1896,34 +1900,108 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 @keyframes urgP{0%,100%{box-shadow:0 0 0 1px rgba(192,57,43,0.1);}50%{box-shadow:0 0 0 3px rgba(192,57,43,0.05);}}
 .ops-empty{text-align:center;padding:60px 24px;color:var(--text-dim);}.ops-empty-icon{font-size:44px;margin-bottom:12px;}.ops-empty-title{font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--text-muted);}
 
-/* ── TABLET RESPONSIVE ── */
-@media(min-width:768px) and (max-width:1399px){
-  .topbar { padding: 12px 20px !important; }
-  .topbar-title { font-size: 22px !important; }
-  .topbar-sub { font-size: 12px !important; }
-  .content { padding: 20px 24px 120px !important; }
+/* ── RISK / LATE labels ── */
+.risk-label {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:3px 9px; border-radius:100px;
+  font-size:10px; font-weight:700; letter-spacing:0.08em;
+}
+.risk-late  { background:rgba(192,57,43,0.14); color:var(--red);  border:1px solid rgba(192,57,43,0.3); }
+.risk-risk  { background:rgba(255,193,60,0.12); color:#E0A800;   border:1px solid rgba(255,193,60,0.3); }
+.risk-ok    { background:rgba(76,175,125,0.1);  color:var(--green); border:1px solid rgba(76,175,125,0.22); }
+
+/* ── ETA timer row ── */
+.eta-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:8px 14px; background:rgba(0,0,0,0.05);
+  border-bottom:1px solid var(--card-border);
+  font-size:12px;
+}
+.eta-bar-wrap { flex:1; height:4px; background:var(--surface2); border-radius:2px; margin:0 12px; overflow:hidden; }
+.eta-bar-fill { height:100%; border-radius:2px; transition:width 1s linear; }
+
+/* ── Left-border state indicator ── */
+.task-card { border-left:4px solid transparent !important; }
+.task-card.state-new      { border-left-color:var(--red) !important; }
+.task-card.state-accepted { border-left-color:var(--gold) !important; }
+.task-card.state-preparing{ border-left-color:var(--gold) !important; }
+.task-card.state-ready    { border-left-color:var(--green) !important; }
+.task-card.state-late     { border-left-color:var(--red) !important; box-shadow:0 0 0 2px rgba(192,57,43,0.15); }
+
+/* ── Sticky critical card ── */
+.task-card.sticky-critical {
+  position:sticky; top:4px; z-index:10;
+  box-shadow:0 6px 24px rgba(192,57,43,0.25), 0 2px 8px rgba(0,0,0,0.3);
+  border-left-color:var(--red) !important;
+}
+
+/* ── Strip chips — tappable ── */
+.strip-segment { cursor:pointer; transition:background 0.15s; -webkit-tap-highlight-color:transparent; }
+.strip-segment:active { background:rgba(201,169,110,0.08); }
+
+/* ══════════════════════════════════════
+   RESPONSIVE LAYOUT — iPad / Laptop / Desktop
+   768px  = iPad mini landscape / small tablet
+   1024px = iPad Pro / small laptop
+   1280px = laptop
+   1440px+ = desktop
+══════════════════════════════════════ */
+
+/* ── iPAD PORTRAIT (768px) ── */
+@media(min-width:768px){
+  .content { padding: 20px 24px 100px !important; }
+  .topbar { padding: 14px 24px !important; }
+  .topbar-title { font-size: 21px !important; }
   .bottom-nav { height: 64px; padding-bottom: 8px; }
-  .bnav-item { gap: 5px; }
   .bnav-label { font-size: 11px; }
   .bnav-icon svg { width: 22px; height: 22px; }
   .stats-row { grid-template-columns: repeat(4,1fr) !important; gap:14px !important; }
   .rooms-grid { grid-template-columns: repeat(4,1fr) !important; }
   .orders-grid { grid-template-columns: 1fr 1fr !important; }
-  /* Smart strip bigger on tablet */
-  .smart-strip { border-radius: 14px; }
+  #task-grid { display:grid !important; grid-template-columns:1fr 1fr !important; gap:14px !important; }
+  .analytics-grid { grid-template-columns: 1fr 1fr !important; }
   .strip-num { font-size: 26px !important; }
-  .strip-label { font-size: 10px !important; }
-  /* Filter tabs */
-  .ops-tab { padding: 8px 18px; font-size: 13px; }
-  /* Task cards — 2 column on tablet */
-  #task-grid { display: grid !important; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .ops-tab { padding: 8px 16px; font-size: 13px; }
+  .smart-strip { border-radius: 14px; }
 }
 
-/* ── LARGE TABLET / IPAD PRO ── */
-@media(min-width:1024px) and (max-width:1399px){
+/* ── iPAD LANDSCAPE / iPAD PRO (1024px) ── */
+@media(min-width:1024px){
   .content { padding: 24px 32px 100px !important; }
-  #task-grid { grid-template-columns: 1fr 1fr 1fr !important; }
+  .topbar { padding: 16px 32px !important; }
+  .topbar-title { font-size: 22px !important; }
+  html[data-mode="staff"] .main { margin-left: 240px; }
+  .bottom-nav { display: none !important; }
+  .sidebar-desk { display: flex !important; }
+  #task-grid { display:grid !important; grid-template-columns: 1fr 1fr 1fr !important; gap:16px !important; }
   .rooms-grid { grid-template-columns: repeat(5,1fr) !important; }
+  .stats-row { grid-template-columns: repeat(4,1fr) !important; gap:18px !important; }
+  .analytics-grid { grid-template-columns: 1fr 1fr !important; }
+  .stat-value { font-size: 42px !important; }
+  .ops-tab { padding: 9px 20px; font-size: 13px; }
+}
+
+/* ── LAPTOP (1280px) ── */
+@media(min-width:1280px){
+  .content { padding: 28px 40px 40px !important; }
+  .topbar { padding: 18px 40px !important; }
+  #task-grid { display:grid !important; grid-template-columns: 1fr 1fr 1fr !important; gap:18px !important; }
+  .rooms-grid { grid-template-columns: repeat(6,1fr) !important; }
+  .smart-strip { gap: 0; }
+  .strip-segment { padding: 16px 20px !important; }
+  .strip-num { font-size: 30px !important; }
+}
+
+/* ── DESKTOP (1440px+) ── */
+@media(min-width:1440px){
+  html[data-mode="staff"] .main { margin-left: 260px; }
+  .sidebar-desk { width: 260px !important; }
+  .content { padding: 32px 48px 48px !important; }
+  .topbar { padding: 20px 48px !important; }
+  #task-grid { display:grid !important; grid-template-columns: repeat(4,1fr) !important; gap:20px !important; }
+  .rooms-grid { grid-template-columns: repeat(7,1fr) !important; }
+  .stats-row { gap: 20px !important; }
+  .stat-value { font-size: 44px !important; }
 }
 </style>
 </head>
@@ -3247,6 +3325,43 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
   </div>
 </div>
 
+<!-- ══ DESKTOP SIDEBAR ══ -->
+<nav class="sidebar-desk">
+  <div style="padding:24px 20px 16px;border-bottom:1px solid var(--topbar-border);">
+    <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--gold);letter-spacing:0.05em;" class="hotel-name-text">Shakti Hotels</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:3px;letter-spacing:0.1em;text-transform:uppercase;">Staff Dashboard</div>
+  </div>
+  <div style="flex:1;padding:16px 12px;display:flex;flex-direction:column;gap:4px;">
+    <button onclick="switchView('orders',this)" id="desk-nav-orders" style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;border:none;background:rgba(201,169,110,0.1);color:var(--gold);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+      Tasks
+      <span style="margin-left:auto;background:var(--red);color:white;font-size:9px;font-weight:600;padding:1px 6px;border-radius:10px;" id="desk-orders-badge">0</span>
+    </button>
+    <button onclick="switchView('rooms',this)" id="desk-nav-rooms" style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;border:none;background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Rooms
+    </button>
+    <button onclick="switchView('analytics',this)" id="desk-nav-analytics" style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;border:none;background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Analytics
+    </button>
+  </div>
+  <div style="padding:16px 12px;border-top:1px solid var(--topbar-border);display:flex;flex-direction:column;gap:8px;">
+    <button onclick="openRoomConfig()" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:none;background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
+      Manage Rooms
+    </button>
+    <button onclick="openCfg()" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:none;background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Supabase DB
+    </button>
+    <button onclick="toggleTheme()" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:none;background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
+      <span style="font-size:14px;">🌙</span> Toggle Theme
+    </button>
+    <div style="padding:10px 14px;font-size:11px;color:var(--text-dim);" id="clock-desk"></div>
+  </div>
+</nav>
+
 <div class="main">
   <!-- TOPBAR: simple, clean, no overflow -->
   <div class="topbar">
@@ -3278,15 +3393,30 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
     <!-- ── ORDERS VIEW ── -->
     <div class="view active" id="view-orders">
       <div class="smart-strip" id="smart-strip">
-        <div class="strip-segment urgent-segment"><span class="strip-num strip-red" id="strip-new-num">0</span><span class="strip-label">New</span></div>
+        <div class="strip-segment urgent-segment" onclick="scrollToStatus('new')" title="Jump to new orders">
+          <span class="strip-num strip-red" id="strip-new-num">0</span>
+          <span class="strip-label">New</span>
+        </div>
         <div class="strip-divider"></div>
-        <div class="strip-segment"><span class="strip-num strip-amber" id="strip-prep-num">0</span><span class="strip-label">Prep</span></div>
+        <div class="strip-segment" onclick="scrollToStatus('preparing')" title="Jump to preparing">
+          <span class="strip-num strip-amber" id="strip-prep-num">0</span>
+          <span class="strip-label" id="strip-prep-label">Prep</span>
+        </div>
         <div class="strip-divider"></div>
-        <div class="strip-segment"><span class="strip-num strip-green" id="strip-ready-num">0</span><span class="strip-label">Ready</span></div>
+        <div class="strip-segment" onclick="scrollToStatus('ready')" title="Jump to ready orders">
+          <span class="strip-num strip-green" id="strip-ready-num">0</span>
+          <span class="strip-label">Ready</span>
+        </div>
         <div class="strip-divider"></div>
-        <div class="strip-segment"><span class="strip-num strip-blue" id="strip-svc-num">0</span><span class="strip-label">Service</span></div>
+        <div class="strip-segment" onclick="scrollToStatus('service')" title="Jump to service requests">
+          <span class="strip-num strip-blue" id="strip-svc-num">0</span>
+          <span class="strip-label">Service</span>
+        </div>
         <div class="strip-divider"></div>
-        <div class="strip-segment"><span class="strip-num strip-dim" id="strip-oldest">--</span><span class="strip-label">Oldest</span></div>
+        <div class="strip-segment" onclick="scrollToOldest()" title="Jump to oldest order" style="cursor:pointer;">
+          <span class="strip-num strip-dim" id="strip-oldest">--</span>
+          <span class="strip-label">Oldest</span>
+        </div>
       </div>
       <div class="ops-filters"><div class="ops-filter-row">
         <button class="ops-tab active" onclick="setTypeFilter('all',this)">All</button>
@@ -3451,7 +3581,7 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
     </div>
 
     <!-- Floor builder -->
-    <div id="floor-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;max-height:320px;overflow-y:auto;-webkit-overflow-scrolling:touch;"></div>
+    <div id="floor-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;max-height:420px;overflow-y:auto;-webkit-overflow-scrolling:touch;"></div>
 
     <!-- Add floor -->
     <button onclick="addFloor()" style="width:100%;padding:11px;background:rgba(201,169,110,0.08);border:1px dashed rgba(201,169,110,0.3);border-radius:10px;color:var(--gold);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;letter-spacing:0.04em;margin-bottom:16px;">
@@ -3471,6 +3601,28 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
   </div>
 </div>
 
+
+<!-- REJECT ORDER MODAL -->
+<div class="modal-overlay" id="reject-modal" onclick="if(event.target===this)closeRejectModal()">
+  <div style="background:var(--surface);border:1px solid var(--card-border);border-radius:20px;padding:24px;width:min(360px,92vw);animation:slideUpD 0.3s ease;">
+    <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--text);margin-bottom:6px;">Reject Order?</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Select a reason to notify the guest</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">
+      <button class="reject-reason-btn" onclick="selectReason('Item unavailable',this)" style="padding:12px 16px;border-radius:10px;border:1px solid var(--card-border);background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;text-align:left;cursor:pointer;">Item unavailable</button>
+      <button class="reject-reason-btn" onclick="selectReason('Kitchen closed',this)" style="padding:12px 16px;border-radius:10px;border:1px solid var(--card-border);background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;text-align:left;cursor:pointer;">Kitchen closed</button>
+      <button class="reject-reason-btn" onclick="selectReason('Too busy right now',this)" style="padding:12px 16px;border-radius:10px;border:1px solid var(--card-border);background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;text-align:left;cursor:pointer;">Too busy right now</button>
+      <button class="reject-reason-btn" onclick="selectReason('Other',this)" style="padding:12px 16px;border-radius:10px;border:1px solid var(--card-border);background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;text-align:left;cursor:pointer;">Other</button>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="closeRejectModal()" style="flex:1;padding:13px;background:var(--surface2);border:1px solid var(--card-border);border-radius:10px;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;">Cancel</button>
+      <button id="reject-confirm-btn" onclick="confirmReject()" disabled style="flex:1;padding:13px;background:var(--red);border:none;border-radius:10px;color:white;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;opacity:0.5;transition:opacity 0.2s;">Reject Order</button>
+    </div>
+  </div>
+</div>
+<style>
+  .reject-reason-btn.active { background:rgba(192,57,43,0.1) !important; border-color:rgba(192,57,43,0.35) !important; color:var(--red) !important; }
+  #reject-confirm-btn:not([disabled]) { opacity:1; }
+</style>
 </div><!-- /staff-root -->
 
 <!-- ══ GUEST SCRIPTS (only in guest mode) ══ -->
@@ -3580,6 +3732,7 @@ function handleSvcRealtimeEvent(payload){
     var s=rowToService(row);
     if(!services.find(function(x){return x.id===s.id;})){
       services.unshift(s);
+      if(typeof renderTasks==='function') renderTasks();
       renderServices();updateUrgencyStrip();
       showToast('service','Service Request — Room '+s.room,s.type+(s.qty?' ×'+s.qty:''));
     }
@@ -3587,9 +3740,11 @@ function handleSvcRealtimeEvent(payload){
     var idx=services.findIndex(function(x){return x.id===row.id;});
     if(idx!==-1)services[idx]=rowToService(row);
     else services.unshift(rowToService(row));
+    if(typeof renderTasks==='function') renderTasks();
     renderServices();updateUrgencyStrip();
   } else if(evt==='DELETE'){
     services=services.filter(function(x){return x.id!==old.id;});
+    if(typeof renderTasks==='function') renderTasks();
     renderServices();updateUrgencyStrip();
   }
 }
@@ -3604,7 +3759,6 @@ async function loadServicesFromSupabase(){
   }catch(err){console.warn('Services load exception:',err&&err.message||String(err));}
 }
 function handleRealtimeEvent(payload){var evt=payload.eventType,row=payload.new||{},old=payload.old||{};if(evt==='INSERT'){var o=rowToOrder(row);if(!orders.find(function(x){return x.id===o.id;})){orders.unshift(o);renderOrders();updateStats();showToast('order','New Order — Room '+o.room,'₹'+o.total+' · '+o.items.length+' item'+(o.items.length!==1?'s':''));}}else if(evt==='UPDATE'){var idx=orders.findIndex(function(x){return x.id===row.id;});if(idx!==-1)orders[idx]=rowToOrder(row);else orders.unshift(rowToOrder(row));renderOrders();updateStats();}else if(evt==='DELETE'){orders=orders.filter(function(x){return x.id!==old.id;});renderOrders();updateStats();}}
-async function advanceOrder(id){var next={new:'preparing',preparing:'ready',ready:'delivered'};var order=orders.find(function(o){return o.id===id;});if(!order)return;order.status=next[order.status]||order.status;if(order.status==='delivered'){orders=orders.filter(function(o){return o.id!==id;});}renderOrders();updateStats();if(sbClient){try{var{error}=await sbClient.from('orders').update({status:order.status}).eq('id',id);if(error)console.warn('Supabase update:',error.message);}catch(e){console.warn('Supabase update failed:',e);}}}
 function openCfg(){document.getElementById('sql-code').textContent=SETUP_SQL;if(SUPABASE_URL)document.getElementById('cfg-url').value=SUPABASE_URL;if(SUPABASE_KEY)document.getElementById('cfg-key').value=SUPABASE_KEY;var btn=document.getElementById('cfg-connect-btn');btn.disabled=false;btn.textContent='Connect';document.getElementById('cfg-overlay').style.display='flex';}
 function closeCfg(){document.getElementById('cfg-overlay').style.display='none';}
 function cfgOverlayClick(e){if(e.target.id==='cfg-overlay')closeCfg();}
@@ -3616,23 +3770,13 @@ function elapsedClass(ts){var m=Math.floor((Date.now()-ts)/60000);return m<15?'o
 function renderOrders(){if(typeof renderTasks==='function'){renderTasks();if(typeof updateSmartStrip==='function')updateSmartStrip();}}
 function filterOrders(f,el){if(typeof setTypeFilter==='function')setTypeFilter(f,el);}
 function renderServices(){var list=document.getElementById('svc-list');var filtered=services.filter(function(s){return svcFilter==='all'||s.status===svcFilter;});document.getElementById('svc-count').textContent=filtered.length+' requests';document.getElementById('service-badge').textContent=services.filter(function(s){return s.status!=='done';}).length;document.getElementById('stat-svc-pending').textContent=services.filter(function(s){return s.status!=='done';}).length;if(!filtered.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">✓</div><div style="color:var(--text-muted);font-size:15px;font-family:&quot;Cormorant Garamond&quot;,serif">No requests</div></div>';return;}var pills={received:'<span class="status-pill pill-received"><span class="pill-dot"></span>New</span>',assigned:'<span class="status-pill pill-assigned"><span class="pill-dot"></span>Assigned</span>',inprogress:'<span class="status-pill pill-inprogress"><span class="pill-dot"></span>In Progress</span>',done:'<span class="status-pill pill-done"><span class="pill-dot"></span>Done</span>'};list.innerHTML=filtered.map(function(s){var qtyStr=s.qty?' ×'+s.qty:'';var btns='';if(s.status==='received')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'assigned\')">Assign to Staff</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='assigned')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'inprogress\')" style="background:rgba(76,175,125,0.08);border-color:rgba(76,175,125,0.22);color:var(--green)">In Progress</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='inprogress')btns='<button class="svc-complete" style="width:100%" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Completed</button>';else btns='<span style="font-size:13px;color:var(--text-muted);padding:4px 0;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>Completed</span>';return'<div class="svc-card" id="svc-card-'+s.id+'"><div class="svc-head"><div class="svc-icon-box">'+s.icon+'</div><div><div class="svc-room">Room '+s.room+'</div><div class="svc-type">'+s.type+qtyStr+'</div>'+(s.note?'<div class="svc-note">"'+ s.note+'"</div>':'')+ '</div><div class="svc-meta">'+(pills[s.status]||'')+'<div class="svc-time" style="margin-top:6px">'+s.id+'</div><div class="svc-elapsed '+elapsedClass(s.placedAt)+'">'+elapsed(s.placedAt)+'</div></div></div><div class="svc-actions">'+btns+'<button class="btn-call" onclick="callRoom(\''+s.room+'\')" title="Call room" style="width:36px;height:36px;border-radius:10px;background:var(--surface2);border:1px solid var(--card-border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6z"/></svg></button></div></div>';}).join('');}
-async function advanceSvc(id,status){
-  for(var i=0;i<services.length;i++){if(services[i].id===id){services[i].status=status;break;}}
-  renderServices();updateUrgencyStrip();
-  if(sbClient){
-    try{
-      var{error}=await sbClient.from('service_requests').update({status:status}).eq('id',id);
-      if(error)console.warn('Supabase svc update:',error.message);
-    }catch(e){console.warn('Supabase svc update failed:',e);}
-  }
-}
 function filterSvc(f,el){svcFilter=f;document.querySelectorAll('#view-service .filter-tab').forEach(function(t){t.classList.remove('active');});el.classList.add('active');renderServices();}
 function getGuestBaseUrl(){
   return 'https://shakti151622.github.io/HOTEL-PROJECT-2/hyatt-guest-ui-final_2.html';
 }
 function renderRooms(){var data=(typeof buildRoomsData==='function')?buildRoomsData():[];var grid=document.getElementById('rooms-grid');if(!grid)return;grid.innerHTML=data.map(function(r){var dots='';if(r.orders>0)dots+='<div class="room-dot order">'+r.orders+'🍽</div>';if(r.services>0)dots+='<div class="room-dot service">'+r.services+'🛎</div>';var isOccupied=r.status==='occupied'||r.status==='checkout';var _hn=localStorage.getItem('hyatt_hotel_name')||'';var fixedUrl=getGuestBaseUrl()+'?room='+encodeURIComponent(r.num)+(_hn?'&hotel='+encodeURIComponent(_hn):'');var qrSrc='https://chart.googleapis.com/chart?chs=72x72&cht=qr&chl='+encodeURIComponent(fixedUrl)+'&choe=UTF-8&chld=M|0';return'<div class="room-tile '+r.status+'" onclick="showRoomQR(\''+r.num+'\')">'+'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'+'<div class="room-number">'+r.num+'</div>'+'</div>'+'<div class="room-guest">'+(r.guest||'Vacant')+'</div>'+'<div style="display:flex;justify-content:center;margin:6px 0 4px;">'+'<div style="background:white;border-radius:6px;padding:3px;display:inline-block;position:relative;">'+'<img src="'+qrSrc+'" width="66" height="66" style="display:block;border-radius:2px;" loading="lazy" alt="QR '+r.num+'">'+'<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;background:white;border-radius:3px;display:flex;align-items:center;justify-content:center;">'+'<div style="width:10px;height:10px;background:#C9A96E;border-radius:2px;"></div>'+'</div>'+'</div>'+'</div>'+'<div class="room-status-row"><div class="room-checkout" style="font-size:10px;color:var(--text-dim)">'+r.checkout+'</div>'+'<div class="room-actions-active">'+dots+'</div></div>'+(isOccupied?'<button onclick="event.stopPropagation()" style="width:100%;margin-top:6px;background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.2);border-radius:8px;color:var(--red);font-size:11px;padding:5px;cursor:pointer;letter-spacing:0.04em;">Check Out</button>':'')+'</div>';}).join('');}
 function renderAnalytics(){var items=[{name:'Paneer Butter Masala',val:42,pct:84},{name:'Chicken Biryani',val:38,pct:76},{name:'Dal Tadka',val:31,pct:62},{name:'Veg Biryani',val:27,pct:54},{name:'Butter Chicken',val:24,pct:48},{name:'Cold Coffee',val:19,pct:38}];document.getElementById('top-items-chart').innerHTML=items.map(function(i){return'<div class="bar-row"><div class="bar-label">'+i.name+'</div><div class="bar-track"><div class="bar-fill" style="width:'+i.pct+'%"></div></div><div class="bar-val">'+i.val+'</div></div>';}).join('');document.getElementById('metrics-list').innerHTML=[{name:'Avg. Order Value',val:'₹301',cls:'amber'},{name:'Orders / Room / Day',val:'2.4',cls:''},{name:'Peak Hour',val:'8–9 PM',cls:'amber'},{name:'Repeat Orders',val:'68%',cls:'green'},{name:'Fastest Delivery',val:'11 min',cls:'green'},{name:'Slowest Delivery',val:'38 min',cls:''}].map(function(m){return'<div class="metric-row"><div class="metric-name">'+m.name+'</div><div class="metric-val '+m.cls+'">'+m.val+'</div></div>';}).join('');var svc=[{name:'Room Cleaning',val:24,pct:80,cls:''},{name:'Towels',val:18,pct:60,cls:'green'},{name:'Water',val:14,pct:47,cls:'blue'},{name:'Other',val:8,pct:27,cls:''}];document.getElementById('svc-breakdown-chart').innerHTML=svc.map(function(i){return'<div class="bar-row"><div class="bar-label">'+i.name+'</div><div class="bar-track"><div class="bar-fill '+i.cls+'" style="width:'+i.pct+'%"></div></div><div class="bar-val">'+i.val+'</div></div>';}).join('');var hours=[{name:'7–8 AM',val:3,pct:15},{name:'8–9 AM',val:9,pct:45},{name:'12–1 PM',val:14,pct:70},{name:'1–2 PM',val:11,pct:55},{name:'7–8 PM',val:18,pct:90},{name:'8–9 PM',val:20,pct:100},{name:'9–10 PM',val:16,pct:80},{name:'10–11 PM',val:8,pct:40}];document.getElementById('hourly-chart').innerHTML=hours.map(function(i){return'<div class="bar-row"><div class="bar-label">'+i.name+'</div><div class="bar-track"><div class="bar-fill blue" style="width:'+i.pct+'%"></div></div><div class="bar-val">'+i.val+'</div></div>';}).join('');}
-function updateStats(){var allActive=orders.filter(function(o){return o.status!=='delivered';});var n=allActive.length;document.getElementById('stat-active').textContent=n;document.getElementById('orders-badge').textContent=n;document.getElementById('orders-count').textContent=n+' active';var rev=orders.filter(function(o){return o.status==='delivered';}).reduce(function(s,o){return s+o.total;},0)+4820;document.getElementById('stat-revenue').textContent=rev.toLocaleString('en-IN');updateUrgencyStrip();}
+function updateStats(){var allActive=orders.filter(function(o){return o.status!=='delivered';});var n=allActive.length;document.getElementById('stat-active').textContent=n;document.getElementById('orders-badge').textContent=n;var db=document.getElementById('desk-orders-badge');if(db)db.textContent=n>0?n:'';document.getElementById('orders-count').textContent=n+' active';var rev=orders.filter(function(o){return o.status==='delivered';}).reduce(function(s,o){return s+o.total;},0)+4820;document.getElementById('stat-revenue').textContent=rev.toLocaleString('en-IN');updateUrgencyStrip();}
 var orderCounter=4;
 var roomPool=['101','207','301','303','105'];
 var menuPool=[{name:'Butter Chicken',price:340},{name:'Egg Fried Rice',price:210},{name:'Masala Chai',price:60},{name:'Mango Lassi',price:120},{name:'Chicken Tikka',price:380},{name:'Fresh Lime Soda',price:90}];
@@ -3679,7 +3823,25 @@ function closeQRModal(){document.getElementById('qr-modal').classList.remove('op
 function copyURL(){var url=currentQRUrl||document.getElementById('qr-url-text').textContent;if(navigator.clipboard)navigator.clipboard.writeText(url);else{var ta=document.createElement('textarea');ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);}var btn=document.getElementById('copy-btn');btn.textContent='✓ Copied!';setTimeout(function(){btn.textContent='Copy URL';},2000);}
 function downloadQR(){var c=document.getElementById('qr-canvas'),l=document.createElement('a');l.download='QR-Room-'+currentQRRoom+'.png';l.href=c.toDataURL('image/png');l.click();}
 function callRoom(room){showToast('service','Calling Room '+room,'Connecting to in-room phone…');}
-setInterval(function(){var av=document.querySelector('.view.active');if(av&&av.id==='view-orders'){if(sbClient)loadOrdersFromSupabase();else renderOrders();}if(av&&av.id==='view-service'){if(sbClient)loadServicesFromSupabase();else renderServices();}},30000);
+// ── Single 30s refresh — ETA/risk labels + optional Supabase poll
+var _refreshing = false;
+setInterval(function(){
+  if (_refreshing) return;
+  _refreshing = true;
+  try {
+    var av = document.querySelector('.view.active');
+    if (av && av.id === 'view-orders') {
+      if (typeof renderTasks === 'function') renderTasks();
+      if (sbClient) loadOrdersFromSupabase().catch(function(){}).finally(function(){ _refreshing = false; });
+      else _refreshing = false;
+    } else if (av && av.id === 'view-service') {
+      if (sbClient) loadServicesFromSupabase().catch(function(){}).finally(function(){ _refreshing = false; });
+      else { renderServices(); _refreshing = false; }
+    } else {
+      _refreshing = false;
+    }
+  } catch(e) { _refreshing = false; }
+}, 30000);
 var currentDashTheme='auto';
 
 /* ── VIEW TITLES ── */
@@ -3698,6 +3860,13 @@ function switchView(name,el){
   if(view) view.classList.add('active');
   var bnavEl=document.getElementById('bnav-'+name);
   if(bnavEl) bnavEl.classList.add('active');
+  // Update desktop sidebar active state
+  ['orders','rooms','analytics'].forEach(function(v){
+    var btn=document.getElementById('desk-nav-'+v);
+    if(!btn)return;
+    if(v===name){ btn.style.background='rgba(201,169,110,0.1)'; btn.style.color='var(--gold)'; }
+    else{ btn.style.background='transparent'; btn.style.color='var(--text-muted)'; }
+  });
   var t=viewTitles[name];
   if(t){
     document.getElementById('view-title').textContent=t.title;
@@ -3857,8 +4026,212 @@ window.renderServices=renderServices;
 window.loadServicesFromSupabase=loadServicesFromSupabase;
 window.rowToService=rowToService;
 window.handleSvcRealtimeEvent=handleSvcRealtimeEvent;
-window.advanceSvc=advanceSvc;
-window.advanceOrder=advanceOrder;
+
+// ══════════════════════════════════════
+// UNDO STACK — stores last action per order/service
+// ══════════════════════════════════════
+var _undoStack = {}; // id → {prevStatus, prevData}
+
+function pushUndo(id, prevStatus, extra) {
+  _undoStack[id] = { prevStatus: prevStatus, extra: extra || {}, ts: Date.now() };
+}
+
+function undoAction(id, type) {
+  var snap = _undoStack[id];
+  if (!snap) return;
+  delete _undoStack[id];
+  if (type === 'order') {
+    var order = orders.find(function(o){ return o.id===id; });
+    if (!order) {
+      // Was removed (delivered) — restore it
+      if (snap.extra.orderData) { orders.unshift(snap.extra.orderData); }
+    } else {
+      order.status = snap.prevStatus;
+      if (snap.extra.accepted_at !== undefined) order.accepted_at = snap.extra.accepted_at;
+      if (snap.extra.rejection_reason !== undefined) order.rejection_reason = snap.extra.rejection_reason;
+    }
+    if (typeof renderTasks==='function') renderTasks(); else renderOrders();
+    updateStats();
+    if (sbClient) sbClient.from('orders').update({status:snap.prevStatus}).eq('id',id);
+  } else if (type === 'svc') {
+    for (var i=0; i<services.length; i++) {
+      if (services[i].id===id) { services[i].status = snap.prevStatus; break; }
+    }
+    if (typeof renderTasks==='function') renderTasks();
+    renderServices(); updateUrgencyStrip();
+    if (sbClient) sbClient.from('service_requests').update({status:snap.prevStatus}).eq('id',id);
+  }
+  showToast('service','↩ Undone','Action reversed');
+}
+window.undoAction = undoAction;
+
+// ── Undo toast — shows after every action
+function showUndoToast(label, id, type) {
+  // Remove any existing undo toast
+  var existing = document.getElementById('undo-toast');
+  if (existing) existing.remove();
+  var toast = document.createElement('div');
+  toast.id = 'undo-toast';
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);'
+    + 'z-index:1000;width:calc(100% - 32px);max-width:400px;'
+    + 'background:var(--surface2);border:1px solid rgba(201,169,110,0.35);'
+    + 'border-radius:14px;padding:13px 16px;'
+    + 'display:flex;align-items:center;justify-content:space-between;gap:12px;'
+    + 'box-shadow:0 8px 32px rgba(0,0,0,0.5);pointer-events:all;'
+    + 'animation:toastUp 0.3s cubic-bezier(0.34,1.2,0.64,1);';
+  var undoBtn = document.createElement('button');
+  undoBtn.style.cssText = 'padding:8px 18px;background:var(--gold);border:none;border-radius:8px;'
+    + 'color:var(--dark);font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;'
+    + 'cursor:pointer;white-space:nowrap;flex-shrink:0;';
+  undoBtn.textContent = '↩ Undo';
+  undoBtn.setAttribute('data-undo-id', id);
+  undoBtn.setAttribute('data-undo-type', type);
+  undoBtn.onclick = function() {
+    undoAction(this.getAttribute('data-undo-id'), this.getAttribute('data-undo-type'));
+    var t = document.getElementById('undo-toast');
+    if(t) t.remove();
+  };
+  var label_span = document.createElement('span');
+  label_span.style.cssText = 'font-size:13px;color:var(--text);flex:1;';
+  label_span.textContent = label;
+  toast.appendChild(label_span);
+  toast.appendChild(undoBtn);
+  document.body.appendChild(toast);
+  // Auto-dismiss after 6 seconds
+  setTimeout(function(){ if(toast.parentElement) toast.remove(); }, 6000);
+}
+
+// ── ACCEPT ORDER
+function acceptOrder(id) {
+  var order = orders.find(function(o){ return o.id===id; });
+  if (!order) return;
+  pushUndo(id, order.status, {});
+  order.status = 'accepted';
+  order.accepted_at = Date.now();
+  if (typeof stopAlertBeep==='function') stopAlertBeep(id);
+  if (typeof renderTasks==='function') renderTasks(); else renderOrders();
+  updateStats();
+  showUndoToast('Order accepted — Room '+order.room, id, 'order');
+  if (sbClient) sbClient.from('orders').update({status:'accepted',accepted_at:new Date().toISOString()}).eq('id',id);
+}
+window.acceptOrder = acceptOrder;
+
+// ── ADVANCE ORDER (with undo) — inline, no wrapper chain
+async function advanceOrderWithUndo(id, toStatus) {
+  var next = {new:'accepted',accepted:'preparing',preparing:'ready',ready:'delivered'};
+  var order = orders.find(function(o){ return o.id===id; });
+  if (!order) return;
+  var prevStatus = order.status;
+  pushUndo(id, prevStatus, { accepted_at: order.accepted_at, orderData: JSON.parse(JSON.stringify(order)) });
+  order.status = toStatus || next[order.status] || order.status;
+  if (order.status === 'delivered') { orders = orders.filter(function(o){ return o.id!==id; }); }
+  if (typeof renderTasks==='function') renderTasks(); else renderOrders();
+  updateStats();
+  var label = {
+    preparing: 'Preparing — Room '+order.room,
+    ready:     'Ready — Room '+order.room,
+    delivered: 'Delivered — Room '+order.room
+  }[toStatus] || 'Order updated';
+  showUndoToast(label, id, 'order');
+  if (sbClient) { try { var r = await sbClient.from('orders').update({status:order.status}).eq('id',id); if(r.error) console.warn('Supabase:',r.error.message); } catch(e){ console.warn(e); } }
+}
+window.advanceOrder = advanceOrderWithUndo;
+
+// ── ADVANCE SVC (with undo) — inline, no wrapper chain
+async function advanceSvcWithUndo(id, status) {
+  var svc = services.find(function(s){ return s.id===id; });
+  var prevStatus = svc ? svc.status : 'received';
+  pushUndo(id, prevStatus, {});
+  for (var i=0; i<services.length; i++) { if(services[i].id===id){ services[i].status=status; break; } }
+  if (typeof renderTasks==='function') renderTasks();
+  renderServices(); updateUrgencyStrip(); updateStats();
+  var label = {
+    assigned:   'Assigned — Room '+(svc?svc.room:''),
+    inprogress: 'En Route — Room '+(svc?svc.room:''),
+    done:       'Done — Room '+(svc?svc.room:'')
+  }[status] || 'Service updated';
+  showUndoToast(label, id, 'svc');
+  if (sbClient) { try { var r = await sbClient.from('service_requests').update({status:status}).eq('id',id); if(r.error) console.warn('Supabase svc:',r.error.message); } catch(e){ console.warn(e); } }
+}
+window.advanceSvc = advanceSvcWithUndo;
+
+// ── REJECT MODAL (with custom reason + undo)
+var _rejectingId = null;
+var _rejectReason = '';
+var _REJECT_REASONS = ['Item unavailable','Kitchen closed','Too many orders','Wrong details'];
+
+function openRejectModal(id) {
+  _rejectingId = id;
+  _rejectReason = '';
+  var existing = document.getElementById('reject-modal');
+  if (existing) existing.remove();
+
+  var reasonButtons = _REJECT_REASONS.map(function(r) {
+    return '<button onclick="selectReason(this)" data-reason="'+r+'"'
+      + ' style="padding:13px 16px;background:var(--surface2);border:1px solid var(--card-border);'
+      + 'border-radius:12px;color:var(--text);font-family:DM Sans,sans-serif;font-size:14px;'
+      + 'text-align:left;cursor:pointer;transition:all 0.15s;width:100%;">'+r+'</button>';
+  }).join('');
+
+  var modal = document.createElement('div');
+  modal.id = 'reject-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:500;display:flex;align-items:flex-end;justify-content:center;';
+  modal.innerHTML =
+    '<div style="background:var(--surface);border-radius:24px 24px 0 0;padding:28px 24px 40px;width:100%;max-width:480px;">'
+    + '<div style="width:36px;height:4px;background:var(--text-dim);border-radius:2px;margin:0 auto 20px;"></div>'
+    + '<div style="font-family:Cormorant Garamond,serif;font-size:22px;color:var(--text);margin-bottom:4px;">Reject Order</div>'
+    + '<div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Select a reason to send to the guest</div>'
+    + '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">'
+    + reasonButtons
+    + '</div>'
+    + '<div style="display:flex;gap:10px;">'
+    + '<button onclick="closeRejectModal()" style="flex:1;padding:14px;background:transparent;border:1.5px solid var(--card-border);border-radius:12px;color:var(--text-muted);font-family:DM Sans,sans-serif;font-size:14px;cursor:pointer;">Cancel</button>'
+    + '<button onclick="confirmReject()" style="flex:1;padding:14px;background:rgba(192,57,43,0.15);border:1px solid rgba(192,57,43,0.3);border-radius:12px;color:var(--red);font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">Reject</button>'
+    + '</div>'
+    + '</div>';
+  document.body.appendChild(modal);
+  modal.addEventListener('click', function(e){ if(e.target===modal) closeRejectModal(); });
+}
+window.openRejectModal = openRejectModal;
+
+function selectReason(btn) {
+  // Deselect all preset buttons
+  document.querySelectorAll('#reject-modal button[data-reason]').forEach(function(b){
+    b.style.background='var(--surface2)'; b.style.borderColor='var(--card-border)'; b.style.color='var(--text)';
+  });
+  btn.style.background='rgba(192,57,43,0.12)';
+  btn.style.borderColor='rgba(192,57,43,0.35)';
+  btn.style.color='var(--red)';
+  _rejectReason = btn.dataset.reason;
+}
+window.selectReason = selectReason;
+
+function closeRejectModal() {
+  var m = document.getElementById('reject-modal');
+  if (m) m.remove();
+  _rejectingId = null;
+  _rejectReason = '';
+}
+window.closeRejectModal = closeRejectModal;
+
+function confirmReject() {
+  if (!_rejectingId) return;
+  var id = _rejectingId;
+  var reason = _rejectReason || 'Order rejected';
+  var order = orders.find(function(o){ return o.id===id; });
+  if (order) {
+    pushUndo(id, order.status, { orderData: JSON.parse(JSON.stringify(order)) });
+    order.status = 'rejected';
+    order.rejection_reason = reason;
+  }
+  closeRejectModal();
+  if (typeof stopAlertBeep==='function') stopAlertBeep(id);
+  if (typeof renderTasks==='function') renderTasks(); else renderOrders();
+  updateStats();
+  showUndoToast('Order rejected — '+reason, id, 'order');
+  if (sbClient) sbClient.from('orders').update({status:'rejected',rejection_reason:reason}).eq('id',id);
+}
+window.confirmReject = confirmReject;
 window.filterSvc=filterSvc;
 window.renderRooms=renderRooms;
 window.renderAnalytics=renderAnalytics;
@@ -3889,7 +4262,6 @@ window.getAutoTheme=getAutoTheme;
 window.applyTheme=applyTheme;
 window.toggleTheme=toggleTheme;
 window.initDashTheme=initDashTheme;
-window.advanceOrder=advanceOrder;
 window.connectSupabase=connectSupabase;
 
 /* ── ROOM CONFIG ── */
@@ -3963,6 +4335,7 @@ function renderFloorList() {
   list.innerHTML = '';
   floorConfig.forEach(function(floor, i) {
     var card = document.createElement('div');
+    card.setAttribute('data-floor-card', i);
     card.setAttribute('data-card', i);
     card.style.cssText = 'background:var(--surface);border:1px solid var(--card-border);border-radius:12px;padding:14px;margin-bottom:10px;';
 
@@ -4053,6 +4426,25 @@ function addFloor() {
   floorConfig.push({name:'Floor ' + n, prefix:String(n), start:1, count:8});
   renderFloorList();
   updateRoomTotal();
+  // Scroll to the new card and highlight it
+  var list = document.getElementById('floor-list');
+  if (list) {
+    setTimeout(function() {
+      list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+      // Highlight the last card
+      var cards = list.querySelectorAll('[data-floor-card]');
+      var last = cards[cards.length - 1];
+      if (last) {
+        last.style.transition = 'box-shadow 0.3s, border-color 0.3s';
+        last.style.borderColor = 'rgba(201,169,110,0.8)';
+        last.style.boxShadow = '0 0 0 3px rgba(201,169,110,0.25)';
+        setTimeout(function() {
+          last.style.borderColor = '';
+          last.style.boxShadow = '';
+        }, 1800);
+      }
+    }, 50);
+  }
 }
 
 function removeFloor(i) {
@@ -4124,17 +4516,69 @@ window.setTypeFilter = function(f, el) {
 };
 window.filterOrders = window.setTypeFilter;
 
+// ── ETA / RISK ENGINE ─────────────────────────────────────
+var TARGET_PREP_SECONDS = 20 * 60; // default 20 min, overridden by order.target_prep_seconds
+
+function getElapsed(o) {
+  // elapsed from accepted_at if available, else placed_at
+  var ref = o.accepted_at || o.placedAt || Date.now();
+  return Math.floor((Date.now() - ref) / 1000); // seconds
+}
+
+function getRisk(o) {
+  if (o.status === 'new') return 'new';
+  if (o.status === 'ready') return 'ready';
+  if (o.status === 'rejected' || o.status === 'delivered') return 'done';
+  var target = o.target_prep_seconds || TARGET_PREP_SECONDS;
+  var elapsed = getElapsed(o);
+  var ratio = elapsed / target;
+  if (ratio > 1.0) return 'late';
+  if (ratio >= 0.8) return 'risk';
+  return 'ok';
+}
+
+function getPriorityScore(o) {
+  var risk = getRisk(o);
+  var elapsed = Math.floor(getElapsed(o) / 60); // minutes
+  var base = {late:1000, risk:500, ok:0, new:0, ready:200, done:9999}[risk] || 0;
+  return base + elapsed;
+}
+
+function fmtTime(secs) {
+  if (secs < 60) return secs + 's';
+  var m = Math.floor(secs / 60);
+  return m < 60 ? m + 'm' : Math.floor(m/60) + 'h' + (m%60 ? (m%60) + 'm' : '');
+}
+
+function getETA(o) {
+  // Simple ETA: target - elapsed, clamped to 0
+  var target = o.target_prep_seconds || TARGET_PREP_SECONDS;
+  var elapsed = getElapsed(o);
+  var remaining = Math.max(0, target - elapsed);
+  var etaMin = Math.ceil(remaining / 60);
+  var etaMax = etaMin + 3;
+  return { min: etaMin, max: etaMax, remaining: remaining };
+}
+
 function updateSmartStrip() {
   var ord = (typeof orders !== 'undefined') ? orders : [];
   var svc = (typeof services !== 'undefined') ? services : [];
+  var TARGET_PREP_MIN = 20;
   var nN = ord.filter(function(o){return o.status==='new';}).length;
-  var nP = ord.filter(function(o){return o.status==='accepted'||o.status==='preparing';}).length;
+  var prepOrd = ord.filter(function(o){return o.status==='accepted'||o.status==='preparing';});
+  var nP = prepOrd.length;
+  var nRisk = prepOrd.filter(function(o){
+    var ref = o.accepted_at || o.placedAt;
+    var ratio = (Date.now()-ref)/60000 / TARGET_PREP_MIN;
+    return ratio >= 0.8;
+  }).length;
   var nR = ord.filter(function(o){return o.status==='ready';}).length;
   var nS = svc.filter(function(s){return s.status!=='done';}).length;
   var allA = ord.filter(function(o){return o.status!=='delivered'&&o.status!=='rejected'&&o.status!=='cancelled';})
                .concat(svc.filter(function(s){return s.status!=='done';}));
   var sn=document.getElementById('strip-new-num'); if(sn)sn.textContent=nN;
   var sp=document.getElementById('strip-prep-num'); if(sp)sp.textContent=nP;
+  var pl=document.getElementById('strip-prep-label'); if(pl) pl.textContent = nRisk>0?'Prep ⚠'+nRisk:'Prep';
   var sr=document.getElementById('strip-ready-num'); if(sr)sr.textContent=nR;
   var ss=document.getElementById('strip-svc-num'); if(ss)ss.textContent=nS;
   var so=document.getElementById('strip-oldest');
@@ -4143,18 +4587,76 @@ function updateSmartStrip() {
       var oldest=Math.max.apply(null,allA.map(function(x){return Math.floor((Date.now()-(x.placedAt||Date.now()))/60000);}));
       so.textContent=oldest+'m';
       so.className='strip-num '+(oldest<10?'strip-green':oldest<20?'strip-amber':'strip-red');
-    } else { so.textContent='--'; so.style.color='var(--text-muted)'; }
+    } else { so.textContent='--'; so.style.color=''; so.className='strip-num strip-dim'; }
   }
   var ob=document.getElementById('orders-badge'); if(ob)ob.textContent=(nN+nP+nR+nS)||'';
+  var db=document.getElementById('desk-orders-badge'); if(db)db.textContent=(nN+nP+nR+nS)||'';
 }
 window.updateSmartStrip = updateSmartStrip;
+
+// ── SCROLL TO STATUS ──────────────────────────────────────
+function scrollToStatus(status) {
+  var grid = document.getElementById('task-grid');
+  if (!grid) return;
+  var target = null;
+  var cards = grid.querySelectorAll('[data-status]');
+  for (var i = 0; i < cards.length; i++) {
+    var s = cards[i].getAttribute('data-status');
+    if (status === 'new' && s === 'new') { target = cards[i]; break; }
+    if (status === 'preparing' && (s === 'accepted' || s === 'preparing')) { target = cards[i]; break; }
+    if (status === 'ready' && s === 'ready') { target = cards[i]; break; }
+    if (status === 'service' && s === 'service') { target = cards[i]; break; }
+  }
+  if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function scrollToOldest() {
+  var grid = document.getElementById('task-grid');
+  if (!grid) return;
+  // Find card with data-placed (oldest = smallest timestamp among active)
+  var cards = Array.from(grid.querySelectorAll('[data-placed]'));
+  if (!cards.length) return;
+  var oldest = cards.reduce(function(a, b) {
+    return parseInt(a.getAttribute('data-placed')) < parseInt(b.getAttribute('data-placed')) ? a : b;
+  });
+  oldest.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+window.scrollToStatus = scrollToStatus;
+window.scrollToOldest = scrollToOldest;
 
 function renderTasks() {
   var grid = document.getElementById('task-grid');
   if (!grid) return;
+
   var ph = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6z"/></svg>';
   var ord = (typeof orders !== 'undefined') ? orders : [];
   var svc = (typeof services !== 'undefined') ? services : [];
+
+  // ── Kitchen config (tuneable)
+  var TARGET_PREP_MIN = 20; // minutes — default prep target
+
+  // ── Risk calculation
+  function riskLevel(o) {
+    var ref = o.accepted_at || o.placedAt;
+    var elapsed = (Date.now() - ref) / 60000;
+    var target  = o.target_prep_seconds ? o.target_prep_seconds/60 : TARGET_PREP_MIN;
+    if (o.status === 'new') return 'new';
+    if (o.status === 'ready' || o.status === 'delivered') return 'ok';
+    var ratio = elapsed / target;
+    if (ratio >= 1.0) return 'late';
+    if (ratio >= 0.8) return 'risk';
+    return 'ok';
+  }
+
+  // ── Priority score: late=1000, risk=500, + elapsed minutes
+  function priorityScore(o) {
+    var ref = o.accepted_at || o.placedAt;
+    var elapsed = Math.floor((Date.now() - ref) / 60000);
+    var r = riskLevel(o);
+    var stateBase = {new:0, received:0, accepted:100, preparing:100, assigned:100, ready:200, inprogress:200, rejected:9999}[o.status] || 0;
+    return (r==='late'?1000:r==='risk'?500:0) + elapsed + stateBase;
+  }
+
+  // ── Filter
   var activeSvcs = svc.filter(function(s){ return s.status !== 'done'; });
   var foodTasks = ord.filter(function(o) {
     if (_typeFilter==='service') return false;
@@ -4162,7 +4664,7 @@ function renderTasks() {
     if (_typeFilter==='preparing') return o.status==='accepted'||o.status==='preparing';
     if (_typeFilter==='ready') return o.status==='ready';
     if (_typeFilter==='rejected') return o.status==='rejected'||o.status==='cancelled';
-    return o.status!=='delivered' && o.status!=='cancelled';
+    return o.status!=='delivered' && o.status!=='cancelled' && o.status!=='rejected';
   });
   var svcTasks = activeSvcs.filter(function(s) {
     if (_typeFilter==='food') return false;
@@ -4172,72 +4674,215 @@ function renderTasks() {
     if (_typeFilter==='rejected') return false;
     return true;
   });
-  function urg(st){ return {new:0,received:0,accepted:1,preparing:1,assigned:1,ready:2,inprogress:2,rejected:3}[st]||5; }
-  var combined = foodTasks.map(function(o){ return {t:'food',d:o,u:urg(o.status),ts:o.placedAt}; })
-    .concat(svcTasks.map(function(s){ return {t:'svc',d:s,u:urg(s.status),ts:s.placedAt}; }));
-  combined.sort(function(a,b){ return a.u!==b.u ? a.u-b.u : a.ts-b.ts; });
+
+  var combined = foodTasks.map(function(o){ return {t:'food', d:o, score: priorityScore(o)}; })
+    .concat(svcTasks.map(function(s){
+      var m = Math.floor((Date.now() - s.placedAt) / 60000);
+      return {t:'svc', d:s, score: m + ({received:0,assigned:100,inprogress:200}[s.status]||0)};
+    }));
+
+  // Sort: highest score first (most urgent at top)
+  combined.sort(function(a,b){ return b.score - a.score; });
+
   if (!combined.length) {
     grid.innerHTML = '<div class="ops-empty"><div class="ops-empty-icon">&#10003;</div><div class="ops-empty-title">All clear</div><div style="font-size:13px;margin-top:6px;color:var(--text-dim);">No pending tasks</div></div>';
     updateSmartStrip(); return;
   }
-  function pill(txt,bg,col,brd){ return '<span style="display:inline-flex;padding:3px 9px;border-radius:100px;font-size:10px;font-weight:600;letter-spacing:0.06em;background:'+bg+';color:'+col+';border:1px solid '+brd+';">'+txt+'</span>'; }
-  function fCard(o) {
-    var m=Math.floor((Date.now()-o.placedAt)/60000);
-    var tc=m<10?'color:var(--green)':m<20?'color:var(--gold)':'color:var(--red)';
-    var ts=m<60?m+'m':Math.floor(m/60)+'h'+(m%60?'m':'');
-    var sp={new:pill('NEW','rgba(192,57,43,0.12)','var(--red)','rgba(192,57,43,0.25)'),accepted:pill('ACCEPTED','rgba(76,175,125,0.1)','var(--green)','rgba(76,175,125,0.22)'),preparing:pill('PREPARING','rgba(201,169,110,0.12)','var(--gold)','rgba(201,169,110,0.28)'),ready:pill('READY','rgba(76,175,125,0.14)','var(--green)','rgba(76,175,125,0.3)'),rejected:pill('REJECTED','rgba(192,57,43,0.08)','var(--text-muted)','var(--card-border)')};
-    var id=o.id,room=o.room;
-    var lt=o.fromSupa?'<span style="font-size:9px;color:var(--green);margin-left:4px">&#9679;</span>':'';
-    var cb='<button data-room="'+room+'" onclick="callRoom(this.dataset.room)" style="flex:none;width:42px;background:var(--surface2);border:1px solid var(--card-border);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:all 0.15s;">'+ph+'</button>';
-    var ac='';
-    if(o.status==='new') ac='<button data-id="'+id+'" onclick="acceptOrder(this.dataset.id)" style="flex:1;padding:13px 8px;border-radius:10px;background:var(--green);color:white;border:none;font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">&#10003; Accept</button><button data-id="'+id+'" onclick="openRejectModal(this.dataset.id)" style="flex:1;padding:13px 8px;border-radius:10px;background:rgba(192,57,43,0.12);color:var(--red);border:1px solid rgba(192,57,43,0.25);font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">&#10005; Reject</button>'+cb;
-    else if(o.status==='accepted') ac='<button data-id="'+id+'" data-s="preparing" onclick="advanceOrder(this.dataset.id,this.dataset.s)" style="flex:1;padding:13px 8px;border-radius:10px;background:rgba(201,169,110,0.15);color:var(--gold);border:1px solid rgba(201,169,110,0.3);font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">Start Preparing</button>'+cb;
-    else if(o.status==='preparing') ac='<button data-id="'+id+'" data-s="ready" onclick="advanceOrder(this.dataset.id,this.dataset.s)" style="flex:1;padding:13px 8px;border-radius:10px;background:rgba(76,175,125,0.15);color:var(--green);border:1px solid rgba(76,175,125,0.3);font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">Mark Ready</button>'+cb;
-    else if(o.status==='ready') ac='<button data-id="'+id+'" data-s="delivered" onclick="advanceOrder(this.dataset.id,this.dataset.s)" style="width:100%;padding:13px 8px;border-radius:10px;background:var(--green);color:white;border:none;font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">&#10003; Delivered</button>';
-    else ac=cb;
-    var uc=(o.status==='new')?' urgent-new':(o.status==='ready')?' urgent-ready':'';
-    return '<div class="task-card'+uc+'" id="card-'+id+'" style="background:var(--surface);border:1px solid var(--card-border);border-radius:14px;overflow:hidden;">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px 10px;border-bottom:1px solid var(--card-border);">'
-        +'<div><div style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:600;color:var(--gold);">Room '+room+lt+'</div>'
-        +'<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">'+id+' &middot; '+o.guest+'</div></div>'
-        +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;"><div style="font-size:13px;font-weight:700;'+tc+'">'+ts+'</div>'+(sp[o.status]||'')+'</div>'
-      +'</div>'
-      +'<div style="padding:10px 14px;border-bottom:1px solid var(--card-border);">'
-        +o.items.map(function(i){return'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:13.5px;color:var(--text);"><div><span style="color:var(--text-muted);font-size:12px;margin-right:5px;">&times;'+i.qty+'</span>'+i.name+'</div><div style="color:var(--text-muted);font-size:12px;">&#8377;'+(i.qty*i.price)+'</div></div>';}).join('')
-      +'</div>'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid var(--card-border);background:rgba(0,0,0,0.06);">'
-        +'<div style="font-size:10px;color:var(--text-muted);letter-spacing:0.15em;text-transform:uppercase;">Total</div>'
-        +'<div style="font-family:Cormorant Garamond,serif;font-size:17px;color:var(--gold);">&#8377;'+o.total+'</div>'
-      +'</div>'
-      +(o.rejection_reason?'<div style="padding:8px 14px;background:rgba(192,57,43,0.06);font-size:12px;color:var(--red);">'+o.rejection_reason+'</div>':'')
-      +'<div style="display:flex;gap:8px;padding:10px 12px;">'+ac+'</div></div>';
+
+  function pill(txt,bg,col,brd){
+    return '<span style="display:inline-flex;padding:3px 9px;border-radius:100px;font-size:10px;font-weight:600;letter-spacing:0.06em;background:'+bg+';color:'+col+';border:1px solid '+brd+';">'+txt+'</span>';
   }
+
+  // ── Risk label badge
+  function riskBadge(r, elapsed, target) {
+    if (r==='late')
+      return '<span class="risk-label risk-late">&#9650; LATE '+Math.floor(elapsed)+'m</span>';
+    if (r==='risk')
+      return '<span class="risk-label risk-risk">&#9651; AT RISK</span>';
+    if (r==='new')
+      return '';
+    return '';
+  }
+
+  // ── ETA progress bar row
+  function etaRow(o) {
+    var ref = o.accepted_at || o.placedAt;
+    var elapsed = (Date.now() - ref) / 60000;
+    var target  = o.target_prep_seconds ? o.target_prep_seconds/60 : TARGET_PREP_MIN;
+    var eta_min = o.eta_min || Math.round(target);
+    var eta_max = o.eta_max || Math.round(target + 4);
+    var pct     = Math.min(100, Math.round((elapsed / target) * 100));
+    var barCol  = pct < 80 ? 'var(--green)' : pct < 100 ? '#E0A800' : 'var(--red)';
+    var elText  = (elapsed < 1 ? '< 1' : Math.floor(elapsed)) + 'm';
+    var tgtText = target + 'm';
+    return '<div class="eta-row">'
+      + '<span style="font-size:11px;color:var(--text-muted);min-width:32px;">'+elText+'</span>'
+      + '<div class="eta-bar-wrap"><div class="eta-bar-fill" style="width:'+pct+'%;background:'+barCol+';"></div></div>'
+      + '<span style="font-size:11px;color:var(--text-muted);min-width:50px;text-align:right;">ETA '+eta_min+'–'+eta_max+'m</span>'
+      + '</div>';
+  }
+
+  function fCard(o, isFirst) {
+    var ref     = o.accepted_at || o.placedAt;
+    var elapsed = (Date.now() - ref) / 60000;
+    var target  = o.target_prep_seconds ? o.target_prep_seconds/60 : TARGET_PREP_MIN;
+    var risk    = riskLevel(o);
+    var id = o.id, room = o.room;
+    var lt = o.fromSupa ? '<span style="font-size:9px;color:var(--green);margin-left:4px">&#9679;</span>' : '';
+
+    // Elapsed display
+    var em = Math.floor(elapsed);
+    var ts = em < 60 ? em+'m' : Math.floor(em/60)+'h '+(em%60)+'m';
+    var tc = risk==='late' ? 'color:var(--red);font-weight:800;' : risk==='risk' ? 'color:#E0A800;font-weight:700;' : 'color:var(--green);';
+
+    // Status pill
+    var sp = {
+      new:      pill('NEW',      'rgba(192,57,43,0.12)','var(--red)','rgba(192,57,43,0.25)'),
+      accepted: pill('ACCEPTED', 'rgba(76,175,125,0.1)','var(--green)','rgba(76,175,125,0.22)'),
+      preparing:pill('PREPARING','rgba(201,169,110,0.12)','var(--gold)','rgba(201,169,110,0.28)'),
+      ready:    pill('READY',    'rgba(76,175,125,0.14)','var(--green)','rgba(76,175,125,0.3)'),
+      rejected: pill('REJECTED', 'rgba(192,57,43,0.08)','var(--text-muted)','var(--card-border)')
+    };
+
+    // Card state classes
+    var stateClass = 'state-' + (risk==='late' ? 'late' : o.status);
+    var stickyClass = (isFirst && risk==='late') ? ' sticky-critical' : '';
+
+    // Call button
+    var cb = '<button data-room="'+room+'" onclick="callRoom(this.dataset.room)" style="flex:none;width:44px;height:44px;background:var(--surface2);border:1px solid var(--card-border);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:all 0.15s;">'+ph+'</button>';
+
+    // Undo button — shown on all actionable states
+    var undoBtn = _undoStack[id]
+      ? '<button data-id="'+id+'" data-type="order" onclick="undoAction(this.dataset.id,this.dataset.type)" style="flex:none;width:44px;height:44px;border-radius:10px;background:rgba(201,169,110,0.1);border:1px solid rgba(201,169,110,0.3);color:var(--gold);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="Undo last action">↩</button>'
+      : '';
+
+    // Action buttons
+    var ac = '';
+    if (o.status==='new')
+      ac = '<button data-id="'+id+'" onclick="acceptOrder(this.dataset.id)" style="flex:1;padding:14px 8px;border-radius:10px;background:var(--green);color:white;border:none;font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">&#10003; Accept</button>'
+         + '<button data-id="'+id+'" onclick="openRejectModal(this.dataset.id)" style="flex:1;padding:14px 8px;border-radius:10px;background:rgba(192,57,43,0.12);color:var(--red);border:1px solid rgba(192,57,43,0.25);font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">&#10005; Reject</button>'
+         + cb;
+    else if (o.status==='accepted')
+      ac = '<button data-id="'+id+'" data-s="preparing" onclick="advanceOrder(this.dataset.id,this.dataset.s)" style="flex:1;padding:14px 8px;border-radius:10px;background:rgba(201,169,110,0.15);color:var(--gold);border:1px solid rgba(201,169,110,0.3);font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">Start Preparing</button>' + undoBtn + cb;
+    else if (o.status==='preparing')
+      ac = '<button data-id="'+id+'" data-s="ready" onclick="advanceOrder(this.dataset.id,this.dataset.s)" style="flex:1;padding:14px 8px;border-radius:10px;background:rgba(76,175,125,0.15);color:var(--green);border:1px solid rgba(76,175,125,0.3);font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">&#9654; Mark Ready</button>' + undoBtn + cb;
+    else if (o.status==='ready')
+      ac = '<button data-id="'+id+'" data-s="delivered" onclick="advanceOrder(this.dataset.id,this.dataset.s)" style="flex:1;padding:14px 8px;border-radius:10px;background:var(--green);color:white;border:none;font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">&#10003; Delivered</button>' + undoBtn;
+    else ac = cb;
+
+    // Show ETA bar only for in-progress orders
+    var showEta = (o.status==='accepted' || o.status==='preparing');
+    var rb = riskBadge(risk, elapsed, target);
+
+    return '<div class="task-card '+stateClass+stickyClass+'" id="card-'+id+'" data-status="'+o.status+'" style="background:var(--surface);border:1px solid var(--card-border);border-radius:14px;overflow:hidden;">'
+      // Header row
+      + '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px 10px;border-bottom:1px solid var(--card-border);">'
+        + '<div>'
+          + '<div style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:600;color:var(--gold);">Room '+room+lt+'</div>'
+          + '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">'+id+' &middot; '+o.guest+'</div>'
+        + '</div>'
+        + '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">'
+          + '<div style="font-size:13px;font-weight:700;'+tc+'">'+ts+'</div>'
+          + (sp[o.status]||'')
+          + (rb ? rb : '')
+        + '</div>'
+      + '</div>'
+      // Items
+      + '<div style="padding:10px 14px;border-bottom:1px solid var(--card-border);">'
+        + o.items.map(function(i){
+            return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:13.5px;color:var(--text);">'
+              + '<div><span style="color:var(--text-muted);font-size:12px;margin-right:5px;">&times;'+i.qty+'</span>'+i.name+'</div>'
+              + '<div style="color:var(--text-muted);font-size:12px;">&#8377;'+(i.qty*i.price)+'</div>'
+              + '</div>';
+          }).join('')
+      + '</div>'
+      // ETA bar (only when preparing/accepted)
+      + (showEta ? etaRow(o) : '')
+      // Total row
+      + '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 14px;border-bottom:1px solid var(--card-border);background:rgba(0,0,0,0.05);">'
+        + '<div style="font-size:10px;color:var(--text-muted);letter-spacing:0.15em;text-transform:uppercase;">Total</div>'
+        + '<div style="font-family:Cormorant Garamond,serif;font-size:17px;color:var(--gold);">&#8377;'+o.total+'</div>'
+      + '</div>'
+      // Rejection reason
+      + (o.rejection_reason ? '<div style="padding:7px 14px;background:rgba(192,57,43,0.06);font-size:12px;color:var(--red);">'+o.rejection_reason+'</div>' : '')
+      // Action buttons
+      + '<div style="display:flex;gap:8px;padding:10px 12px;">'+ac+'</div>'
+    + '</div>';
+  }
+
   function sCard(s) {
-    var m=Math.floor((Date.now()-s.placedAt)/60000);
-    var tc=m<10?'color:var(--green)':m<20?'color:var(--gold)':'color:var(--red)';
-    var ts=m<60?m+'m':Math.floor(m/60)+'h'+(m%60?'m':'');
-    var sp2={received:pill('NEW','rgba(107,159,191,0.1)','var(--blue)','rgba(107,159,191,0.22)'),assigned:pill('ASSIGNED','rgba(201,169,110,0.12)','var(--gold)','rgba(201,169,110,0.28)'),inprogress:pill('EN ROUTE','rgba(76,175,125,0.14)','var(--green)','rgba(76,175,125,0.3)')};
-    var sid=s.id,room=s.room,qtyStr=s.qty?' x'+s.qty:'';
-    var cb='<button data-room="'+room+'" onclick="callRoom(this.dataset.room)" style="flex:none;width:42px;background:var(--surface2);border:1px solid var(--card-border);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;">'+ph+'</button>';
-    var ac='';
-    if(s.status==='received') ac='<button data-id="'+sid+'" data-s="assigned" onclick="advanceSvc(this.dataset.id,this.dataset.s)" style="flex:1;padding:11px 8px;border-radius:10px;background:rgba(201,169,110,0.15);color:var(--gold);border:1px solid rgba(201,169,110,0.3);font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Assign Staff</button><button data-id="'+sid+'" data-s="done" onclick="advanceSvc(this.dataset.id,this.dataset.s)" style="flex:1;padding:11px 8px;border-radius:10px;background:rgba(76,175,125,0.15);color:var(--green);border:1px solid rgba(76,175,125,0.3);font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Done</button>'+cb;
-    else if(s.status==='assigned') ac='<button data-id="'+sid+'" data-s="inprogress" onclick="advanceSvc(this.dataset.id,this.dataset.s)" style="flex:1;padding:11px 8px;border-radius:10px;background:rgba(76,175,125,0.12);color:var(--green);border:1px solid rgba(76,175,125,0.25);font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">En Route</button><button data-id="'+sid+'" data-s="done" onclick="advanceSvc(this.dataset.id,this.dataset.s)" style="flex:1;padding:11px 8px;border-radius:10px;background:var(--green);color:white;border:none;font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Done</button>'+cb;
-    else if(s.status==='inprogress') ac='<button data-id="'+sid+'" data-s="done" onclick="advanceSvc(this.dataset.id,this.dataset.s)" style="flex:1;padding:11px 8px;border-radius:10px;background:var(--green);color:white;border:none;font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">Mark Completed</button>';
-    return '<div style="background:var(--surface);border:1px solid var(--card-border);border-radius:14px;overflow:hidden;">'
-      +'<div style="padding:12px 14px;">'
-        +'<div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--blue);padding:2px 8px;border-radius:4px;background:rgba(107,159,191,0.1);border:1px solid rgba(107,159,191,0.2);display:inline-block;margin-bottom:4px;">SERVICE</div>'
-        +'<div style="display:flex;align-items:flex-start;justify-content:space-between;">'
-          +'<div><div style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:600;color:var(--gold);">Room '+room+'</div>'
-          +'<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">'+s.type+qtyStr+(s.note?' &middot; "'+s.note+'"':'')+'</div></div>'
-          +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;"><div style="font-size:13px;font-weight:700;'+tc+'">'+ts+'</div>'+(sp2[s.status]||'')+'</div>'
-        +'</div>'
-      +'</div>'
-      +'<div style="display:flex;gap:8px;padding:10px 12px;">'+ac+'</div></div>';
+    var m  = Math.floor((Date.now() - s.placedAt) / 60000);
+    var tc = m<10 ? 'color:var(--green)' : m<25 ? 'color:var(--gold)' : 'color:var(--red)';
+    var ts = m<60 ? m+'m' : Math.floor(m/60)+'h '+(m%60)+'m';
+    var sp2 = {
+      received:  pill('NEW',      'rgba(107,159,191,0.1)', 'var(--blue)', 'rgba(107,159,191,0.22)'),
+      assigned:  pill('ASSIGNED', 'rgba(201,169,110,0.12)','var(--gold)', 'rgba(201,169,110,0.28)'),
+      inprogress:pill('EN ROUTE', 'rgba(76,175,125,0.14)', 'var(--green)','rgba(76,175,125,0.3)')
+    };
+    var sid = s.id, room = s.room, qtyStr = s.qty ? ' x'+s.qty : '';
+    var cb = '<button data-room="'+room+'" onclick="callRoom(this.dataset.room)" style="flex:none;width:44px;height:44px;background:var(--surface2);border:1px solid var(--card-border);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;">'+ph+'</button>';
+    var svcUndoBtn = _undoStack[sid]
+      ? '<button data-id="'+sid+'" data-type="svc" onclick="undoAction(this.dataset.id,this.dataset.type)" style="flex:none;width:40px;height:40px;border-radius:10px;background:rgba(201,169,110,0.1);border:1px solid rgba(201,169,110,0.3);color:var(--gold);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="Undo last action">↩</button>'
+      : '';
+    var ac = '';
+    if (s.status==='received')
+      ac = '<button data-id="'+sid+'" data-s="assigned" onclick="advanceSvc(this.dataset.id,this.dataset.s)" style="flex:1;padding:13px 8px;border-radius:10px;background:rgba(201,169,110,0.15);color:var(--gold);border:1px solid rgba(201,169,110,0.3);font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Assign Staff</button>'
+         + '<button data-id="'+sid+'" data-s="done" onclick="advanceSvc(this.dataset.id,this.dataset.s)" style="flex:1;padding:13px 8px;border-radius:10px;background:rgba(76,175,125,0.15);color:var(--green);border:1px solid rgba(76,175,125,0.3);font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Done</button>'
+         + cb;
+    else if (s.status==='assigned')
+      ac = '<button data-id="'+sid+'" data-s="inprogress" onclick="advanceSvc(this.dataset.id,this.dataset.s)" style="flex:1;padding:13px 8px;border-radius:10px;background:rgba(76,175,125,0.12);color:var(--green);border:1px solid rgba(76,175,125,0.25);font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">En Route</button>'
+         + '<button data-id="'+sid+'" data-s="done" onclick="advanceSvc(this.dataset.id,this.dataset.s)" style="flex:1;padding:13px 8px;border-radius:10px;background:var(--green);color:white;border:none;font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Done</button>'
+         + svcUndoBtn + cb;
+    else if (s.status==='inprogress')
+      ac = '<button data-id="'+sid+'" data-s="done" onclick="advanceSvc(this.dataset.id,this.dataset.s)" style="flex:1;padding:13px 8px;border-radius:10px;background:var(--green);color:white;border:none;font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">Mark Completed</button>'
+         + svcUndoBtn;
+    var lateClass = m >= 25 ? ' state-late' : m >= 15 ? ' state-preparing' : '';
+    return '<div style="background:var(--surface);border:1px solid var(--card-border);border-left:4px solid var(--blue);border-radius:14px;overflow:hidden;" data-status="svc">'
+      + '<div style="padding:12px 14px;">'
+        + '<div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--blue);padding:2px 8px;border-radius:4px;background:rgba(107,159,191,0.1);border:1px solid rgba(107,159,191,0.2);display:inline-block;margin-bottom:4px;">SERVICE</div>'
+        + '<div style="display:flex;align-items:flex-start;justify-content:space-between;">'
+          + '<div>'
+            + '<div style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:600;color:var(--gold);">Room '+room+'</div>'
+            + '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">'+s.type+qtyStr+(s.note?' &middot; "'+s.note+'"':'')+'</div>'
+          + '</div>'
+          + '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">'
+            + '<div style="font-size:13px;font-weight:700;'+tc+'">'+ts+'</div>'
+            + (sp2[s.status]||'')
+            + (m>=25 ? '<span class="risk-label risk-late">&#9650; LATE</span>' : m>=15 ? '<span class="risk-label risk-risk">&#9651; AT RISK</span>' : '')
+          + '</div>'
+        + '</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:8px;padding:10px 12px;">'+ac+'</div>'
+    + '</div>';
   }
-  grid.innerHTML = combined.map(function(x){ return x.t==='food' ? fCard(x.d) : sCard(x.d); }).join('');
+
+  // First item gets sticky-critical treatment if it's late
+  grid.innerHTML = combined.map(function(x, i){
+    return x.t==='food' ? fCard(x.d, i===0) : sCard(x.d);
+  }).join('');
   updateSmartStrip();
 }
 window.renderTasks = renderTasks;
+
+// ── Tap-chip scroll helpers
+function scrollToStatus(status) {
+  var grid = document.getElementById('task-grid');
+  if (!grid) return;
+  var card = grid.querySelector('[data-status="'+status+'"]');
+  if (!card) { card = grid.querySelector('[data-status]'); }
+  if (card) card.scrollIntoView({behavior:'smooth', block:'start'});
+}
+function scrollToOldest() {
+  var grid = document.getElementById('task-grid');
+  if (!grid) return;
+  // Last card in the sorted list is the newest; oldest is first (highest score = most urgent = top)
+  var cards = grid.querySelectorAll('[data-status]');
+  if (cards.length) cards[0].scrollIntoView({behavior:'smooth', block:'start'});
+}
+window.scrollToStatus = scrollToStatus;
+window.scrollToOldest = scrollToOldest;
+
+
 
 // Override renderRooms with QR thumbnails
 window.renderRooms = function() {
