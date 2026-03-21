@@ -437,12 +437,16 @@
     bottom: 0; left: 50%; transform: translateX(-50%);
     width: 100%; max-width: 430px;
     padding: 16px 24px 28px;
-    background: linear-gradient(to top, var(--dark2) 80%, transparent);
+    display: flex;
+    align-items: center;
+    gap: 10px;
     pointer-events: none;
+    display: none;
   }
+  .cart-sticky.row-visible { display: flex; background: linear-gradient(to top, var(--dark2) 80%, transparent); }
   .cart-btn {
-    width: 100%;
-    padding: 18px 24px;
+    flex: 1;
+    padding: 18px 20px;
     background: var(--gold);
     color: var(--dark);
     border: none;
@@ -642,20 +646,17 @@
 
   /* ── FLOATING CALL ── */
   .float-call {
-    position: fixed;
-    bottom: 32px; left: 24px;
-    width: 54px; height: 54px;
-    border-radius: 50%;
+    position: static;
+    width: 56px; height: 56px;
+    flex-shrink: 0;
+    border-radius: 16px;
     background: var(--gold);
     color: var(--dark);
     border: none;
-    font-size: 22px;
     cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 4px 24px rgba(201,169,110,0.4);
-    z-index: 100;
+    display: none; align-items: center; justify-content: center;
     transition: all 0.2s;
-    display: none;
+    pointer-events: all;
   }
   .float-call.visible { display: flex; }
   .float-call:active { transform: scale(0.9); }
@@ -1324,7 +1325,10 @@
 
   <div class="menu-body" id="menu-list"></div>
 
-  <div class="cart-sticky">
+  <div class="cart-sticky" id="cart-sticky">
+    <button class="float-call" id="float-call" onclick="callReception()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0D0D0D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
+    </button>
     <button class="cart-btn" id="cart-btn" onclick="go('cart')">
       <span id="cart-label">View Cart</span>
       <span class="cart-btn-badge" id="cart-badge">0</span>
@@ -1474,7 +1478,7 @@
 </div>
 
 <!-- ════════════════ FLOATING CALL ════════════════ -->
-<button class="float-call" id="float-call" onclick="callReception()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0D0D0D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg></button>
+
 
 <!-- ════════════════ JS ════════════════ -->
 <script>
@@ -1515,7 +1519,15 @@ function _navigate(screenId) {
   window.scrollTo(0,0);
 
   const floatCall = document.getElementById('float-call');
-  floatCall.classList.toggle('visible', screenId !== 'entry' && screenId !== 'home');
+  const stickyRow = document.getElementById('cart-sticky');
+  const showPhone = screenId !== 'entry' && screenId !== 'home';
+  if (showPhone) {
+    if (stickyRow) stickyRow.classList.add('row-visible');
+    if (floatCall) floatCall.classList.add('visible');
+  } else {
+    if (stickyRow) stickyRow.classList.remove('row-visible');
+    if (floatCall) floatCall.classList.remove('visible');
+  }
 
   if (screenId === 'menu') renderMenu(currentCat);
   if (screenId === 'cart') renderCart();
@@ -1757,20 +1769,17 @@ function renderOrders() {
 
     // 5-min cancel/modify window — only if status is 'accepted' and within 5 mins of acceptance
     const minsElapsed = o.acceptedAt ? (Date.now() - o.acceptedAt) / 60000 : 999;
-    const canModify = o.status === 'accepted' && minsElapsed < 5;
+    // Allow cancel while 'new' (waiting) — no time limit
+    // Allow add-items while 'accepted' and within 5 mins
+    const isNew = o.status === 'new';
+    const canModify = (isNew) || (o.status === 'accepted' && minsElapsed < 5);
     const minsLeft = Math.ceil(5 - minsElapsed);
     const modifyBtns = canModify ? `
       <div style="display:flex;gap:8px;margin-top:12px;">
-        <button onclick="modifyOrder('${o.id}')" style="flex:1;padding:10px;background:rgba(201,169,110,0.1);border:1px solid rgba(201,169,110,0.3);border-radius:10px;color:var(--gold);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;">
-          ✏ Modify
-        </button>
-        <button onclick="cancelOrder('${o.id}')" style="flex:1;padding:10px;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.2);border-radius:10px;color:var(--red);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;">
-          ✕ Cancel
-        </button>
+        ${!isNew ? `<button onclick="modifyOrder('${o.id}')" style="flex:1;padding:10px;background:rgba(201,169,110,0.1);border:1px solid rgba(201,169,110,0.3);border-radius:10px;color:var(--gold);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;">✏ Add Items</button>` : ''}
+        <button onclick="cancelOrder('${o.id}')" style="flex:1;padding:10px;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.2);border-radius:10px;color:var(--red);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;">✕ Cancel Order</button>
       </div>
-      <div style="font-size:11px;color:var(--text-dim);text-align:center;margin-top:6px;">
-        Can modify/cancel for ${minsLeft} min${minsLeft!==1?'s':''}
-      </div>` : '';
+      ${!isNew ? `<div style="font-size:11px;color:var(--text-dim);text-align:center;margin-top:6px;">Can add items for ${minsLeft} min${minsLeft!==1?'s':''} · To remove items call reception</div>` : ''}` : '';
 
     return `<div class="order-card" id="ocard-${o.id}">
       <div class="order-card-head">
@@ -1828,8 +1837,19 @@ function renderOrders() {
 function cancelOrder(orderId) {
   var order = orderHistory.find(function(o){ return o.id === orderId; });
   if (!order) return;
-  if (order.status !== 'accepted') { alert('Order cannot be cancelled at this stage.'); return; }
-  if (!order.acceptedAt || (Date.now() - order.acceptedAt) > 5 * 60000) { alert('Cancellation window has expired.'); return; }
+  // If still 'new' — cancel directly without calling reception
+  if (order.status === 'new') {
+    if (!confirm('Cancel this order?')) return;
+    order.status = 'cancelled';
+    renderOrders(); updateOrdersBadge();
+    showGuestToast('Order cancelled', 'green');
+    waitForSupa().then(function(s){
+      if(s) s.from('orders').update({status:'cancelled'}).eq('id',orderId).catch(function(){});
+    });
+    return;
+  }
+  if (order.status !== 'accepted') { showGuestToast('Cannot cancel at this stage — call reception', 'red'); return; }
+  if (!order.acceptedAt || (Date.now() - order.acceptedAt) > 5 * 60000) { showGuestToast('Cancellation window expired — call reception', 'red'); return; }
   // Show call reception modal — guest must call to cancel
   var overlay = document.createElement('div');
   overlay.id = 'cancel-overlay';
@@ -2325,15 +2345,21 @@ function updateCartBtn() {
   const btn = document.getElementById('cart-btn');
   const badge = document.getElementById('cart-badge');
   const label = document.getElementById('cart-label');
+  const sticky = document.getElementById('cart-sticky');
+  const floatCall = document.getElementById('float-call');
   const total = Object.values(cart).reduce((s,i)=>s+i.qty,0);
   const amt = Object.values(cart).reduce((s,i)=>s+i.qty*i.price,0);
   if (total > 0) {
     btn.classList.add('visible');
-    badge.textContent = `₹${amt}`;
-    label.textContent = `View Cart · ${total} item${total>1?'s':''}`;
+    if (sticky) sticky.classList.add('row-visible');
+    badge.textContent = '₹'+amt;
+    label.textContent = 'View Cart · '+total+' item'+(total>1?'s':'');
+    if (floatCall) floatCall.classList.add('visible');
     broadcastActivity('carting');
   } else {
     btn.classList.remove('visible');
+    if (sticky) sticky.classList.remove('row-visible');
+    if (floatCall) floatCall.classList.remove('visible');
   }
 }
 
@@ -2491,7 +2517,155 @@ function initSupa(){
 // Try immediately (sync load), then again on DOMContentLoaded and load
 initSupa();
 document.addEventListener('DOMContentLoaded', function(){ if(!supa) initSupa(); });
-window.addEventListener('load', function(){ if(!supa) initSupa(); });
+window.addEventListener('load', function(){
+  if(!supa) initSupa();
+  // Once supa ready, subscribe to all orders for this room
+  waitForSupa().then(function(s){
+    if(!s) return;
+    subscribeRoomOrders(s);
+    subscribeRoomServices(s);
+  });
+});
+
+// ── ROOM-LEVEL REALTIME SUBSCRIPTION
+// Watches ALL orders/services for this room — updates status in real-time
+// ── Check if WebSocket/Realtime is available (requires HTTPS)
+function _canUseRealtime() {
+  return window.location.protocol === 'https:' ||
+         window.location.hostname === 'localhost' ||
+         window.location.hostname === '127.0.0.1';
+}
+
+// ── Poll Supabase for order/service updates (fallback when WS unavailable)
+var _pollInterval = null;
+function _startPolling(s) {
+  if (_pollInterval) return; // already polling
+  var roomNum = String(window.ROOM_NUM || '');
+  if (!roomNum || !s) return;
+  _pollInterval = setInterval(function() {
+    // Poll orders
+    s.from('orders').select('id,status,accepted_at,rejection_reason')
+      .eq('room', roomNum).not('status','eq','delivered')
+      .then(function(res) {
+        if (!res.data) return;
+        res.data.forEach(function(row) {
+          var order = orderHistory.find(function(o){ return o.id === row.id; });
+          if (order && order.status !== row.status) {
+            var prevStatus = order.status;
+            order.status = row.status;
+            if (row.accepted_at) order.acceptedAt = new Date(row.accepted_at).getTime();
+            if (row.rejection_reason) order.rejection_reason = row.rejection_reason;
+            updateOrdersBadge();
+            if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
+            var msgs = {
+              accepted: '✓ Order accepted — being prepared',
+              preparing: '👨‍🍳 Kitchen is preparing your order',
+              ready: '🔔 Your order is ready!',
+              delivered: '✓ Order delivered',
+              rejected: '✕ Order not accepted'
+            };
+            if (msgs[row.status]) showGuestToast(msgs[row.status], row.status === 'rejected' ? 'red' : 'green');
+          }
+        });
+      }).catch(function(){});
+    // Poll services
+    s.from('service_requests').select('id,status')
+      .eq('room', roomNum).not('status','eq','done')
+      .then(function(res) {
+        if (!res.data) return;
+        res.data.forEach(function(row) {
+          var req = serviceHistory.find(function(r){ return r.id === row.id; });
+          if (req && req.status !== row.status) {
+            req.status = row.status;
+            updateServicesBadge();
+            if (document.getElementById('screen-services').classList.contains('active')) renderServices();
+            var msgs = { assigned:'✓ Request assigned to staff', inprogress:'🚶 Staff is on the way', done:'✓ Request completed!' };
+            if (msgs[row.status]) showGuestToast(msgs[row.status], 'green');
+          }
+        });
+      }).catch(function(){});
+  }, 8000); // poll every 8 seconds
+}
+
+function subscribeRoomOrders(s) {
+  var roomNum = String(window.ROOM_NUM || '');
+  if (!roomNum || !s) return;
+  if (!_canUseRealtime()) {
+    // Fall back to polling — works on HTTP too
+    _startPolling(s);
+    return;
+  }
+  try {
+    s.channel('room-orders-' + roomNum)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'orders',
+        filter: 'room=eq.' + roomNum
+      }, function(payload) {
+        var row = payload.new;
+        if (!row) return;
+        var order = orderHistory.find(function(o){ return o.id === row.id; });
+        if (order) {
+          order.status = row.status;
+          if (row.accepted_at) order.acceptedAt = new Date(row.accepted_at).getTime();
+          if (row.rejection_reason) order.rejection_reason = row.rejection_reason;
+          updateOrdersBadge();
+          if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
+          var msgs = {
+            accepted: '✓ Order accepted — being prepared',
+            preparing: '👨‍🍳 Kitchen is preparing your order',
+            ready: '🔔 Your order is ready!',
+            delivered: '✓ Order delivered',
+            rejected: '✕ Order not accepted',
+            cancelled: 'Order cancelled'
+          };
+          if (msgs[row.status]) showGuestToast(msgs[row.status], row.status === 'rejected' ? 'red' : 'green');
+        }
+      })
+      .subscribe(function(status) {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          // Fall back to polling if WS fails
+          _startPolling(s);
+        }
+      });
+  } catch(e) {
+    console.warn('Room orders sub (WS unavailable, using polling)');
+    _startPolling(s);
+  }
+}
+
+function subscribeRoomServices(s) {
+  var roomNum = String(window.ROOM_NUM || '');
+  if (!roomNum || !s) return;
+  if (!_canUseRealtime()) { _startPolling(s); return; }
+  try {
+    s.channel('room-svcs-' + roomNum)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'service_requests',
+        filter: 'room=eq.' + roomNum
+      }, function(payload) {
+        var row = payload.new;
+        if (!row) return;
+        var req = serviceHistory.find(function(r){ return r.id === row.id; });
+        if (req) {
+          req.status = row.status;
+          updateServicesBadge();
+          if (document.getElementById('screen-services').classList.contains('active')) renderServices();
+          var msgs = {
+            assigned: '✓ Request assigned to staff',
+            inprogress: '🚶 Staff is on the way',
+            done: '✓ Request completed!'
+          };
+          if (msgs[row.status]) showGuestToast(msgs[row.status], 'green');
+        }
+      })
+      .subscribe(function(status) {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { _startPolling(s); }
+      });
+  } catch(e) {
+    console.warn('Room svcs sub (WS unavailable, using polling)');
+    _startPolling(s);
+  }
+}
 
 // Returns a promise that resolves when supa is ready (max 5s wait)
 function waitForSupa(){
@@ -2562,6 +2736,9 @@ placeOrder = async function(isMerge) {
 
   const supaReady = await waitForSupa();
   if (!supaReady) { console.warn('Supabase not available'); return; }
+  // Ensure room-level subscription is active
+  subscribeRoomOrders(supaReady);
+  subscribeRoomServices(supaReady);
   try {
     const insertData = {
       id: orderId,
