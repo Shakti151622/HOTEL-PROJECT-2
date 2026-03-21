@@ -3680,15 +3680,8 @@ alter publication supabase_realtime add table service_requests;`;
 // ROOMS_DATA replaced by buildRoomsData()
 
 var orderFilter='all',svcFilter='all';
-var orders=[
-  {id:'ORD-001',room:'203',guest:'R*** S***',items:[{name:'Paneer Butter Masala',qty:1,price:250},{name:'Dal Tadka',qty:1,price:180},{name:'Veg Biryani',qty:1,price:220}],total:650,status:'preparing',placedAt:Date.now()-18*60000},
-  {id:'ORD-002',room:'105',guest:'Nisha Patel',items:[{name:'Chicken Biryani',qty:2,price:320},{name:'Mango Lassi',qty:2,price:120}],total:880,status:'new',placedAt:Date.now()-4*60000},
-  {id:'ORD-003',room:'201',guest:'Deepa Nair',items:[{name:'Masala Chai',qty:2,price:60},{name:'Cold Coffee',qty:1,price:150}],total:270,status:'ready',placedAt:Date.now()-28*60000},
-];
-var services=[
-  {id:'REQ-001',room:'102',guest:'Priya Sharma',type:'Towels',icon:'🧻',qty:3,note:'',status:'received',placedAt:Date.now()-8*60000},
-  {id:'REQ-002',room:'107',guest:'Rahul Gupta',type:'Room Cleaning',icon:'🧹',qty:null,note:'Please clean before 3pm',status:'assigned',assignee:'Housekeeping',placedAt:Date.now()-22*60000},
-];
+var orders=[];   // start empty — populated from Supabase
+var services=[]; // start empty — populated from Supabase
 function rowToOrder(row){return{id:row.id,room:String(row.room),guest:row.guest||'Guest',items:Array.isArray(row.items)?row.items:[],total:row.total||0,status:row.status||'new',placedAt:row.placed_at?new Date(row.placed_at).getTime():Date.now(),accepted_at:row.accepted_at?new Date(row.accepted_at).getTime():null,rejection_reason:row.rejection_reason||null,fromSupa:true};}
 function setConnBadge(state,label){var b=document.getElementById('conn-badge'),l=document.getElementById('conn-label');if(!b)return;b.className='conn-badge '+state;l.textContent=label;}
 async function connectSupabase(){var url=(document.getElementById('cfg-url').value||'').trim().replace(/\/+$/,''),key=(document.getElementById('cfg-key').value||'').trim();if(!url||!key){alert('Please enter both the Project URL and Anon Key.');return;}var btn=document.getElementById('cfg-connect-btn');btn.disabled=true;btn.textContent='Connecting…';try{sbClient=window._hyattSb||supabase.createClient(url,key,{auth:{storageKey:'hyatt-sb-auth'}});window._hyattSb=sbClient;var{data,error}=await sbClient.from('orders').select('id').limit(1);if(error)throw error;localStorage.setItem('hyatt_sb_url',url);localStorage.setItem('hyatt_sb_key',key);SUPABASE_URL=url;SUPABASE_KEY=key;window._hyattSb=sbClient;closeCfg();setConnBadge('connecting','Syncing…');await loadOrdersFromSupabase();await loadServicesFromSupabase();try{subscribeRealtime();}catch(e){console.warn('Realtime init:',e&&e.message||e);}}catch(err){btn.disabled=false;btn.textContent='Connect';var msg=err.message||String(err);if(msg.includes('relation')||msg.includes('does not exist')||msg.includes('42P01')){document.getElementById('sql-panel').classList.add('visible');document.getElementById('sql-code').textContent=SETUP_SQL;alert('Table "orders" not found.\n\nRun the SQL shown in the panel, then try again.');}else{alert('Connection failed: '+msg);}}}
@@ -3775,6 +3768,7 @@ function handleSvcRealtimeEvent(payload){
       if(typeof renderTasks==='function') renderTasks();
       renderServices();updateUrgencyStrip();
       showToast('service','Service Request — Room '+s.room,s.type+(s.qty?' ×'+s.qty:''));
+      if(typeof playBeep==='function') playBeep('service');
     }
   } else if(evt==='UPDATE'){
     var idx=services.findIndex(function(x){return x.id===row.id;});
@@ -3807,13 +3801,21 @@ function handleRealtimeEvent(payload){
       if(typeof renderTasks==='function')renderTasks();else renderOrders();
       updateStats();
       showToast('order','New Order — Room '+o.room,'₹'+o.total+' · '+o.items.length+' item'+(o.items.length!==1?'s':''));
+      if(typeof startAlertBeep==='function') startAlertBeep(o.id,'order');
     }
   } else if(evt==='UPDATE'){
     var idx=orders.findIndex(function(x){return x.id===row.id;});
     var mapped=rowToOrder(row);
+    var prevStatus = idx!==-1 ? orders[idx].status : null;
     if(idx!==-1)orders[idx]=mapped;else orders.unshift(mapped);
     if(typeof renderTasks==='function')renderTasks();else renderOrders();
     updateStats();
+    // Sound on status change
+    if(prevStatus && prevStatus!==mapped.status){
+      if(mapped.status==='ready' && typeof playBeep==='function') playBeep('ready');
+      if(mapped.status==='new' && typeof startAlertBeep==='function') startAlertBeep(mapped.id,'order');
+      if((mapped.status==='accepted'||mapped.status==='preparing') && typeof stopAlertBeep==='function') stopAlertBeep(mapped.id);
+    }
   } else if(evt==='DELETE'){
     orders=orders.filter(function(x){return x.id!==old.id;});
     if(typeof renderTasks==='function')renderTasks();else renderOrders();
@@ -4307,6 +4309,120 @@ window.renderRooms=renderRooms;
 window.renderAnalytics=renderAnalytics;
 window.updateStats=updateStats;
 window.simulateNewOrder=simulateNewOrder;
+
+// ══════════════════════════════════════
+// ALERT SOUND SYSTEM (Web Audio API)
+// ══════════════════════════════════════
+var _audioCtx = null;
+var _beepIntervals = {};
+var _soundUnlocked = localStorage.getItem('hyatt_sound_unlocked') === '1';
+
+function getAudioCtx() {
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+  }
+  return _audioCtx;
+}
+
+function playBeep(type) {
+  var ctx = getAudioCtx();
+  if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  try {
+    if (type === 'order') {
+      // Pleasant 3-tone chime C5-E5-G5
+      [523, 659, 784].forEach(function(freq, i) {
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine'; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0, ctx.currentTime + i*0.16);
+        gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + i*0.16 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i*0.16 + 0.35);
+        osc.start(ctx.currentTime + i*0.16);
+        osc.stop(ctx.currentTime + i*0.16 + 0.4);
+      });
+    } else if (type === 'ready') {
+      // Two ascending tones for "ready for pickup"
+      [660, 880].forEach(function(freq, i) {
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine'; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0, ctx.currentTime + i*0.2);
+        gain.gain.linearRampToValueAtTime(0.35, ctx.currentTime + i*0.2 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i*0.2 + 0.4);
+        osc.start(ctx.currentTime + i*0.2);
+        osc.stop(ctx.currentTime + i*0.2 + 0.45);
+      });
+    } else {
+      // Single soft ding for service requests
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine'; osc.frequency.value = 660;
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.45);
+    }
+  } catch(e) {}
+}
+
+function startAlertBeep(orderId, type) {
+  if (_beepIntervals[orderId]) return;
+  playBeep(type);
+  _beepIntervals[orderId] = setInterval(function() {
+    var order = orders.find(function(o) { return o.id === orderId; });
+    if (!order || order.status !== 'new') { stopAlertBeep(orderId); return; }
+    playBeep(type);
+  }, 4000);
+}
+
+function stopAlertBeep(orderId) {
+  if (_beepIntervals[orderId]) {
+    clearInterval(_beepIntervals[orderId]);
+    delete _beepIntervals[orderId];
+  }
+}
+
+function stopAllBeeps() {
+  Object.keys(_beepIntervals).forEach(stopAlertBeep);
+}
+
+function unlockSound() {
+  try {
+    var ctx = getAudioCtx();
+    if (ctx && ctx.state === 'suspended') ctx.resume();
+    var buf = ctx.createBuffer(1, 1, 22050);
+    var src = ctx.createBufferSource();
+    src.buffer = buf; src.connect(ctx.destination); src.start(0);
+  } catch(e) {}
+  _soundUnlocked = true;
+  localStorage.setItem('hyatt_sound_unlocked', '1');
+  var banner = document.getElementById('sound-banner');
+  if (banner) banner.remove();
+  setTimeout(function() { playBeep('order'); }, 100);
+}
+
+function showSoundBanner() {
+  if (_soundUnlocked) return;
+  if (document.getElementById('sound-banner')) return;
+  var banner = document.createElement('div');
+  banner.id = 'sound-banner';
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#C9A96E;color:#0D0D0D;display:flex;align-items:center;justify-content:space-between;padding:10px 16px;font-family:DM Sans,sans-serif;font-size:13px;font-weight:500;cursor:pointer;';
+  banner.innerHTML = '<div style="display:flex;align-items:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>Tap to enable order alert sounds</div><span style="font-size:18px;">×</span>';
+  banner.onclick = unlockSound;
+  document.body.appendChild(banner);
+}
+
+window.addEventListener('load', function() { setTimeout(showSoundBanner, 1200); });
+window.unlockSound = unlockSound;
+window.playBeep = playBeep;
+window.startAlertBeep = startAlertBeep;
+window.stopAlertBeep = stopAlertBeep;
+window.stopAllBeeps = stopAllBeeps;
+
 window.showToast=showToast;
 window.animateBars=animateBars;
 window.showRoomQR=showRoomQR;
