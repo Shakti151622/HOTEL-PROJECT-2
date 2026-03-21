@@ -47,7 +47,7 @@ html[data-mode="guest"]  .cfg-overlay { display: none !important; }
 html[data-mode="guest"]  .alert-container { display: none !important; }
 
 /* Staff mode: ensure full layout */
-html[data-mode="staff"] body { background: var(--dark); min-width:100%; }
+html[data-mode="staff"] body { background: var(--dark); min-width:100%; max-width:100% !important; width:100%; }
 html[data-mode="staff"] #staff-root { width:100%; background:var(--dark); display:block; }
 
 /* Guest mode: ensure clean guest background */
@@ -120,11 +120,15 @@ html[data-mode="guest"] #guest-root { display: block !important; }
     color: var(--text);
     min-height: 100vh;
     min-height: -webkit-fill-available;
-    max-width: 430px;
-    margin: 0 auto;
     overflow-x: hidden;
     position: relative;
     padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  html[data-mode="guest"] body {
+  }
+  html[data-mode="guest"] body {
+    max-width: 430px;
+    margin: 0 auto;
   }
 
   /* iOS momentum scrolling on scrollable containers */
@@ -3623,7 +3627,10 @@ async function advanceSvc(id,status){
   }
 }
 function filterSvc(f,el){svcFilter=f;document.querySelectorAll('#view-service .filter-tab').forEach(function(t){t.classList.remove('active');});el.classList.add('active');renderServices();}
-function renderRooms(){var data=(typeof buildRoomsData==='function')?buildRoomsData():[];var grid=document.getElementById('rooms-grid');if(!grid)return;grid.innerHTML=data.map(function(r){var dots='';if(r.orders>0)dots+='<div class="room-dot order">'+r.orders+'🍽</div>';if(r.services>0)dots+='<div class="room-dot service">'+r.services+'🛎</div>';return'<div class="room-tile '+r.status+'" onclick="showRoomQR(\''+r.num+'\')">'+'<div class="room-number">'+r.num+'</div>'+'<div class="room-guest">'+(r.guest||'Vacant')+'</div>'+'<div class="room-status-row"><div class="room-checkout" style="font-size:10px;color:var(--text-dim)">'+r.checkout+'</div>'+'<div class="room-actions-active">'+dots+'</div></div></div>';}).join('');}
+function getGuestBaseUrl(){
+  return 'https://shakti151622.github.io/HOTEL-PROJECT-2/hyatt-guest-ui-final_2.html';
+}
+function renderRooms(){var data=(typeof buildRoomsData==='function')?buildRoomsData():[];var grid=document.getElementById('rooms-grid');if(!grid)return;grid.innerHTML=data.map(function(r){var dots='';if(r.orders>0)dots+='<div class="room-dot order">'+r.orders+'🍽</div>';if(r.services>0)dots+='<div class="room-dot service">'+r.services+'🛎</div>';var isOccupied=r.status==='occupied'||r.status==='checkout';var _hn=localStorage.getItem('hyatt_hotel_name')||'';var fixedUrl=getGuestBaseUrl()+'?room='+encodeURIComponent(r.num)+(_hn?'&hotel='+encodeURIComponent(_hn):'');var qrSrc='https://chart.googleapis.com/chart?chs=72x72&cht=qr&chl='+encodeURIComponent(fixedUrl)+'&choe=UTF-8&chld=M|0';return'<div class="room-tile '+r.status+'" onclick="showRoomQR(\''+r.num+'\')">'+'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'+'<div class="room-number">'+r.num+'</div>'+'</div>'+'<div class="room-guest">'+(r.guest||'Vacant')+'</div>'+'<div style="display:flex;justify-content:center;margin:6px 0 4px;">'+'<div style="background:white;border-radius:6px;padding:3px;display:inline-block;position:relative;">'+'<img src="'+qrSrc+'" width="66" height="66" style="display:block;border-radius:2px;" loading="lazy" alt="QR '+r.num+'">'+'<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;background:white;border-radius:3px;display:flex;align-items:center;justify-content:center;">'+'<div style="width:10px;height:10px;background:#C9A96E;border-radius:2px;"></div>'+'</div>'+'</div>'+'</div>'+'<div class="room-status-row"><div class="room-checkout" style="font-size:10px;color:var(--text-dim)">'+r.checkout+'</div>'+'<div class="room-actions-active">'+dots+'</div></div>'+(isOccupied?'<button onclick="event.stopPropagation()" style="width:100%;margin-top:6px;background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.2);border-radius:8px;color:var(--red);font-size:11px;padding:5px;cursor:pointer;letter-spacing:0.04em;">Check Out</button>':'')+'</div>';}).join('');}
 function renderAnalytics(){var items=[{name:'Paneer Butter Masala',val:42,pct:84},{name:'Chicken Biryani',val:38,pct:76},{name:'Dal Tadka',val:31,pct:62},{name:'Veg Biryani',val:27,pct:54},{name:'Butter Chicken',val:24,pct:48},{name:'Cold Coffee',val:19,pct:38}];document.getElementById('top-items-chart').innerHTML=items.map(function(i){return'<div class="bar-row"><div class="bar-label">'+i.name+'</div><div class="bar-track"><div class="bar-fill" style="width:'+i.pct+'%"></div></div><div class="bar-val">'+i.val+'</div></div>';}).join('');document.getElementById('metrics-list').innerHTML=[{name:'Avg. Order Value',val:'₹301',cls:'amber'},{name:'Orders / Room / Day',val:'2.4',cls:''},{name:'Peak Hour',val:'8–9 PM',cls:'amber'},{name:'Repeat Orders',val:'68%',cls:'green'},{name:'Fastest Delivery',val:'11 min',cls:'green'},{name:'Slowest Delivery',val:'38 min',cls:''}].map(function(m){return'<div class="metric-row"><div class="metric-name">'+m.name+'</div><div class="metric-val '+m.cls+'">'+m.val+'</div></div>';}).join('');var svc=[{name:'Room Cleaning',val:24,pct:80,cls:''},{name:'Towels',val:18,pct:60,cls:'green'},{name:'Water',val:14,pct:47,cls:'blue'},{name:'Other',val:8,pct:27,cls:''}];document.getElementById('svc-breakdown-chart').innerHTML=svc.map(function(i){return'<div class="bar-row"><div class="bar-label">'+i.name+'</div><div class="bar-track"><div class="bar-fill '+i.cls+'" style="width:'+i.pct+'%"></div></div><div class="bar-val">'+i.val+'</div></div>';}).join('');var hours=[{name:'7–8 AM',val:3,pct:15},{name:'8–9 AM',val:9,pct:45},{name:'12–1 PM',val:14,pct:70},{name:'1–2 PM',val:11,pct:55},{name:'7–8 PM',val:18,pct:90},{name:'8–9 PM',val:20,pct:100},{name:'9–10 PM',val:16,pct:80},{name:'10–11 PM',val:8,pct:40}];document.getElementById('hourly-chart').innerHTML=hours.map(function(i){return'<div class="bar-row"><div class="bar-label">'+i.name+'</div><div class="bar-track"><div class="bar-fill blue" style="width:'+i.pct+'%"></div></div><div class="bar-val">'+i.val+'</div></div>';}).join('');}
 function updateStats(){var allActive=orders.filter(function(o){return o.status!=='delivered';});var n=allActive.length;document.getElementById('stat-active').textContent=n;document.getElementById('orders-badge').textContent=n;document.getElementById('orders-count').textContent=n+' active';var rev=orders.filter(function(o){return o.status==='delivered';}).reduce(function(s,o){return s+o.total;},0)+4820;document.getElementById('stat-revenue').textContent=rev.toLocaleString('en-IN');updateUrgencyStrip();}
 var orderCounter=4;
@@ -3633,8 +3640,39 @@ function simulateNewOrder(){var room=roomPool[Math.floor(Math.random()*roomPool.
 function showToast(type,title,msg){var container=document.getElementById('alert-container');var toast=document.createElement('div');toast.className='alert-toast';var ic=type==='order'?'var(--amber)':' var(--blue)';var svg=type==='order'?'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+ic+'" stroke-width="2" stroke-linecap="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>':' <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+ic+'" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>';var now=new Date();toast.innerHTML='<div class="toast-icon '+type+'">'+svg+'</div><div class="toast-body"><div class="toast-title">'+title+'</div><div class="toast-msg">'+msg+'</div><div class="toast-time">'+now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true})+'</div></div><button class="toast-close" onclick="this.parentElement.remove()">×</button>';container.appendChild(toast);setTimeout(function(){toast.classList.add('fade-out');setTimeout(function(){if(toast.parentElement)toast.remove();},300);},5000);}
 function animateBars(){document.querySelectorAll('.bar-fill').forEach(function(b){var w=b.style.width;b.style.width='0';setTimeout(function(){b.style.width=w;},50);});}
 var currentQRUrl='',currentQRRoom='';
-function showRoomQR(roomNum){currentQRRoom=roomNum;var guestName='';var _rooms=(typeof buildRoomsData==='function')?buildRoomsData():[];for(var i=0;i<_rooms.length;i++){if(_rooms[i].num===roomNum){guestName=_rooms[i].guest||'';}};var baseUrl=window.location.href.split('?')[0];var token=(function(){try{return btoa('rm'+roomNum+Date.now()).replace(/[=+/]/g,'').slice(0,10);}catch(e){return'tok'+roomNum;}})();var params='room='+roomNum+'&guest='+encodeURIComponent(guestName)+'&token='+token;var url=baseUrl+'?'+params;currentQRUrl=url;document.getElementById('qr-modal-sub').textContent='Room '+roomNum+' · '+(guestName||'Guest portal');document.getElementById('qr-url-text').textContent=url;document.getElementById('qr-room-label').textContent='ROOM '+roomNum;document.getElementById('qr-modal').classList.add('open');drawQR(url,roomNum);}
-function drawQR(url,roomNum){var canvas=document.getElementById('qr-canvas'),ctx=canvas.getContext('2d'),size=200;canvas.width=size;canvas.height=size;var img=new Image();img.crossOrigin='anonymous';img.onload=function(){ctx.clearRect(0,0,size,size);ctx.drawImage(img,0,0,size,size);};img.onerror=function(){drawFallbackQR(ctx,size,roomNum,url);};img.src='https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl='+encodeURIComponent(url)+'&choe=UTF-8&chld=M|2';}
+function showRoomQR(roomNum){
+  currentQRRoom=roomNum;
+  var hn=encodeURIComponent(localStorage.getItem('hyatt_hotel_name')||'');
+  var url=getGuestBaseUrl()+'?room='+encodeURIComponent(roomNum)+(hn?'&hotel='+hn:'');
+  currentQRUrl=url;
+  document.getElementById('qr-modal-sub').textContent='Room '+roomNum+' · Guest scans to open Hyatt Guest Page';
+  document.getElementById('qr-url-text').textContent=url;
+  document.getElementById('qr-room-label').textContent='ROOM '+roomNum;
+  var hnel=document.getElementById('qr-hotel-name');
+  if(hnel)hnel.textContent=(localStorage.getItem('hyatt_hotel_name')||'Shakti Hotels').toUpperCase();
+  document.getElementById('qr-modal').classList.add('open');
+  drawQR(url,roomNum);
+}
+function drawQR(url,roomNum){
+  var canvas=document.getElementById('qr-canvas'); if(!canvas)return;
+  var hn=(localStorage.getItem('hyatt_hotel_name')||'Shakti Hotels').toUpperCase();
+  var hnel=document.getElementById('qr-hotel-name'); if(hnel)hnel.textContent=hn;
+  document.getElementById('qr-room-label').textContent=roomNum;
+  function render(){
+    try{
+      var qr=qrcode(0,'M'); qr.addData(url); qr.make();
+      var sz=qr.getModuleCount(), cell=Math.floor(200/sz), w=cell*sz;
+      canvas.width=w; canvas.height=w;
+      var ctx=canvas.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,w);
+      for(var row=0;row<sz;row++) for(var col=0;col<sz;col++){
+        ctx.fillStyle=qr.isDark(row,col)?'#000':'#fff';
+        ctx.fillRect(col*cell,row*cell,cell,cell);
+      }
+    }catch(e){console.warn('QR render:',e&&e.message);}
+  }
+  if(typeof qrcode!=='undefined') render();
+  else{ var sc=document.createElement('script'); sc.src='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js'; sc.onload=render; document.head.appendChild(sc); }
+}
 function drawFallbackQR(ctx,size,roomNum){ctx.fillStyle='#fff';ctx.fillRect(0,0,size,size);ctx.strokeStyle='#1A1814';ctx.lineWidth=3;ctx.strokeRect(10,10,size-20,size-20);function corner(x,y){ctx.fillStyle='#1A1814';ctx.fillRect(x,y,40,40);ctx.fillStyle='#fff';ctx.fillRect(x+6,y+6,28,28);ctx.fillStyle='#1A1814';ctx.fillRect(x+12,y+12,16,16);}corner(18,18);corner(size-58,18);corner(18,size-58);ctx.fillStyle='#1A1814';ctx.font='bold 22px monospace';ctx.textAlign='center';ctx.fillText('Room '+roomNum,size/2,size/2-6);ctx.font='11px monospace';ctx.fillStyle='#8A8070';ctx.fillText(window.location.hostname||'yourhotel.com',size/2,size/2+14);ctx.fillStyle='#C9A96E';for(var i=0;i<6;i++)for(var j=0;j<3;j++){if(Math.random()>0.4)ctx.fillRect(68+i*11,size-55+j*11,7,7);}for(var i=0;i<3;i++)for(var j=0;j<6;j++){if(Math.random()>0.4)ctx.fillRect(size-55+i*11,68+j*11,7,7);}}
 function handleModalClick(e){if(e.target.id==='qr-modal')closeQRModal();}
 function closeQRModal(){document.getElementById('qr-modal').classList.remove('open');}
@@ -4074,10 +4112,7 @@ initDashTheme();
 })();
 // ══ OPS-FIRST: All functions defined here, BEFORE startup renderOrders() call ══
 
-function getGuestBaseUrl(){
-  return 'https://shakti151622.github.io/Hotel-Project/hyatt-guest-ui-final_2.html';
-}
-window.getGuestBaseUrl = getGuestBaseUrl;
+// getGuestBaseUrl defined earlier (uses relative URL detection)
 
 var _typeFilter = 'all';
 window.setTypeFilter = function(f, el) {
@@ -4208,7 +4243,7 @@ window.renderTasks = renderTasks;
 window.renderRooms = function() {
   var data = (typeof buildRoomsData==='function') ? buildRoomsData() : [];
   var grid = document.getElementById('rooms-grid'); if (!grid) return;
-  var base = 'https://shakti151622.github.io/Hotel-Project/hyatt-guest-ui-final_2.html';
+  var base = getGuestBaseUrl();
   var hotelEnc = encodeURIComponent(localStorage.getItem('hyatt_hotel_name')||'');
   grid.innerHTML = data.map(function(r) {
     var qrUrl = base + '?room=' + encodeURIComponent(r.num) + (hotelEnc?'&hotel='+hotelEnc:'');
@@ -4246,7 +4281,8 @@ window.showRoomQR = function(roomNum) {
   currentQRRoom = roomNum;
   var hn = (localStorage.getItem('hyatt_hotel_name')||'Shakti Hotels').toUpperCase();
   var hnel = document.getElementById('qr-hotel-name'); if(hnel) hnel.textContent = hn;
-  var url = 'https://shakti151622.github.io/Hotel-Project/hyatt-guest-ui-final_2.html?room=' + encodeURIComponent(roomNum);
+  var _hn2=localStorage.getItem('hyatt_hotel_name')||'';
+  var url = getGuestBaseUrl()+'?room='+encodeURIComponent(roomNum)+(_hn2?'&hotel='+encodeURIComponent(_hn2):'');
   currentQRUrl = url;
   var sub = document.getElementById('qr-modal-sub'); if(sub) sub.textContent = 'Room '+roomNum+' \u00b7 Scan to order';
   var ut = document.getElementById('qr-url-text'); if(ut) ut.textContent = url;
@@ -4323,6 +4359,7 @@ updateUrgencyStrip();
   if(k) localStorage.setItem('hyatt_sb_key', k.trim());
 })();
 maybeShowCfgOnLoad();
+
 })();
 </script>
 
