@@ -2551,22 +2551,25 @@ let supa = null;
 
 function initSupa(){
   try {
-    if(window.supabase && window.supabase.createClient){
-      supa = window.supabase.createClient(SUPA_URL, SUPA_ANON_KEY);
+    if(window.supabase && window.supabase.createClient && !supa){
+      supa = window.supabase.createClient(SUPA_URL, SUPA_ANON_KEY, {
+        realtime: { params: { eventsPerSecond: 10 } }
+      });
     }
   } catch(e) { console.warn('Supabase init failed', e); }
 }
 
-// Try immediately (sync load), then again on DOMContentLoaded and load
+// Try immediately, then on load
 initSupa();
 document.addEventListener('DOMContentLoaded', function(){ if(!supa) initSupa(); });
 window.addEventListener('load', function(){
   if(!supa) initSupa();
-  // Once supa ready, subscribe to all orders for this room
+  // Start both realtime AND polling for guaranteed sync
   waitForSupa().then(function(s){
-    if(!s) return;
-    subscribeRoomOrders(s);
+    if(!s) { console.warn('Supabase not available'); return; }
+    subscribeRoomOrders(s);   // WebSocket realtime (instant)
     subscribeRoomServices(s);
+    _startPolling(s);          // Polling backup (every 8s, handles WS gaps)
   });
 });
 
@@ -2633,11 +2636,7 @@ function _startPolling(s) {
 function subscribeRoomOrders(s) {
   var roomNum = String(window.ROOM_NUM || '');
   if (!roomNum || !s) return;
-  if (!_canUseRealtime()) {
-    // Fall back to polling — works on HTTP too
-    _startPolling(s);
-    return;
-  }
+  if (!_canUseRealtime()) { return; } // polling already running as backup
   try {
     s.channel('room-orders-' + roomNum)
       .on('postgres_changes', {
@@ -2679,7 +2678,7 @@ function subscribeRoomOrders(s) {
 function subscribeRoomServices(s) {
   var roomNum = String(window.ROOM_NUM || '');
   if (!roomNum || !s) return;
-  if (!_canUseRealtime()) { _startPolling(s); return; }
+  if (!_canUseRealtime()) { return; }
   try {
     s.channel('room-svcs-' + roomNum)
       .on('postgres_changes', {
