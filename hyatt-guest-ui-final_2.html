@@ -2584,54 +2584,59 @@ function _canUseRealtime() {
 
 // ── Poll Supabase for order/service updates (fallback when WS unavailable)
 var _pollInterval = null;
+function _doPoll(s, roomNum) {
+  // Poll orders for this room
+  s.from('orders').select('id,status,accepted_at,rejection_reason')
+    .eq('room', roomNum)
+    .not('status','in','("delivered","cancelled","rejected")')
+    .then(function(res) {
+      if (!res || !res.data) return;
+      res.data.forEach(function(row) {
+        var order = orderHistory.find(function(o){ return o.id === row.id; });
+        if (order && order.status !== row.status) {
+          order.status = row.status;
+          if (row.accepted_at) order.acceptedAt = new Date(row.accepted_at).getTime();
+          if (row.rejection_reason) order.rejection_reason = row.rejection_reason;
+          updateOrdersBadge();
+          if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
+          var msgs = {
+            accepted: '✓ Order accepted — being prepared',
+            preparing: '👨‍🍳 Kitchen is preparing your order',
+            ready: '🔔 Your order is ready!',
+            delivered: '✓ Order delivered',
+            rejected: '✕ Order not accepted'
+          };
+          if (msgs[row.status]) showGuestToast(msgs[row.status], row.status === 'rejected' ? 'red' : 'green');
+        }
+      });
+    }).catch(function(){});
+  // Poll services
+  s.from('service_requests').select('id,status')
+    .eq('room', roomNum)
+    .not('status','eq','done')
+    .then(function(res) {
+      if (!res || !res.data) return;
+      res.data.forEach(function(row) {
+        var req = serviceHistory.find(function(r){ return r.id === row.id; });
+        if (req && req.status !== row.status) {
+          req.status = row.status;
+          updateServicesBadge();
+          if (document.getElementById('screen-services').classList.contains('active')) renderServices();
+          var msgs = { assigned:'✓ Request assigned to staff', inprogress:'🚶 Staff is on the way', done:'✓ Request completed!' };
+          if (msgs[row.status]) showGuestToast(msgs[row.status], 'green');
+        }
+      });
+    }).catch(function(){});
+}
+
 function _startPolling(s) {
-  if (_pollInterval) return; // already polling
+  if (_pollInterval) return;
   var roomNum = String(window.ROOM_NUM || '');
   if (!roomNum || !s) return;
-  _pollInterval = setInterval(function() {
-    // Poll orders
-    s.from('orders').select('id,status,accepted_at,rejection_reason')
-      .eq('room', roomNum).not('status','eq','delivered')
-      .then(function(res) {
-        if (!res.data) return;
-        res.data.forEach(function(row) {
-          var order = orderHistory.find(function(o){ return o.id === row.id; });
-          if (order && order.status !== row.status) {
-            var prevStatus = order.status;
-            order.status = row.status;
-            if (row.accepted_at) order.acceptedAt = new Date(row.accepted_at).getTime();
-            if (row.rejection_reason) order.rejection_reason = row.rejection_reason;
-            updateOrdersBadge();
-            if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
-            var msgs = {
-              accepted: '✓ Order accepted — being prepared',
-              preparing: '👨‍🍳 Kitchen is preparing your order',
-              ready: '🔔 Your order is ready!',
-              delivered: '✓ Order delivered',
-              rejected: '✕ Order not accepted'
-            };
-            if (msgs[row.status]) showGuestToast(msgs[row.status], row.status === 'rejected' ? 'red' : 'green');
-          }
-        });
-      }).catch(function(){});
-    // Poll services
-    s.from('service_requests').select('id,status')
-      .eq('room', roomNum).not('status','eq','done')
-      .then(function(res) {
-        if (!res.data) return;
-        res.data.forEach(function(row) {
-          var req = serviceHistory.find(function(r){ return r.id === row.id; });
-          if (req && req.status !== row.status) {
-            req.status = row.status;
-            updateServicesBadge();
-            if (document.getElementById('screen-services').classList.contains('active')) renderServices();
-            var msgs = { assigned:'✓ Request assigned to staff', inprogress:'🚶 Staff is on the way', done:'✓ Request completed!' };
-            if (msgs[row.status]) showGuestToast(msgs[row.status], 'green');
-          }
-        });
-      }).catch(function(){});
-  }, 8000); // poll every 8 seconds
+  _doPoll(s, roomNum); // immediate first poll
+  _pollInterval = setInterval(function() { _doPoll(s, roomNum); }, 8000);
 }
+
 
 function subscribeRoomOrders(s) {
   var roomNum = String(window.ROOM_NUM || '');
@@ -2778,9 +2783,11 @@ placeOrder = async function(isMerge) {
 
   const supaReady = await waitForSupa();
   if (!supaReady) { console.warn('Supabase not available'); return; }
-  // Ensure room-level subscription is active
-  subscribeRoomOrders(supaReady);
-  subscribeRoomServices(supaReady);
+  // Ensure real-time sync is active
+  if (!_pollInterval) {
+    subscribeRoomOrders(supaReady);
+    _startPolling(supaReady);
+  }
   try {
     const insertData = {
       id: orderId,
