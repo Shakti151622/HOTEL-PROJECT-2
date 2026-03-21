@@ -43,7 +43,7 @@ html[data-mode="staff"] #guest-root  { display: none !important; }
 html[data-mode="guest"]  #staff-root  { display: none !important; }
 html[data-mode="guest"]  .sidebar     { display: none !important; }
 html[data-mode="guest"]  .sidebar-overlay { display: none !important; }
-html[data-mode="guest"]  .cfg-overlay { display: none !important; }
+html[data-mode="guest"]  .cfg-overlay { display: none; }
 html[data-mode="guest"]  .alert-container { display: none !important; }
 
 /* Staff mode: ensure full layout */
@@ -2998,23 +2998,25 @@ function initTheme() {
 //  so the tracker updates live without polling.
 // ══════════════════════════════════════════════════════
 
-var G_SB_URL = (localStorage.getItem('hyatt_sb_url') || '').replace(/\/+$/, '');
-var G_SB_KEY = (localStorage.getItem('hyatt_sb_key') || '').trim();
-var guestRt  = null;   // realtime channel for status updates
-
-// Use a single shared Supabase client (avoids "Multiple instances" error)
+// Guest Supabase: use window._hyattSb (shared with staff if same origin)
+// or create fresh client using the hardcoded project credentials
 var guestSb = null;
-if (G_SB_URL && G_SB_KEY) {
+var guestRt = null;
+(function(){
   try {
-    // Reuse existing client if already created, otherwise make one
-    if (window._hyattSb) {
-      guestSb = window._hyattSb;
-    } else {
-      guestSb = supabase.createClient(G_SB_URL, G_SB_KEY, {auth:{storageKey:'hyatt-sb-auth'}});
+    // Prefer reusing existing client (avoids multiple GoTrue instances)
+    if (window._hyattSb) { guestSb = window._hyattSb; return; }
+    // Try localStorage (works when staff + guest same origin)
+    var lsUrl = (localStorage.getItem('hyatt_sb_url')||'').replace(/\/+$/,'');
+    var lsKey = (localStorage.getItem('hyatt_sb_key')||'').trim();
+    var url = lsUrl || (typeof SUPA_URL !== 'undefined' ? SUPA_URL : '');
+    var key = lsKey || (typeof SUPA_ANON_KEY !== 'undefined' ? SUPA_ANON_KEY : '');
+    if (url && key && window.supabase && window.supabase.createClient) {
+      guestSb = window.supabase.createClient(url, key, {auth:{storageKey:'hyatt-sb-auth'}});
       window._hyattSb = guestSb;
     }
-  } catch(e) { console.warn('Guest Supabase init:', e&&e.message); }
-}
+  } catch(e) { console.warn('Guest SB init:', e); }
+})();
 
 // ── Supabase-aware placeOrder (overwrites the local-only version above)
 async function placeOrder(isMerge) {
@@ -3689,7 +3691,7 @@ var services=[
 ];
 function rowToOrder(row){return{id:row.id,room:String(row.room),guest:row.guest||'Guest',items:Array.isArray(row.items)?row.items:[],total:row.total||0,status:row.status||'new',placedAt:row.placed_at?new Date(row.placed_at).getTime():Date.now(),fromSupa:true};}
 function setConnBadge(state,label){var b=document.getElementById('conn-badge'),l=document.getElementById('conn-label');if(!b)return;b.className='conn-badge '+state;l.textContent=label;}
-async function connectSupabase(){var url=(document.getElementById('cfg-url').value||'').trim().replace(/\/+$/,''),key=(document.getElementById('cfg-key').value||'').trim();if(!url||!key){alert('Please enter both the Project URL and Anon Key.');return;}var btn=document.getElementById('cfg-connect-btn');btn.disabled=true;btn.textContent='Connecting…';try{sbClient=window._hyattSb||supabase.createClient(url,key,{auth:{storageKey:'hyatt-sb-auth'}});window._hyattSb=sbClient;var{data,error}=await sbClient.from('orders').select('id').limit(1);if(error)throw error;localStorage.setItem('hyatt_sb_url',url);localStorage.setItem('hyatt_sb_key',key);SUPABASE_URL=url;SUPABASE_KEY=key;closeCfg();setConnBadge('connecting','Syncing…');await loadOrdersFromSupabase();await loadServicesFromSupabase();try{subscribeRealtime();}catch(e){console.warn('Realtime init:',e&&e.message||e);}}catch(err){btn.disabled=false;btn.textContent='Connect';var msg=err.message||String(err);if(msg.includes('relation')||msg.includes('does not exist')||msg.includes('42P01')){document.getElementById('sql-panel').classList.add('visible');document.getElementById('sql-code').textContent=SETUP_SQL;alert('Table "orders" not found.\n\nRun the SQL shown in the panel, then try again.');}else{alert('Connection failed: '+msg);}}}
+async function connectSupabase(){var url=(document.getElementById('cfg-url').value||'').trim().replace(/\/+$/,''),key=(document.getElementById('cfg-key').value||'').trim();if(!url||!key){alert('Please enter both the Project URL and Anon Key.');return;}var btn=document.getElementById('cfg-connect-btn');btn.disabled=true;btn.textContent='Connecting…';try{sbClient=window._hyattSb||supabase.createClient(url,key,{auth:{storageKey:'hyatt-sb-auth'}});window._hyattSb=sbClient;var{data,error}=await sbClient.from('orders').select('id').limit(1);if(error)throw error;localStorage.setItem('hyatt_sb_url',url);localStorage.setItem('hyatt_sb_key',key);SUPABASE_URL=url;SUPABASE_KEY=key;window._hyattSb=sbClient;closeCfg();setConnBadge('connecting','Syncing…');await loadOrdersFromSupabase();await loadServicesFromSupabase();try{subscribeRealtime();}catch(e){console.warn('Realtime init:',e&&e.message||e);}}catch(err){btn.disabled=false;btn.textContent='Connect';var msg=err.message||String(err);if(msg.includes('relation')||msg.includes('does not exist')||msg.includes('42P01')){document.getElementById('sql-panel').classList.add('visible');document.getElementById('sql-code').textContent=SETUP_SQL;alert('Table "orders" not found.\n\nRun the SQL shown in the panel, then try again.');}else{alert('Connection failed: '+msg);}}}
 async function loadOrdersFromSupabase(){
   if(!sbClient)return;
   try{
