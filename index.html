@@ -3638,8 +3638,8 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
 (function() {
 if (window.APP_MODE === 'guest') return;
 
-var SUPABASE_URL=(localStorage.getItem('hyatt_sb_url')||'').replace(/\/+$/,'');
-var SUPABASE_KEY=(localStorage.getItem('hyatt_sb_key')||'').trim();
+var SUPABASE_URL=(localStorage.getItem('hyatt_sb_url')||'https://webvlxcypqhcwzbcpths.supabase.co').replace(/\/+$/,'');
+var SUPABASE_KEY=(localStorage.getItem('hyatt_sb_key')||'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw').trim();
 var sbClient=null,realtimeChan=null;
 var SETUP_SQL=`-- Run once in Supabase SQL Editor
 

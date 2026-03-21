@@ -1767,19 +1767,32 @@ function renderOrders() {
           </div>`;
         }).join('');
 
-    // 5-min cancel/modify window — only if status is 'accepted' and within 5 mins of acceptance
+    // Modify/cancel logic:
+    // 'new'      → can add, subtract, cancel freely (full edit)
+    // 'accepted' → can add more only, no subtraction, no cancel (call reception)
     const minsElapsed = o.acceptedAt ? (Date.now() - o.acceptedAt) / 60000 : 999;
-    // Allow cancel while 'new' (waiting) — no time limit
-    // Allow add-items while 'accepted' and within 5 mins
     const isNew = o.status === 'new';
-    const canModify = (isNew) || (o.status === 'accepted' && minsElapsed < 5);
-    const minsLeft = Math.ceil(5 - minsElapsed);
-    const modifyBtns = canModify ? `
-      <div style="display:flex;gap:8px;margin-top:12px;">
-        ${!isNew ? `<button onclick="modifyOrder('${o.id}')" style="flex:1;padding:10px;background:rgba(201,169,110,0.1);border:1px solid rgba(201,169,110,0.3);border-radius:10px;color:var(--gold);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;">✏ Add Items</button>` : ''}
-        <button onclick="cancelOrder('${o.id}')" style="flex:1;padding:10px;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.2);border-radius:10px;color:var(--red);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;">✕ Cancel Order</button>
+    const isAccepted = o.status === 'accepted';
+    const canAct = isNew || isAccepted;
+    const minsLeft = Math.max(0, Math.ceil(5 - minsElapsed));
+    const modifyBtns = canAct ? `
+      <div style="display:flex;gap:8px;margin-top:14px;">
+        <button onclick="modifyOrder('${o.id}')"
+          style="flex:1;padding:12px 8px;background:rgba(201,169,110,0.1);border:1px solid rgba(201,169,110,0.3);
+          border-radius:12px;color:var(--gold);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;gap:6px;">
+          ✏ ${isNew ? 'Modify Order' : 'Add Items'}
+        </button>
+        ${isNew ? `<button onclick="cancelOrder('${o.id}')"
+          style="flex:1;padding:12px 8px;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.2);
+          border-radius:12px;color:var(--red);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;gap:6px;">
+          ✕ Cancel
+        </button>` : ''}
       </div>
-      ${!isNew ? `<div style="font-size:11px;color:var(--text-dim);text-align:center;margin-top:6px;">Can add items for ${minsLeft} min${minsLeft!==1?'s':''} · To remove items call reception</div>` : ''}` : '';
+      <div style="font-size:11px;color:var(--text-dim);text-align:center;margin-top:6px;">
+        ${isNew ? 'Add or remove items · Cancel anytime before acceptance' : 'Can only add items after acceptance · To cancel call reception'}
+      </div>` : '';
 
     return `<div class="order-card" id="ocard-${o.id}">
       <div class="order-card-head">
@@ -1876,54 +1889,75 @@ function cancelOrder(orderId) {
 function modifyOrder(orderId) {
   var order = orderHistory.find(function(o){ return o.id === orderId; });
   if (!order) return;
-  if (order.status !== 'accepted') { alert('Order cannot be modified at this stage.'); return; }
-  if (!order.acceptedAt || (Date.now() - order.acceptedAt) > 5 * 60000) { alert('Modification window has expired.'); return; }
+  var isNew = order.status === 'new';
+  var isAccepted = order.status === 'accepted';
+  if (!isNew && !isAccepted) { showGuestToast('Cannot modify at this stage', 'red'); return; }
 
-  // Build edit state — copy current items
-  var editItems = order.items.map(function(i){ return { name: i.name, price: i.price, qty: i.qty, category: i.category || '' }; });
+  // Deep copy items for editing
+  var editItems = order.items.map(function(i){
+    return { name:i.name, price:i.price, qty:i.qty, category:i.category||'' };
+  });
+  // Store original qtys — can't go below these when accepted
+  var origQtys = editItems.map(function(i){ return i.qty; });
 
   function renderEditModal() {
     var existing = document.getElementById('modify-overlay');
     if (existing) existing.remove();
 
-    var overlay = document.createElement('div');
-    overlay.id = 'modify-overlay';
-    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:flex-end;justify-content:center;';
-
     var itemRows = editItems.map(function(item, idx) {
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--card-border);">
-        <div>
-          <div style="font-size:14px;color:var(--text);font-weight:500;">${item.name}</div>
-          <div style="font-size:12px;color:var(--text-muted);">₹${item.price} each</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:15px;color:var(--text);min-width:20px;text-align:center;">×${item.qty}</span>
-          <button onclick="editQty(${idx},1)" style="width:32px;height:32px;border-radius:50%;background:var(--gold);border:none;color:var(--dark);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">+</button>
-        </div>
-      </div>`;
+      var canSubtract = isNew && item.qty > 1; // only subtract when 'new' and qty > 1
+      var canRemove   = isNew && item.qty === 1; // full remove only when 'new'
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--card-border);">'
+        + '<div style="flex:1;">'
+          + '<div style="font-size:14px;color:var(--text);font-weight:500;">'+item.name+'</div>'
+          + '<div style="font-size:12px;color:var(--text-muted);">₹'+item.price+' each</div>'
+        + '</div>'
+        + '<div style="display:flex;align-items:center;gap:8px;">'
+          + (canRemove
+            ? '<button onclick="_editRemove('+idx+')" style="width:32px;height:32px;border-radius:50%;background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.25);color:var(--red);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">🗑</button>'
+            : (canSubtract
+              ? '<button onclick="_editQty('+idx+',-1)" style="width:32px;height:32px;border-radius:50%;background:var(--surface2);border:1px solid var(--card-border);color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">−</button>'
+              : '<div style="width:32px;"></div>')
+            )
+          + '<span style="font-size:15px;color:var(--text);min-width:24px;text-align:center;">×'+item.qty+'</span>'
+          + '<button onclick="_editQty('+idx+',1)" style="width:32px;height:32px;border-radius:50%;background:var(--gold);border:none;color:var(--dark);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">+</button>'
+        + '</div>'
+      + '</div>';
     }).join('');
 
-    var newTotal = editItems.reduce(function(s,i){ return s + i.qty * i.price; }, 0);
+    var newTotal = editItems.reduce(function(s,i){ return s+i.qty*i.price; },0);
+    var titleText = isNew ? 'Modify Order' : 'Add Items';
+    var hintText = isNew
+      ? 'Add or remove items freely before kitchen accepts'
+      : 'You can only add items — to remove call reception';
 
-    overlay.innerHTML = `
-      <div style="background:var(--surface);border-radius:24px 24px 0 0;padding:24px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-          <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--text);">Add to Order</div>
-          <button onclick="document.getElementById('modify-overlay').remove();" style="background:var(--surface2);border:1px solid var(--card-border);border-radius:8px;width:30px;height:30px;color:var(--text-muted);font-size:18px;cursor:pointer;">×</button>
-        </div>
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Tap + to add more of any item. To cancel, call reception.</div>
-        <div>${itemRows}</div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;margin-top:4px;">
-          <div style="font-size:13px;color:var(--text-muted);">Updated Total</div>
-          <div style="font-size:18px;font-weight:600;color:var(--gold);">₹${newTotal}</div>
-        </div>
-        <button onclick="confirmModify('${orderId}')" style="width:100%;padding:15px;background:var(--gold);border:none;border-radius:14px;color:var(--dark);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;">
-          Confirm Addition
-        </button>
-      </div>`;
+    var overlay = document.createElement('div');
+    overlay.id = 'modify-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:flex-end;justify-content:center;';
+    overlay.innerHTML =
+      '<div style="background:var(--surface);border-radius:24px 24px 0 0;padding:24px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;">'
+      + '<div style="width:36px;height:4px;background:var(--text-dim);border-radius:2px;margin:0 auto 16px;"></div>'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+        + '<div style="font-family:Cormorant Garamond,serif;font-size:22px;color:var(--text);">'+titleText+'</div>' + '<button data-close-modify="1" style="background:var(--surface2);border:1px solid var(--card-border);border-radius:8px;width:32px;height:32px;color:var(--text-muted);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>'
+      + '</div>'
+      + '<div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">'+hintText+'</div>'
+      + '<div>'+itemRows+'</div>'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;">'
+        + '<div style="font-size:13px;color:var(--text-muted);">Updated Total</div>'
+        + '<div style="font-size:20px;font-weight:600;color:var(--gold);">₹'+newTotal+'</div>'
+      + '</div>'
+      + '<button data-confirm-modify="1" style="width:100%;padding:15px;background:var(--gold);border:none;border-radius:14px;color:var(--dark);font-family:DM Sans,sans-serif;font-size:15px;font-weight:600;cursor:pointer;">Confirm Changes</button>'
+      + '</div>';
     document.body.appendChild(overlay);
+    overlay.addEventListener('click', function(e){
+      if(e.target===overlay) overlay.remove();
+      if(e.target.getAttribute && e.target.getAttribute('data-close-modify')) overlay.remove();
+      if(e.target.getAttribute && e.target.getAttribute('data-confirm-modify')) _confirmModify(orderId);
+    });
 
     window._editItems = editItems;
+    window._editOrigQtys = origQtys;
+    window._editIsNew = isNew;
     window._editOrderId = orderId;
     window._renderEditModal = renderEditModal;
   }
@@ -1931,34 +1965,43 @@ function modifyOrder(orderId) {
   renderEditModal();
 }
 
-window.editQty = function(idx, delta) {
+window._editQty = function(idx, delta) {
   var items = window._editItems;
+  var origQtys = window._editOrigQtys;
+  var isNew = window._editIsNew;
   if (!items) return;
-  // Only allow adding — qty can only go up
-  items[idx].qty = Math.max(items[idx].qty, items[idx].qty + Math.max(0, delta));
-  items[idx].qty += 1; // delta is always +1 now
+  var newQty = items[idx].qty + delta;
+  // When accepted: can only add (never go below original qty)
+  var minQty = isNew ? 1 : origQtys[idx];
+  items[idx].qty = Math.max(minQty, newQty);
   window._renderEditModal();
 };
 
-window.confirmModify = async function(orderId) {
+window._editRemove = function(idx) {
   var items = window._editItems;
-  if (!items) return;
-  var newTotal = items.reduce(function(s,i){ return s + i.qty*i.price; }, 0);
-  var order = orderHistory.find(function(o){ return o.id === orderId; });
-  if (order) {
-    order.items = items;
-    order.total = newTotal;
-  }
+  if (!items || !window._editIsNew) return; // only remove when new
+  items.splice(idx, 1);
+  window._editOrigQtys.splice(idx, 1);
+  window._renderEditModal();
+};
+
+window._confirmModify = async function(orderId) {
+  var items = window._editItems;
+  if (!items || items.length === 0) { showGuestToast('Order must have at least one item', 'red'); return; }
+  var newTotal = items.reduce(function(s,i){ return s+i.qty*i.price; },0);
+  var order = orderHistory.find(function(o){ return o.id===orderId; });
+  if (order) { order.items=items; order.total=newTotal; }
   document.getElementById('modify-overlay').remove();
-  renderOrders();
-  updateOrdersBadge();
-  showGuestToast('Items added to your order!', 'green');
+  renderOrders(); updateOrdersBadge();
+  showGuestToast('Order updated!', 'green');
   var s = await waitForSupa();
   if (s) {
-    try { await s.from('orders').update({ items: items, total: newTotal }).eq('id', orderId); }
+    try { await s.from('orders').update({items:items,total:newTotal}).eq('id',orderId); }
     catch(e) { console.warn('Modify update failed', e); }
   }
 };
+
+
 
 // Re-render every 30s so ETA countdown ticks
 setInterval(function(){
