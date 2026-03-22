@@ -4288,7 +4288,7 @@ function acceptOrder(id) {
   if (!order) return;
   pushUndo(id, order.status, {});
   order.status = 'accepted';
-  order.accepted_at = Date.now();
+  order.accepted_at = new Date().toISOString(); // ISO for Supabase compatibility
   if (typeof stopAlertBeep==='function') stopAlertBeep(id);
   if (typeof renderTasks==='function') renderTasks(); else renderOrders();
   updateStats();

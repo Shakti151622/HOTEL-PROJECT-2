@@ -1729,23 +1729,45 @@ function renderOrders() {
   const active = orderHistory.filter(o => o.status !== 'delivered' && o.status !== 'rejected' && o.status !== 'cancelled');
   const past   = orderHistory.filter(o => o.status === 'delivered' || o.status === 'rejected' || o.status === 'cancelled');
 
-  const statusLabel = { new: 'Waiting', accepted: 'Accepted', preparing: 'Preparing', ready: 'Preparing', delivered: 'Delivered', rejected: 'Not accepted', cancelled: 'Cancelled' };
+  const statusLabel = { new: 'Waiting', accepted: 'Accepted', preparing: 'Preparing', ready: 'Ready!', delivered: 'Delivered', rejected: 'Not accepted', cancelled: 'Cancelled' };
   const statusClass = { new: 'status-preparing', accepted: 'status-active', preparing: 'status-preparing', ready: 'status-active', delivered: 'status-delivered', rejected: 'status-delivered', cancelled: 'status-delivered' };
 
-  const stepsDef = ['Placed', 'Accepted', 'Preparing', 'Delivered'];
+  // 5 steps: Placed → Accepted → Preparing → Ready → Delivered
+  const stepsDef = ['Placed', 'Accepted', 'Preparing', 'Ready', 'Delivered'];
+  // stepIndex: how many steps are DONE (fully ticked green check)
+  // The CURRENT active step = stepIndex value itself
+  // steps before stepIndex = 'done' (green tick)
+  // step at stepIndex = 'active' (green ring)
+  // steps after = '' (grey)
   function stepIndex(status) {
-    return { new:0, accepted:1, preparing:2, ready:2, delivered:3, rejected:-1 }[status] ?? 0;
+    return { new:0, accepted:1, preparing:2, ready:3, delivered:4, rejected:-1, cancelled:-1 }[status] ?? 0;
   }
-  const barPctMap = { new:8, accepted:33, preparing:66, ready:75, delivered:100 };
+  // Progress bar: exact % for each status
+  const barPctMap = { new:5, accepted:25, preparing:55, ready:80, delivered:100 };
+
+  // ETA label shown under ORDER STATUS header
   function getEtaHtml(o) {
-    if(o.status==='delivered'||o.status==='rejected'||o.status==='cancelled') return '';
-    if(o.status==='new') return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Waiting for kitchen…</div>';
-    const startTime = o.acceptedAt || o.placedAt;
-    const remaining = Math.max(0, (o.eta||25) - Math.floor((Date.now()-startTime)/60000));
-    if(o.status==='accepted') return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Est. '+remaining+' min</div>';
-    return remaining<=0
-      ? '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Almost ready!</div>'
-      : '<div class="tracker-eta"><div class="tracker-eta-dot"></div>'+remaining+' min remaining</div>';
+    const s = o.status;
+    if(s==='delivered') return '<div class="tracker-eta" style="color:var(--gold);">&#10003; Delivered</div>';
+    if(s==='rejected')  return '<div class="tracker-eta" style="color:var(--red);">&#10005; Not accepted</div>';
+    if(s==='cancelled') return '<div class="tracker-eta" style="color:var(--text-muted);">Cancelled</div>';
+    if(s==='new')       return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Waiting for kitchen…</div>';
+    if(s==='accepted'){
+      const startTime = o.acceptedAt || o.placedAt;
+      const elapsed = Math.floor((Date.now()-startTime)/60000);
+      const eta = Math.max(0, (o.eta||25) - elapsed);
+      return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Accepted · Est. '+eta+' min</div>';
+    }
+    if(s==='preparing'){
+      const startTime = o.acceptedAt || o.placedAt;
+      const elapsed = Math.floor((Date.now()-startTime)/60000);
+      const eta = Math.max(0, (o.eta||25) - elapsed);
+      return eta<=0
+        ? '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Almost ready!</div>'
+        : '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Preparing · '+eta+' min left</div>';
+    }
+    if(s==='ready') return '<div class="tracker-eta" style="color:var(--gold);font-weight:600;"><div class="tracker-eta-dot" style="background:var(--gold);"></div>&#127381; Your order is ready!</div>';
+    return '';
   }
 
   function renderCard(o) {
@@ -1755,12 +1777,20 @@ function renderOrders() {
     const barPct = barPctMap[o.status] || 8;
     const etaHtml = getEtaHtml(o);
     const checkSvgGreen = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    // Build step classes:
+    // i < si  → 'done' (green tick, fully completed)
+    // i === si → 'active' (green ring, current step)  
+    // i > si  → '' (grey, not yet)
+    // Special: if delivered, all steps are 'done'
     const steps = isRejected
-      ? '<div style="font-size:12px;color:#C0392B;padding:4px 0;">✕ Order was not accepted</div>'
+      ? '<div style="font-size:12px;color:#C0392B;padding:4px 0;">✕ Order was not accepted · '+( o.rejection_reason || '')+'</div>'
       : isCancelled
       ? '<div style="font-size:12px;color:var(--text-muted);padding:4px 0;">Order cancelled</div>'
       : stepsDef.map((s, i) => {
-          const cls = i < si ? 'done' : i === si ? 'active' : '';
+          var cls = '';
+          if(o.status === 'delivered') { cls = 'done'; }
+          else if(i < si) { cls = 'done'; }
+          else if(i === si) { cls = 'active'; }
           return `<div class="tracker-step ${cls}">
             <div class="tracker-dot">${cls==='done'?checkSvgGreen:''}</div>
             <div class="tracker-step-name">${s}</div>
@@ -1813,15 +1843,15 @@ function renderOrders() {
             <div class="order-item-price">₹${i.qty * i.price}</div>
           </div>`).join('')}
       </div>
-      ${o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'rejected' ? `
+      ${o.status !== 'cancelled' && o.status !== 'rejected' ? `
       <div class="order-tracker">
         <div class="tracker-header">
           <div class="tracker-label">Order Status</div>
           ${etaHtml}
         </div>
         <div class="tracker-bar-wrap">
-          <div class="tracker-bar-fill" style="width:${barPct}%">
-            ${o.status==='preparing'?'<div class="tracker-bar-shimmer"></div>':''}
+          <div class="tracker-bar-fill" style="width:${barPct}%;${o.status==='delivered'?'background:var(--gold);':''}${o.status==='ready'?'background:var(--gold);':''}" >
+            ${(o.status==='preparing'||o.status==='accepted')?'<div class="tracker-bar-shimmer"></div>':''}
           </div>
         </div>
         <div class="tracker-steps">${steps}</div>
@@ -2003,11 +2033,16 @@ window._confirmModify = async function(orderId) {
 
 
 
-// Re-render every 30s so ETA countdown ticks
+// Re-render every 20s so ETA countdown ticks live
 setInterval(function(){
-  var hasActive=orderHistory.some(function(o){return o.status==='accepted'||o.status==='preparing';});
-  if(hasActive){updateOrdersBadge();if(document.getElementById('screen-orders').classList.contains('active'))renderOrders();}
-},30000);
+  var hasActive=orderHistory.some(function(o){
+    return o.status==='accepted'||o.status==='preparing'||o.status==='ready';
+  });
+  if(hasActive){
+    updateOrdersBadge();
+    if(document.getElementById('screen-orders').classList.contains('active')) renderOrders();
+  }
+},20000);
 
 // ── Service
 const serviceIcons = {
@@ -2145,56 +2180,83 @@ function renderServices() {
     return;
   }
 
-  const svcStepsDef  = ['Received', 'Assigned', 'In Progress', 'Done'];
-  const svcStepIndex = { received: 0, assigned: 1, inprogress: 2, done: 3 };
-  const svcStatusLabel = { received: 'Received', assigned: 'Assigned', inprogress: 'In Progress', done: 'Done' };
-  const svcStatusClass = { received: 'status-preparing', assigned: 'status-preparing', inprogress: 'status-active', done: 'status-delivered' };
+  // 4-step service tracker: Received → Assigned → En Route → Done
+  const svcStepsDef   = ['Received', 'Assigned', 'En Route', 'Done'];
+  const svcStepIndex  = { received:0, assigned:1, inprogress:2, done:3 };
+  const svcBarPct     = { received:5, assigned:35, inprogress:70, done:100 };
+  const svcStatusLabel = { received:'Waiting', assigned:'Assigned', inprogress:'En Route', done:'Done!' };
+  const svcStatusClass = { received:'status-preparing', assigned:'status-preparing', inprogress:'status-active', done:'status-delivered' };
+
+  const checkSvgW = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+  function getSvcEtaHtml(r) {
+    const elapsed = Math.floor((Date.now() - r.placedAt) / 60000);
+    if (r.status === 'done')
+      return '<div class="tracker-eta" style="color:var(--gold);">&#10003; Request completed</div>';
+    if (r.status === 'received')
+      return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Waiting for staff assignment…</div>';
+    if (r.status === 'assigned')
+      return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Staff assigned · on the way soon</div>';
+    if (r.status === 'inprogress')
+      return '<div class="tracker-eta"><div class="tracker-eta-dot" style="background:var(--gold);"></div>Staff is on the way to your room</div>';
+    return '';
+  }
 
   function renderSvcCard(r) {
-    const si = svcStepIndex[r.status];
-    const steps = svcStepsDef.map((s, i) => {
-      const cls = i < si ? 'done' : i === si ? 'active' : '';
-      const checkSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polyline points="20 6 9 17 4 12"/></svg>`;
-      return `<div class="tracker-step ${cls}">
-        <div class="tracker-dot">${checkSvg}</div>
-        <div class="tracker-step-name">${s}</div>
-      </div>`;
+    const si = svcStepIndex[r.status] ?? 0;
+    const barPct = svcBarPct[r.status] || 5;
+    const isDone = r.status === 'done';
+
+    const steps = svcStepsDef.map(function(s, i) {
+      var cls = isDone ? 'done' : (i < si ? 'done' : i === si ? 'active' : '');
+      return '<div class="tracker-step ' + cls + '">'
+        + '<div class="tracker-dot">' + (cls === 'done' ? checkSvgW : '') + '</div>'
+        + '<div class="tracker-step-name">' + s + '</div>'
+        + '</div>';
     }).join('');
 
-    // Build subtitle: qty + note
     let subtitle = '';
     if (r.qty) {
       const unit = r.type === 'Water'
-        ? (r.qty > 1 ? `${r.qty} bottles` : '1 bottle')
-        : (r.qty > 1 ? `${r.qty} towels` : '1 towel');
+        ? (r.qty > 1 ? r.qty + ' bottles' : '1 bottle')
+        : (r.qty > 1 ? r.qty + ' towels'  : '1 towel');
       subtitle += unit;
     }
-    if (r.note) subtitle += (subtitle ? ' · ' : '') + `"${r.note}"`;
+    if (r.note) subtitle += (subtitle ? ' · ' : '') + '"' + r.note + '"';
 
-    return `<div class="order-card">
-      <div class="svc-card-head">
-        <div class="svc-type-icon">${r.icon}</div>
-        <div class="svc-card-meta">
-          <div class="svc-card-name">${r.type}${r.qty ? ` <span style="color:var(--gold);font-size:14px;font-weight:400">×${r.qty}</span>` : ''}</div>
-          ${subtitle ? `<div class="svc-card-note">${subtitle}</div>` : ''}
-          <div class="svc-card-time">${r.id} · ${r.date} · ${r.time}</div>
-        </div>
-        <div class="order-status-pill ${svcStatusClass[r.status]}">${svcStatusLabel[r.status]}</div>
-      </div>
-      ${r.status !== 'done' ? `
-      <div class="order-tracker">
-        <div class="tracker-label">Request Status</div>
-        <div class="tracker-steps">${steps}</div>
-      </div>` : `
-      <div style="padding:12px 18px;display:flex;align-items:center;gap:8px">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-        <span style="font-size:13px;color:var(--green)">Completed</span>
-      </div>`}
-    </div>`;
+    const barColor = isDone ? 'var(--gold)' : (r.status === 'inprogress' ? 'var(--gold)' : 'linear-gradient(90deg,#3a9e6a,#4CAF7D)');
+    const showShimmer = r.status === 'inprogress' || r.status === 'assigned';
+
+    return '<div class="order-card" id="scard-' + r.id + '">'
+      // Header
+      + '<div class="svc-card-head">'
+        + '<div class="svc-type-icon">' + r.icon + '</div>'
+        + '<div class="svc-card-meta">'
+          + '<div class="svc-card-name">' + r.type + (r.qty ? ' <span style="color:var(--gold);font-size:14px;font-weight:400">×' + r.qty + '</span>' : '') + '</div>'
+          + (subtitle ? '<div class="svc-card-note">' + subtitle + '</div>' : '')
+          + '<div class="svc-card-time">' + r.id + ' · ' + (r.date||'') + ' · ' + r.time + '</div>'
+        + '</div>'
+        + '<div class="order-status-pill ' + (svcStatusClass[r.status]||'status-preparing') + '">' + (svcStatusLabel[r.status]||r.status) + '</div>'
+      + '</div>'
+      // Tracker
+      + '<div class="order-tracker">'
+        + '<div class="tracker-header">'
+          + '<div class="tracker-label">Request Status</div>'
+          + getSvcEtaHtml(r)
+        + '</div>'
+        + '<div class="tracker-bar-wrap">'
+          + '<div class="tracker-bar-fill" style="width:' + barPct + '%;background:' + barColor + ';">'
+            + (showShimmer ? '<div class="tracker-bar-shimmer"></div>' : '')
+          + '</div>'
+        + '</div>'
+        + '<div class="tracker-steps">' + steps + '</div>'
+      + '</div>'
+    + '</div>';
   }
 
   const active = serviceHistory.filter(r => r.status !== 'done');
   const done   = serviceHistory.filter(r => r.status === 'done');
+  // Both use the same renderSvcCard — done state shows all-green ticked tracker
 
   let html = '';
 
@@ -2589,9 +2651,9 @@ function _canUseRealtime() {
 var _pollInterval = null;
 function _doPoll(s, roomNum) {
   // Poll orders for this room
-  s.from('orders').select('id,status,accepted_at,rejection_reason')
+  s.from('orders').select('id,status,accepted_at,rejection_reason,items,total')
     .eq('room', roomNum)
-    .not('status','in','("delivered","cancelled","rejected")')
+    .in('status', ['new','accepted','preparing','ready','delivered'])
     .then(function(res) {
       if (!res || !res.data) return;
       res.data.forEach(function(row) {
@@ -2601,22 +2663,25 @@ function _doPoll(s, roomNum) {
           if (row.accepted_at) order.acceptedAt = new Date(row.accepted_at).getTime();
           if (row.rejection_reason) order.rejection_reason = row.rejection_reason;
           updateOrdersBadge();
+          // Always re-render on status change
+          updateOrdersBadge();
           if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
           var msgs = {
-            accepted: '✓ Order accepted — being prepared',
+            accepted: '✓ Order accepted — kitchen is preparing',
             preparing: '👨‍🍳 Kitchen is preparing your order',
-            ready: '🔔 Your order is ready!',
-            delivered: '✓ Order delivered',
+            ready: '🔔 Your order is ready for delivery!',
+            delivered: '✅ Order delivered — enjoy your meal!',
             rejected: '✕ Order not accepted'
           };
-          if (msgs[row.status]) showGuestToast(msgs[row.status], row.status === 'rejected' ? 'red' : 'green');
+          var isRed = row.status === 'rejected';
+          if (msgs[row.status]) showGuestToast(msgs[row.status], isRed ? 'red' : 'green');
         }
       });
     }).catch(function(){});
   // Poll services
   s.from('service_requests').select('id,status')
     .eq('room', roomNum)
-    .not('status','eq','done')
+    .in('status', ['received','assigned','inprogress','done'])
     .then(function(res) {
       if (!res || !res.data) return;
       res.data.forEach(function(row) {
@@ -2625,8 +2690,14 @@ function _doPoll(s, roomNum) {
           req.status = row.status;
           updateServicesBadge();
           if (document.getElementById('screen-services').classList.contains('active')) renderServices();
-          var msgs = { assigned:'✓ Request assigned to staff', inprogress:'🚶 Staff is on the way', done:'✓ Request completed!' };
-          if (msgs[row.status]) showGuestToast(msgs[row.status], 'green');
+          var sMsgs = {
+            assigned:   '✓ Staff assigned — on the way soon',
+            inprogress: '🚶 Staff is on the way to your room',
+            done:       '✅ Request completed!'
+          };
+          if (sMsgs[row.status]) showGuestToast(sMsgs[row.status], 'green');
+          updateServicesBadge();
+          if (document.getElementById('screen-services').classList.contains('active')) renderServices();
         }
       });
     }).catch(function(){});
@@ -2637,7 +2708,7 @@ function _startPolling(s) {
   var roomNum = String(window.ROOM_NUM || '');
   if (!roomNum || !s) return;
   _doPoll(s, roomNum); // immediate first poll
-  _pollInterval = setInterval(function() { _doPoll(s, roomNum); }, 8000);
+  _pollInterval = setInterval(function() { _doPoll(s, roomNum); }, 5000);
 }
 
 
@@ -2660,11 +2731,13 @@ function subscribeRoomOrders(s) {
           if (row.rejection_reason) order.rejection_reason = row.rejection_reason;
           updateOrdersBadge();
           if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
+          updateOrdersBadge();
+          if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
           var msgs = {
-            accepted: '✓ Order accepted — being prepared',
+            accepted: '✓ Order accepted — kitchen is preparing',
             preparing: '👨‍🍳 Kitchen is preparing your order',
-            ready: '🔔 Your order is ready!',
-            delivered: '✓ Order delivered',
+            ready: '🔔 Your order is ready for delivery!',
+            delivered: '✅ Order delivered — enjoy your meal!',
             rejected: '✕ Order not accepted',
             cancelled: 'Order cancelled'
           };
@@ -2700,12 +2773,12 @@ function subscribeRoomServices(s) {
           req.status = row.status;
           updateServicesBadge();
           if (document.getElementById('screen-services').classList.contains('active')) renderServices();
-          var msgs = {
-            assigned: '✓ Request assigned to staff',
-            inprogress: '🚶 Staff is on the way',
-            done: '✓ Request completed!'
+          var sMsgs = {
+            assigned:   '✓ Staff assigned — on the way soon',
+            inprogress: '🚶 Staff is on the way to your room',
+            done:       '✅ Request completed!'
           };
-          if (msgs[row.status]) showGuestToast(msgs[row.status], 'green');
+          if (sMsgs[row.status]) showGuestToast(sMsgs[row.status], 'green');
         }
       })
       .subscribe(function(status) {
