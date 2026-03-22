@@ -3755,12 +3755,11 @@ async function connectSupabase(){
 async function loadOrdersFromSupabase(){
   if(!sbClient)return;
   try{
-    // Only load today's orders (from midnight local time)
-    var todayStart = new Date();
-    todayStart.setHours(0,0,0,0);
+    // Load orders from last 24 hours (handles UTC/IST timezone difference)
+    var since = new Date(Date.now() - 24*60*60*1000);
     var res=await sbClient.from('orders').select('*')
       .not('status','eq','delivered')
-      .gte('placed_at', todayStart.toISOString())
+      .gte('placed_at', since.toISOString())
       .order('placed_at',{ascending:false}).limit(200);
     if(res.error){console.warn('Orders fetch:',res.error.message||res.error.code);setConnBadge('disconnected','Error');return;}
     orders=(res.data||[]).map(rowToOrder);
@@ -3863,11 +3862,10 @@ function handleSvcRealtimeEvent(payload){
 async function loadServicesFromSupabase(){
   if(!sbClient)return;
   try{
-    var todayStart = new Date();
-    todayStart.setHours(0,0,0,0);
+    var since = new Date(Date.now() - 24*60*60*1000);
     var res=await sbClient.from('service_requests').select('*')
       .not('status','eq','done')
-      .gte('placed_at', todayStart.toISOString())
+      .gte('placed_at', since.toISOString())
       .order('placed_at',{ascending:false}).limit(200);
     if(res.error){console.warn('Services fetch:',res.error.message||res.error.code);return;}
     services=(res.data||[]).map(rowToService);
@@ -4531,11 +4529,21 @@ function showSoundBanner() {
   banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#C9A96E;color:#0D0D0D;display:flex;align-items:center;justify-content:space-between;padding:10px 16px;font-family:DM Sans,sans-serif;font-size:13px;font-weight:500;cursor:pointer;';
   banner.innerHTML = '<div style="display:flex;align-items:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>Tap to enable order alert sounds</div><span style="font-size:18px;">×</span>';
   banner.onclick = unlockSound;
+  banner.addEventListener('touchstart', unlockSound, {once:true, passive:true});
   document.body.appendChild(banner);
 }
 
 window.addEventListener('load', function() { setTimeout(showSoundBanner, 1200); });
 window.unlockSound = unlockSound;
+// Unlock audio on first user interaction anywhere on page
+document.addEventListener('click', function _unlockOnce(){
+  unlockSound();
+  document.removeEventListener('click', _unlockOnce);
+}, {once:true});
+document.addEventListener('touchend', function _unlockTouch(){
+  unlockSound();
+  document.removeEventListener('touchend', _unlockTouch);
+}, {once:true});
 window.playBeep = playBeep;
 window.startAlertBeep = startAlertBeep;
 window.stopAlertBeep = stopAlertBeep;
