@@ -2552,24 +2552,27 @@ let supa = null;
 function initSupa(){
   try {
     if(window.supabase && window.supabase.createClient && !supa){
-      supa = window.supabase.createClient(SUPA_URL, SUPA_ANON_KEY, {
-        realtime: { params: { eventsPerSecond: 10 } }
-      });
+      supa = window.supabase.createClient(SUPA_URL, SUPA_ANON_KEY);
     }
   } catch(e) { console.warn('Supabase init failed', e); }
 }
 
-// Try immediately, then on load
+// Try at various points to handle async SDK loading
 initSupa();
 document.addEventListener('DOMContentLoaded', function(){ if(!supa) initSupa(); });
 window.addEventListener('load', function(){
   if(!supa) initSupa();
-  // Start both realtime AND polling for guaranteed sync
+  // Keep retrying for 5s in case SDK loads slowly
+  var tries = 0;
+  var retryInit = setInterval(function(){
+    if(supa || ++tries > 10){ clearInterval(retryInit); }
+    else { initSupa(); }
+  }, 500);
+  // Once ready, subscribe + poll
   waitForSupa().then(function(s){
-    if(!s) { console.warn('Supabase not available'); return; }
-    subscribeRoomOrders(s);   // WebSocket realtime (instant)
-    subscribeRoomServices(s);
-    _startPolling(s);          // Polling backup (every 8s, handles WS gaps)
+    if(!s){ console.warn('Supabase unavailable for guest'); return; }
+    subscribeRoomOrders(s);
+    _startPolling(s);
   });
 });
 

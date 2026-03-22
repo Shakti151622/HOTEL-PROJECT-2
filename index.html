@@ -3642,40 +3642,65 @@ var SUPABASE_URL=(localStorage.getItem('hyatt_sb_url')||'https://webvlxcypqhcwzb
 var SUPABASE_KEY=(localStorage.getItem('hyatt_sb_key')||'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw').trim();
 var sbClient=null,realtimeChan=null;
 var SETUP_SQL=`-- Run once in Supabase SQL Editor
-
--- Orders table (food orders from guests)
+-- STEP 1: Create orders table
 create table if not exists orders (
-  id          text primary key,
-  room        text        not null,
-  guest       text        not null default 'Guest',
-  items       jsonb       not null default '[]',
-  total       integer     not null default 0,
-  status      text        not null default 'new',
-  placed_at   timestamptz not null default now()
+  id                text primary key,
+  room              text not null,
+  guest             text not null default 'Guest',
+  items             jsonb not null default '[]',
+  total             integer not null default 0,
+  status            text not null default 'new',
+  placed_at         timestamptz not null default now(),
+  accepted_at       timestamptz,
+  prep_start_at     timestamptz,
+  ready_at          timestamptz,
+  delivered_at      timestamptz,
+  rejection_reason  text,
+  updated_at        timestamptz default now()
 );
+
+-- STEP 2: Enable RLS
 alter table orders enable row level security;
-create policy "guests can insert orders" on orders for insert with check (true);
-create policy "staff can select orders" on orders for select using (true);
-create policy "staff can update orders" on orders for update using (true);
+
+-- STEP 3: RLS policies (allow anon read/write)
+drop policy if exists "allow all orders" on orders;
+create policy "allow all orders" on orders for all using (true) with check (true);
+
+-- STEP 4: Enable realtime
 alter publication supabase_realtime add table orders;
 
--- Service requests table (housekeeping requests from guests)
+-- STEP 5: Create service_requests table
 create table if not exists service_requests (
   id          text primary key,
-  room        text        not null,
-  guest       text        not null default 'Guest',
-  type        text        not null,
-  icon        text        not null default 'bell',
+  room        text not null,
+  guest       text not null default 'Guest',
+  type        text not null,
+  icon        text default '🔔',
   qty         integer,
   note        text,
-  status      text        not null default 'received',
-  placed_at   timestamptz not null default now()
+  status      text not null default 'received',
+  placed_at   timestamptz not null default now(),
+  updated_at  timestamptz default now()
 );
+
 alter table service_requests enable row level security;
-create policy "guests can insert svc" on service_requests for insert with check (true);
-create policy "staff can select svc" on service_requests for select using (true);
-create policy "staff can update svc" on service_requests for update using (true);
-alter publication supabase_realtime add table service_requests;`;
+drop policy if exists "allow all svc" on service_requests;
+create policy "allow all svc" on service_requests for all using (true) with check (true);
+alter publication supabase_realtime add table service_requests;
+
+-- STEP 6: Auto-update updated_at
+create or replace function update_updated_at()
+returns trigger language plpgsql as $$
+begin new.updated_at = now(); return new; end; $$;
+
+drop trigger if exists orders_updated_at on orders;
+create trigger orders_updated_at before update on orders
+  for each row execute function update_updated_at();
+
+drop trigger if exists svc_updated_at on service_requests;
+create trigger svc_updated_at before update on service_requests
+  for each row execute function update_updated_at();
+`;
 
 // ROOMS_DATA replaced by buildRoomsData()
 
@@ -3684,7 +3709,49 @@ var orders=[];   // start empty — populated from Supabase
 var services=[]; // start empty — populated from Supabase
 function rowToOrder(row){return{id:row.id,room:String(row.room),guest:row.guest||'Guest',items:Array.isArray(row.items)?row.items:[],total:row.total||0,status:row.status||'new',placedAt:row.placed_at?new Date(row.placed_at).getTime():Date.now(),accepted_at:row.accepted_at?new Date(row.accepted_at).getTime():null,rejection_reason:row.rejection_reason||null,fromSupa:true};}
 function setConnBadge(state,label){var b=document.getElementById('conn-badge'),l=document.getElementById('conn-label');if(!b)return;b.className='conn-badge '+state;l.textContent=label;}
-async function connectSupabase(){var url=(document.getElementById('cfg-url').value||'').trim().replace(/\/+$/,''),key=(document.getElementById('cfg-key').value||'').trim();if(!url||!key){alert('Please enter both the Project URL and Anon Key.');return;}var btn=document.getElementById('cfg-connect-btn');btn.disabled=true;btn.textContent='Connecting…';try{sbClient=window._hyattSb||supabase.createClient(url,key,{auth:{storageKey:'hyatt-sb-auth'}});window._hyattSb=sbClient;var{data,error}=await sbClient.from('orders').select('id').limit(1);if(error)throw error;localStorage.setItem('hyatt_sb_url',url);localStorage.setItem('hyatt_sb_key',key);SUPABASE_URL=url;SUPABASE_KEY=key;window._hyattSb=sbClient;closeCfg();setConnBadge('connecting','Syncing…');await loadOrdersFromSupabase();await loadServicesFromSupabase();try{subscribeRealtime();}catch(e){console.warn('Realtime init:',e&&e.message||e);}}catch(err){btn.disabled=false;btn.textContent='Connect';var msg=err.message||String(err);if(msg.includes('relation')||msg.includes('does not exist')||msg.includes('42P01')){document.getElementById('sql-panel').classList.add('visible');document.getElementById('sql-code').textContent=SETUP_SQL;alert('Table "orders" not found.\n\nRun the SQL shown in the panel, then try again.');}else{alert('Connection failed: '+msg);}}}
+async function connectSupabase(){
+  var url=(document.getElementById('cfg-url').value||'').trim().replace(/\/+$/,'');
+  var key=(document.getElementById('cfg-key').value||'').trim();
+  if(!url||!key){alert('Please enter both URL and Anon Key.');return;}
+  var btn=document.getElementById('cfg-connect-btn');
+  var prevErr=document.getElementById('cfg-err');if(prevErr)prevErr.remove();
+  btn.disabled=true;btn.textContent='Connecting…';
+  try{
+    if(!window.supabase||!window.supabase.createClient) throw new Error('Supabase SDK not loaded');
+    sbClient=window.supabase.createClient(url,key,{auth:{storageKey:'hyatt-sb-auth',autoRefreshToken:false,persistSession:false}});
+    window._hyattSb=sbClient;
+    var res=await sbClient.from('orders').select('id').limit(1);
+    if(res.error){
+      if(res.error.code==='42P01'||String(res.error.message).includes('does not exist')){
+        document.getElementById('sql-panel').classList.add('visible');
+        document.getElementById('sql-code').textContent=SETUP_SQL;
+        throw new Error('Table "orders" not found. Run the SQL shown below first.');
+      }
+      throw new Error(res.error.message||res.error.code||'Query failed');
+    }
+    localStorage.setItem('hyatt_sb_url',url);
+    localStorage.setItem('hyatt_sb_key',key);
+    SUPABASE_URL=url;SUPABASE_KEY=key;
+    closeCfg();
+    setConnBadge('connecting','Syncing…');
+    await loadOrdersFromSupabase();
+    await loadServicesFromSupabase();
+    try{subscribeRealtime();}catch(e){console.warn('Realtime:',e&&e.message||e);}
+    showToast('service','Connected','Live orders active');
+  }catch(err){
+    sbClient=null;window._hyattSb=null;
+    btn.disabled=false;btn.textContent='Connect';
+    var msg=String(err.message||err);
+    setConnBadge('disconnected','Error');
+    var errDiv=document.createElement('div');
+    errDiv.id='cfg-err';
+    errDiv.style.cssText='color:var(--red);font-size:12px;margin-top:8px;padding:10px;background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.3);border-radius:8px;';
+    errDiv.textContent='Error: '+msg;
+    btn.parentNode.insertBefore(errDiv,btn.nextSibling);
+  }
+}
+
+
 async function loadOrdersFromSupabase(){
   if(!sbClient)return;
   try{
@@ -3841,7 +3908,42 @@ function handleRealtimeEvent(payload){
 function openCfg(){document.getElementById('sql-code').textContent=SETUP_SQL;if(SUPABASE_URL)document.getElementById('cfg-url').value=SUPABASE_URL;if(SUPABASE_KEY)document.getElementById('cfg-key').value=SUPABASE_KEY;var btn=document.getElementById('cfg-connect-btn');btn.disabled=false;btn.textContent='Connect';document.getElementById('cfg-overlay').style.display='flex';}
 function closeCfg(){document.getElementById('cfg-overlay').style.display='none';}
 function cfgOverlayClick(e){if(e.target.id==='cfg-overlay')closeCfg();}
-function maybeShowCfgOnLoad(){if(!SUPABASE_URL||!SUPABASE_KEY){setTimeout(openCfg,600);}else{setConnBadge('connecting','Connecting…');SUPABASE_URL=SUPABASE_URL.replace(/\/+$/,'');sbClient=window._hyattSb||supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storageKey:'hyatt-sb-auth'}});window._hyattSb=sbClient;document.getElementById('cfg-url').value=SUPABASE_URL;document.getElementById('cfg-key').value=SUPABASE_KEY;loadOrdersFromSupabase().then(function(){return loadServicesFromSupabase();}).then(function(){try{subscribeRealtime();}catch(e){}}).catch(function(e){console.warn('Init error:',e&&e.message||e);setConnBadge('disconnected','Offline');});}}
+function maybeShowCfgOnLoad(){
+  if(!window.supabase||!window.supabase.createClient){
+    setTimeout(maybeShowCfgOnLoad,400); return;
+  }
+  if(!SUPABASE_URL||!SUPABASE_KEY){ setTimeout(openCfg,600); return; }
+  setConnBadge('connecting','Connecting…');
+  SUPABASE_URL=SUPABASE_URL.replace(/\/+$/,'');
+  try{
+    if(!sbClient){
+      sbClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{
+        auth:{storageKey:'hyatt-sb-auth',autoRefreshToken:false,persistSession:false}
+      });
+      window._hyattSb=sbClient;
+    }
+  }catch(e){ console.warn('createClient:',e); setConnBadge('disconnected','SDK Error'); return; }
+  // Pre-fill settings inputs
+  var urlEl=document.getElementById('cfg-url'); if(urlEl) urlEl.value=SUPABASE_URL;
+  var keyEl=document.getElementById('cfg-key'); if(keyEl) keyEl.value=SUPABASE_KEY;
+  // Test with a real query first
+  sbClient.from('orders').select('id').limit(1)
+    .then(function(res){
+      if(res.error){
+        console.warn('Supabase test failed:',res.error);
+        setConnBadge('disconnected','Error: '+res.error.message);
+        return;
+      }
+      setConnBadge('connecting','Syncing…');
+      return loadOrdersFromSupabase()
+        .then(function(){ return loadServicesFromSupabase(); })
+        .then(function(){ subscribeRealtime(); });
+    })
+    .catch(function(e){
+      console.warn('Connection error:',e&&e.message||e);
+      setConnBadge('disconnected','Offline');
+    });
+}
 function updateClock(){var d=new Date(),el=document.getElementById('clock');if(el)el.textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');}
 setInterval(updateClock,1000);updateClock();
 function elapsed(ts){var m=Math.floor((Date.now()-ts)/60000);if(m<1)return'< 1m';if(m<60)return m+'m';return Math.floor(m/60)+'h '+(m%60)+'m';}
@@ -5205,7 +5307,12 @@ updateUrgencyStrip();
   if(u) localStorage.setItem('hyatt_sb_url', u.replace(/\/+$/,'').trim());
   if(k) localStorage.setItem('hyatt_sb_key', k.trim());
 })();
-maybeShowCfgOnLoad();
+// Defer connection until DOM is fully loaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', maybeShowCfgOnLoad);
+} else {
+  maybeShowCfgOnLoad(); // DOM already ready
+}
 
 })();
 </script>
