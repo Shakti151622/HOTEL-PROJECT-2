@@ -1,0 +1,2967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0D0D0D" id="meta-theme-color">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Shakti Hotels</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+(function(){
+  var p={};
+  try{window.location.search.slice(1).split('&').forEach(function(s){var kv=s.split('=');if(kv[0])p[decodeURIComponent(kv[0])]=decodeURIComponent((kv[1]||'').replace(/\+/g,' '));});}catch(e){}
+  window.ROOM_NUM=p.room||'000';
+  window.GUEST_NAME=p.guest||'Guest';
+  window.HOTEL_NAME=p.hotel||localStorage.getItem('hyatt_hotel_name')||'Shakti Hotels';
+  if(p.hotel)localStorage.setItem('hyatt_hotel_name',p.hotel);
+  document.title=window.HOTEL_NAME+' · Room '+window.ROOM_NUM;
+  // Apply theme IMMEDIATELY before CSS renders — prevents flash of dark mode
+  var saved=sessionStorage.getItem('hyatt-theme');
+  var h=new Date().getHours();
+  var auto=(h>=6&&h<20)?'day':'night';
+  var theme=saved||auto;
+  document.documentElement.classList.add(theme);
+})();
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  /* ── NIGHT (default) ── */
+  :root {
+    --gold: #C9A96E;
+    --gold-light: #E8D5B0;
+    --dark: #0D0D0D;
+    --dark2: #1A1814;
+    --dark3: #242018;
+    --surface: #1E1C18;
+    --surface2: #272420;
+    --text: #F5EFE6;
+    --text-muted: #8A8070;
+    --text-dim: #5A5248;
+    --green: #4CAF7D;
+    --red: #C0392B;
+    --topbar-border: rgba(201,169,110,0.12);
+    --card-border: rgba(255,255,255,0.07);
+    --input-border: rgba(255,255,255,0.08);
+    --entry-bg: #0D0D0D;
+    --gradient-opacity: 0.12;
+  }
+
+  /* ── DAY ── */
+  :root.day {
+    --gold: #A8752A;
+    --gold-light: #C9A96E;
+    --dark: #F7F3EE;
+    --dark2: #EDE8E1;
+    --dark3: #E3DDD5;
+    --surface: #FFFFFF;
+    --surface2: #F0EBE3;
+    --text: #1A1410;
+    --text-muted: #7A6E62;
+    --text-dim: #B0A898;
+    --green: #2E7D52;
+    --red: #B03020;
+    --topbar-border: rgba(168,117,42,0.15);
+    --card-border: rgba(0,0,0,0.07);
+    --input-border: rgba(0,0,0,0.10);
+    --entry-bg: #F7F3EE;
+    --gradient-opacity: 0.10;
+  }
+
+  /* smooth transitions on theme switch */
+  *, *::before, *::after {
+    transition:
+      background-color 0.4s ease,
+      color 0.3s ease,
+      border-color 0.3s ease,
+      box-shadow 0.3s ease;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--dark);
+    color: var(--text);
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+    max-width: 430px;
+    margin: 0 auto;
+    overflow-x: hidden;
+    position: relative;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* iOS momentum scrolling on scrollable containers */
+  .menu-body, .cart-body, .orders-body, .service-body {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── SCREENS ── */
+  .screen {
+    display: none;
+    min-height: 100vh;
+    flex-direction: column;
+    animation: fadeIn 0.3s ease;
+  }
+  .screen.active { display: flex; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── ENTRY SCREEN ── */
+  #screen-entry {
+    background: var(--dark);
+    justify-content: center;
+    align-items: center;
+    padding: 48px 32px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .entry-bg {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 50% 0%, rgba(201,169,110,0.12) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 30% at 80% 80%, rgba(201,169,110,0.06) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .logo-mark {
+    width: 72px; height: 72px;
+    border: 1.5px solid var(--gold);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 24px;
+    position: relative;
+  }
+  .logo-mark::before {
+    content: '';
+    position: absolute; top: 5px; left: 5px; right: 5px; bottom: 5px;
+    border: 1px solid rgba(201,169,110,0.3);
+    border-radius: 50%;
+  }
+  .logo-mark span {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 28px;
+    color: var(--gold);
+    font-weight: 500;
+    letter-spacing: 0.05em;
+  }
+
+  .hotel-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 13px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 6px;
+  }
+
+  .welcome-text {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 34px;
+    font-weight: 400;
+    line-height: 1.15;
+    color: var(--text);
+    margin-bottom: 40px;
+  }
+
+  .room-badge {
+    background: var(--surface);
+    border: 1px solid rgba(201,169,110,0.25);
+    border-radius: 16px;
+    padding: 20px 28px;
+    margin-bottom: 32px;
+    width: 100%;
+  }
+  .room-badge .room-label {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .room-badge .room-number {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 42px;
+    color: var(--gold);
+    font-weight: 500;
+    line-height: 1;
+  }
+  .room-badge .guest-name {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  .btn-primary {
+    width: 100%;
+    padding: 20px;
+    background: var(--gold);
+    color: var(--dark);
+    border: none;
+    border-radius: 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-primary::after {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    transition: background 0.2s;
+  }
+  .btn-primary:active::after { background: rgba(255,255,255,0.15); }
+  .btn-primary:active { transform: scale(0.98); }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px 16px;
+    background: var(--dark2);
+    border-bottom: 1px solid var(--topbar-border);
+    position: -webkit-sticky;
+    position: sticky; top: 0; z-index: 10;
+    flex-shrink: 0;
+  }
+  .topbar-room {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    color: var(--gold);
+    font-weight: 500;
+  }
+  .topbar-label {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .back-btn {
+    width: 42px; height: 42px;
+    border: 1px solid rgba(201,169,110,0.25);
+    border-radius: 12px;
+    background: transparent;
+    color: var(--gold);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .back-btn:active { background: var(--surface2); transform: scale(0.94); }
+
+  /* ── HOME SCREEN ── */
+  #screen-home {
+    background: var(--dark2);
+  }
+  .home-content {
+    flex: 1;
+    padding: 32px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .home-greeting {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 26px;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  .home-sub {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  .action-card {
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 18px;
+    padding: 24px 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .action-card::before {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--gold);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .action-card:active { background: var(--surface2); transform: scale(0.98); }
+  .action-card:active::before { opacity: 1; }
+  .action-icon {
+    font-size: 32px;
+    flex-shrink: 0;
+    width: 52px; height: 52px;
+    background: rgba(201,169,110,0.08);
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .action-info { flex: 1; }
+  .action-title {
+    font-size: 17px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 3px;
+  }
+  .action-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .action-arrow {
+    color: var(--text-dim);
+    font-size: 18px;
+  }
+
+  .call-card {
+    background: rgba(201,169,110,0.08);
+    border: 1.5px solid rgba(201,169,110,0.3);
+  }
+  .call-card .action-title { color: var(--gold); }
+  .call-card .action-icon { background: rgba(201,169,110,0.12); }
+
+  /* ── MENU SCREEN ── */
+  #screen-menu {
+    background: var(--dark2);
+  }
+  .menu-body { flex: 1; overflow-y: auto; padding-bottom: 100px; }
+
+  .cat-tabs {
+    display: flex;
+    gap: 8px;
+    padding: 16px 24px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .cat-tabs::-webkit-scrollbar { display: none; }
+  .cat-tab {
+    padding: 10px 20px;
+    border-radius: 100px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: transparent;
+    color: var(--text-muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .cat-tab.active {
+    background: var(--gold);
+    color: var(--dark);
+    border-color: var(--gold);
+    font-weight: 500;
+  }
+
+  .menu-section { padding: 0 24px; }
+  .section-label {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    padding: 16px 0 10px;
+    border-bottom: 1px solid rgba(201,169,110,0.15);
+    margin-bottom: 4px;
+  }
+
+  .menu-item {
+    display: flex;
+    align-items: center;
+    padding: 16px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    gap: 16px;
+  }
+  .menu-item-info { flex: 1; }
+  .menu-item-name { font-size: 15px; color: var(--text); margin-bottom: 2px; }
+  .menu-item-price { font-size: 14px; color: var(--gold); font-weight: 500; }
+  .qty-control {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .qty-btn {
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    border: 1px solid rgba(201,169,110,0.3);
+    background: transparent;
+    color: var(--gold);
+    font-size: 20px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+    font-family: 'DM Sans', sans-serif;
+    line-height: 1;
+  }
+  .qty-btn:active { background: rgba(201,169,110,0.15); transform: scale(0.9); }
+  .qty-add {
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    background: var(--gold);
+    color: var(--dark);
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+    font-weight: 300;
+  }
+  .qty-add:active { transform: scale(0.88); }
+  .qty-num {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text);
+    min-width: 14px;
+    text-align: center;
+  }
+
+  /* ── STICKY CART ── */
+  .cart-sticky {
+    position: fixed;
+    bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 430px;
+    padding: 16px 24px 28px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    pointer-events: none;
+    display: none;
+  }
+  .cart-sticky.row-visible { display: flex; background: linear-gradient(to top, var(--dark2) 80%, transparent); }
+  .cart-btn {
+    flex: 1;
+    padding: 18px 20px;
+    background: var(--gold);
+    color: var(--dark);
+    border: none;
+    border-radius: 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between;
+    pointer-events: all;
+    transition: all 0.2s;
+    display: none;
+  }
+  .cart-btn.visible { display: flex; }
+  .cart-btn:active { transform: scale(0.98); }
+  .cart-btn-badge {
+    background: var(--dark);
+    color: var(--gold);
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  /* ── CART SCREEN ── */
+  #screen-cart { background: var(--dark2); }
+  .cart-body { flex: 1; padding: 24px; overflow-y: auto; }
+  .cart-item {
+    display: flex;
+    align-items: center;
+    padding: 16px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    gap: 12px;
+  }
+  .cart-item-name { flex: 1; font-size: 15px; color: var(--text); }
+  .cart-item-qty { font-size: 14px; color: var(--text-muted); margin-right: 4px; }
+  .cart-item-price { font-size: 15px; color: var(--gold); font-weight: 500; }
+
+  .cart-total {
+    margin-top: 24px;
+    padding: 20px;
+    background: var(--surface);
+    border-radius: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .cart-total-label { font-size: 14px; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; }
+  .cart-total-amt {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 28px;
+    color: var(--gold);
+  }
+
+  .place-btn {
+    margin: 24px 0 0;
+    width: 100%;
+    padding: 20px;
+    background: var(--gold);
+    color: var(--dark);
+    border: none;
+    border-radius: 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 17px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .place-btn:active { transform: scale(0.98); }
+
+  /* ── SUCCESS STATE ── */
+  .success-screen {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    padding: 48px 32px;
+    text-align: center;
+  }
+  .success-screen.visible { display: flex; }
+  .success-icon {
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    background: rgba(76,175,125,0.12);
+    border: 1.5px solid var(--green);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px;
+    margin-bottom: 24px;
+    animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes popIn {
+    from { transform: scale(0.5); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+  }
+  .success-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 28px;
+    color: var(--text);
+    margin-bottom: 10px;
+  }
+  .success-sub { font-size: 15px; color: var(--text-muted); margin-bottom: 8px; }
+  .success-eta {
+    font-size: 13px;
+    color: var(--gold);
+    letter-spacing: 0.08em;
+    margin-bottom: 40px;
+  }
+  .btn-ghost {
+    padding: 16px 32px;
+    border: 1.5px solid rgba(201,169,110,0.4);
+    border-radius: 14px;
+    background: transparent;
+    color: var(--gold);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-ghost:active { background: rgba(201,169,110,0.1); transform: scale(0.97); }
+
+  /* ── SERVICE SCREEN ── */
+  #screen-service { background: var(--dark2); }
+  .service-body { flex: 1; padding: 24px; overflow-y: auto; padding-bottom: 120px; }
+  .service-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .service-card {
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 16px;
+    padding: 22px 16px;
+    cursor: pointer;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 10px;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .service-card.selected {
+    border-color: var(--gold);
+    background: rgba(201,169,110,0.08);
+  }
+  .service-card:active { transform: scale(0.96); }
+  .service-card-icon { font-size: 30px; }
+  .service-card-name { font-size: 14px; color: var(--text); font-weight: 400; }
+  .service-note {
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 14px 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    color: var(--text);
+    width: 100%;
+    resize: none;
+    outline: none;
+    min-height: 80px;
+    margin-bottom: 20px;
+    transition: border-color 0.2s;
+  }
+  .service-note::placeholder { color: var(--text-dim); }
+  .service-note:focus { border-color: rgba(201,169,110,0.4); }
+  .note-label {
+    font-size: 12px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  .submit-bar {
+    position: fixed;
+    bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 430px;
+    padding: 16px 24px 28px;
+    background: linear-gradient(to top, var(--dark2) 80%, transparent);
+  }
+  .submit-btn {
+    width: 100%;
+    padding: 20px;
+    background: var(--gold);
+    color: var(--dark);
+    border: none;
+    border-radius: 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .submit-btn:active { transform: scale(0.98); }
+  .submit-btn:disabled { opacity: 0.45; pointer-events: none; }
+
+  /* ── FLOATING CALL ── */
+  .float-call {
+    position: static;
+    width: 56px; height: 56px;
+    flex-shrink: 0;
+    border-radius: 16px;
+    background: var(--gold);
+    color: var(--dark);
+    border: none;
+    cursor: pointer;
+    display: none; align-items: center; justify-content: center;
+    transition: all 0.2s;
+    pointer-events: all;
+  }
+  .float-call.visible { display: flex; }
+  .float-call:active { transform: scale(0.9); }
+
+  /* ── NETWORK ERROR ── */
+  .error-bar {
+    background: rgba(192,57,43,0.12);
+    border: 1px solid rgba(192,57,43,0.3);
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin: 16px 24px 0;
+    display: none;
+    align-items: center;
+    gap: 12px;
+  }
+  .error-bar.visible { display: flex; }
+  .error-bar-text { flex: 1; font-size: 14px; color: #E07070; }
+  .retry-btn {
+    padding: 8px 16px;
+    border: 1px solid rgba(192,57,43,0.5);
+    border-radius: 8px;
+    background: transparent;
+    color: #E07070;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  /* ── CART MODIFY ── */
+  .cart-hint {
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    text-align: center;
+    padding: 12px 0 4px;
+    margin-bottom: 4px;
+  }
+  .cart-divider {
+    height: 1px;
+    background: var(--topbar-border);
+    margin: 8px 0 16px;
+  }
+  .cart-item {
+    display: flex;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    gap: 10px;
+    animation: slideIn 0.2s ease;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .cart-item.removing {
+    animation: slideOut 0.25s ease forwards;
+  }
+  @keyframes slideOut {
+    to { opacity: 0; transform: translateX(40px); max-height: 0; padding: 0; overflow: hidden; }
+  }
+  .cart-item-name { flex: 1; font-size: 15px; color: var(--text); line-height: 1.3; }
+  .cart-item-controls {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+  .ci-btn {
+    width: 32px; height: 32px;
+    border-radius: 9px;
+    border: 1px solid var(--topbar-border);
+    background: var(--surface2);
+    color: var(--text-muted);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .ci-btn:active { transform: scale(0.88); background: var(--surface); }
+  .ci-btn.minus:active { background: rgba(192,57,43,0.12); border-color: rgba(192,57,43,0.3); color: #E07070; }
+  .ci-btn.plus { background: rgba(201,169,110,0.1); border-color: rgba(201,169,110,0.3); color: var(--gold); }
+  .ci-btn.plus:active { background: rgba(201,169,110,0.2); }
+  .ci-btn.del { color: #C0392B; border-color: rgba(192,57,43,0.25); background: rgba(192,57,43,0.06); }
+  .ci-btn.del:active { background: rgba(192,57,43,0.18); }
+  .ci-qty {
+    font-size: 15px; font-weight: 500;
+    color: var(--text);
+    min-width: 18px; text-align: center;
+  }
+  .ci-price {
+    font-size: 14px; color: var(--gold); font-weight: 500;
+    min-width: 44px; text-align: right;
+  }
+  .cart-actions {
+    display: flex; gap: 12px; margin-top: 20px; align-items: stretch;
+  }
+  .btn-add-more {
+    flex: 0 0 auto;
+    padding: 0 18px;
+    border: 1.5px solid var(--topbar-border);
+    border-radius: 14px;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-add-more:active { background: var(--surface2); color: var(--text); }
+  .place-btn { flex: 1; }
+  .cart-empty {
+    text-align: center;
+    padding: 48px 0 24px;
+    color: var(--text-dim);
+    font-size: 15px;
+  }
+  .cart-empty-icon {
+    font-size: 40px; margin-bottom: 12px;
+    opacity: 0.4;
+  }
+
+  /* ── THEME TOGGLE PILL ── */
+  .theme-pill {
+    display: flex;
+    align-items: center;
+    background: var(--surface2);
+    border: 1px solid var(--topbar-border);
+    border-radius: 100px;
+    padding: 4px;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .theme-opt {
+    padding: 6px 12px;
+    border-radius: 100px;
+    border: none;
+    background: transparent;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    transition: all 0.25s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .theme-opt.active {
+    background: var(--gold);
+    color: var(--dark);
+    font-weight: 500;
+  }
+  .theme-opt svg { flex-shrink: 0; }
+
+  /* ── DAY MODE entry bg ── */
+  :root.day #screen-entry { background: var(--entry-bg); }
+  :root.day .entry-bg {
+    background:
+      radial-gradient(ellipse 60% 40% at 50% 0%, rgba(168,117,42,0.10) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 30% at 80% 80%, rgba(168,117,42,0.06) 0%, transparent 60%);
+  }
+  :root.day .home-content { background: var(--dark); }
+  :root.day .action-card { box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  :root.day .service-card { box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  :root.day .call-card { background: rgba(201,169,110,0.12); border-color: rgba(201,169,110,0.4); }
+
+  /* ── ORDERS SCREEN ── */
+  .orders-body {
+    flex: 1; overflow-y: auto;
+    padding: 20px 24px 40px;
+  }
+  .orders-live-badge {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: var(--green);
+    background: rgba(76,175,125,0.12);
+    border: 1px solid rgba(76,175,125,0.3);
+    border-radius: 6px;
+    padding: 3px 7px;
+    animation: pulse-badge 2s infinite;
+  }
+  @keyframes pulse-badge {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .order-card {
+    background: var(--surface);
+    border: 1px solid var(--topbar-border);
+    border-radius: 18px;
+    margin-bottom: 14px;
+    overflow: hidden;
+    animation: fadeIn 0.3s ease;
+  }
+  .order-card-head {
+    padding: 16px 18px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--topbar-border);
+  }
+  .order-card-meta { flex: 1; }
+  .order-card-id {
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+  }
+  .order-card-time {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .order-status-pill {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 12px;
+    border-radius: 100px;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+  .status-active {
+    background: rgba(76,175,125,0.12);
+    color: var(--green);
+    border: 1px solid rgba(76,175,125,0.3);
+    animation: pulse-badge 2s infinite;
+  }
+  .status-delivered {
+    background: var(--surface2);
+    color: var(--text-muted);
+    border: 1px solid var(--topbar-border);
+  }
+  .status-preparing {
+    background: rgba(201,169,110,0.1);
+    color: var(--gold);
+    border: 1px solid rgba(201,169,110,0.25);
+    animation: pulse-badge 2s infinite;
+  }
+  .order-card-items {
+    padding: 12px 18px;
+  }
+  .order-item-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 5px 0;
+    font-size: 14px;
+    color: var(--text);
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .order-item-row:last-child { border-bottom: none; }
+  .order-item-qty { color: var(--text-muted); font-size: 13px; margin-right: 6px; }
+  .order-item-price { color: var(--gold); font-size: 13px; }
+  .order-card-footer {
+    padding: 12px 18px;
+    background: var(--surface2);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .order-total-label { font-size: 12px; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; }
+  .order-total-amt {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px; color: var(--gold);
+  }
+
+  /* ── Active order tracker (progress steps) ── */
+  .order-tracker { padding: 16px 18px 18px; border-top: 1px solid var(--topbar-border); }
+  .tracker-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .tracker-label { font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted); }
+  .tracker-eta { font-size:12px; font-weight:500; color:var(--green); display:flex; align-items:center; gap:5px; }
+  .tracker-eta-dot { width:6px; height:6px; border-radius:50%; background:var(--green); animation:eta-pulse 1.2s ease-in-out infinite; }
+  @keyframes eta-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
+  .tracker-bar-wrap { position:relative; height:5px; background:var(--surface2); border-radius:3px; margin-bottom:12px; overflow:hidden; }
+  .tracker-bar-fill { position:absolute; top:0; left:0; bottom:0; background:linear-gradient(90deg,#3a9e6a,#4CAF7D); border-radius:3px; transition:width 1s ease; }
+  .tracker-bar-shimmer { position:absolute; top:0; left:-60%; width:60%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent); animation:shimmer 2s infinite; }
+  @keyframes shimmer { 0%{left:-60%} 100%{left:120%} }
+  @keyframes toastSlideUp { from{opacity:0;transform:translateX(-50%) translateY(20px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+  .tracker-steps {
+    display: flex; align-items: center; gap: 0;
+  }
+  .tracker-step {
+    display: flex; flex-direction: column; align-items: center; flex: 1;
+    position: relative;
+  }
+  .tracker-step::before {
+    content: '';
+    position: absolute; top: 11px; left: 50%; right: -50%;
+    height: 2px;
+    background: var(--surface2);
+    z-index: 0;
+  }
+  .tracker-step:last-child::before { display: none; }
+  .tracker-step.done::before { background: var(--gold); }
+  .tracker-dot {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--surface2);
+    background: var(--surface);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1;
+    transition: all 0.3s;
+  }
+  .tracker-step.done .tracker-dot {
+    border-color: var(--green);
+    background: var(--green);
+  }
+  .tracker-step.active .tracker-dot {
+    border-color: var(--green);
+    background: var(--surface);
+    box-shadow: 0 0 0 4px rgba(76,175,125,0.18);
+    animation: pulse-dot 1.5s infinite;
+  }
+  @keyframes pulse-dot {
+    0%,100% { box-shadow: 0 0 0 4px rgba(76,175,125,0.18); }
+    50% { box-shadow: 0 0 0 8px rgba(76,175,125,0.06); }
+  }
+  .tracker-step.done .tracker-dot svg { display: block; }
+  .tracker-step-name {
+    font-size: 10px; color: var(--text-dim); margin-top: 5px;
+    letter-spacing: 0.05em; text-align: center;
+    white-space: nowrap;
+  }
+  .tracker-step.done .tracker-step-name,
+  .tracker-step.active .tracker-step-name { color: var(--green); font-weight:500; }
+
+  .orders-empty {
+    text-align: center; padding: 60px 24px;
+    color: var(--text-dim); font-size: 15px;
+  }
+  .orders-section-label {
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--text-muted); margin: 0 0 12px;
+  }
+
+  /* ── SERVICE CARD TYPE ICON ── */
+  .svc-type-icon {
+    width: 42px; height: 42px;
+    border-radius: 12px;
+    background: rgba(201,169,110,0.08);
+    border: 1px solid rgba(201,169,110,0.18);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-size: 20px;
+  }
+  .svc-card-head {
+    padding: 16px 18px 14px;
+    display: flex; align-items: center; gap: 14px;
+    border-bottom: 1px solid var(--topbar-border);
+  }
+  .svc-card-meta { flex: 1; }
+  .svc-card-name {
+    font-size: 16px; font-weight: 500; color: var(--text); margin-bottom: 2px;
+  }
+  .svc-card-note {
+    font-size: 13px; color: var(--text-muted);
+    font-style: italic;
+  }
+  .svc-card-time {
+    font-size: 12px; color: var(--text-dim); letter-spacing: 0.06em;
+  }
+
+  /* ── SERVICE QTY STEPPER ── */
+  .svc-qty-row {
+    background: var(--surface);
+    border: 1px solid var(--topbar-border);
+    border-radius: 16px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 14px;
+    animation: fadeIn 0.2s ease;
+  }
+  .svc-qty-label {
+    font-size: 15px;
+    color: var(--text);
+    font-weight: 400;
+  }
+  .svc-qty-control {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .svc-qty-btn {
+    width: 38px; height: 38px;
+    border-radius: 11px;
+    border: 1.5px solid var(--topbar-border);
+    background: var(--surface2);
+    color: var(--text-muted);
+    font-size: 20px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    line-height: 1;
+  }
+  .svc-qty-btn:active { transform: scale(0.88); }
+  .svc-qty-plus {
+    background: rgba(201,169,110,0.1);
+    border-color: rgba(201,169,110,0.35);
+    color: var(--gold);
+  }
+  .svc-qty-num {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 28px;
+    color: var(--gold);
+    font-weight: 500;
+    min-width: 28px;
+    text-align: center;
+    line-height: 1;
+  }
+
+  /* ── SERVICE SCREEN ACTIVE BANNER ── */
+  .svc-active-banner {
+    background: rgba(201,169,110,0.08);
+    border: 1px solid rgba(201,169,110,0.22);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .svc-active-banner:active { background: rgba(201,169,110,0.14); }
+  .svc-banner-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--gold);
+    flex-shrink: 0;
+    animation: pulse-badge 2s infinite;
+  }
+  .svc-banner-text { flex: 1; font-size: 14px; color: var(--gold); }
+  .svc-banner-arrow { font-size: 16px; color: var(--gold); opacity: 0.6; }
+
+  /* ── SHARED SESSION / MULTI-DEVICE ── */
+  .room-activity-bar {
+    margin: 0 0 12px;
+    background: rgba(255, 193, 60, 0.07);
+    border: 1px solid rgba(255, 193, 60, 0.22);
+    border-radius: 14px;
+    padding: 12px 16px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    animation: fadeIn 0.3s ease;
+  }
+  .room-activity-bar.visible { display: flex; }
+  .activity-pulse {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #F5C842; flex-shrink: 0;
+    animation: pulse-badge 1.4s infinite;
+  }
+  .activity-text { flex: 1; font-size: 13px; color: #C9A840; line-height: 1.35; }
+  .activity-action {
+    font-size: 12px; color: #C9A840;
+    border: 1px solid rgba(201,168,64,0.35);
+    border-radius: 8px; padding: 5px 10px;
+    background: transparent; cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .activity-action:active { background: rgba(201,168,64,0.15); }
+
+  /* merge modal */
+  .merge-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.72);
+    z-index: 300;
+    display: flex; align-items: flex-end; justify-content: center;
+    animation: fadeIn 0.2s ease;
+  }
+  .merge-sheet {
+    background: var(--surface);
+    border-radius: 24px 24px 0 0;
+    padding: 28px 24px 40px;
+    width: 100%; max-width: 430px;
+    animation: slideUp 0.3s cubic-bezier(0.34,1.1,0.64,1);
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+  .merge-handle {
+    width: 36px; height: 4px; border-radius: 2px;
+    background: var(--text-dim); margin: 0 auto 20px;
+  }
+  .merge-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px; color: var(--text); margin-bottom: 6px;
+  }
+  .merge-sub { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; }
+  .merge-recent-order {
+    background: var(--surface2);
+    border: 1px solid var(--topbar-border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+  }
+  .merge-order-label {
+    font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--text-dim); margin-bottom: 8px;
+  }
+  .merge-order-item {
+    font-size: 14px; color: var(--text); padding: 3px 0;
+    display: flex; justify-content: space-between;
+  }
+  .merge-order-item span { color: var(--gold); }
+  .merge-btns { display: flex; flex-direction: column; gap: 10px; }
+  .merge-btn-add {
+    width: 100%; padding: 18px;
+    background: var(--gold); color: var(--dark);
+    border: none; border-radius: 14px;
+    font-family: 'DM Sans', sans-serif; font-size: 16px; font-weight: 500;
+    cursor: pointer; transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .merge-btn-add:active { transform: scale(0.98); }
+  .merge-btn-new {
+    width: 100%; padding: 16px;
+    background: transparent;
+    border: 1.5px solid var(--topbar-border);
+    border-radius: 14px;
+    font-family: 'DM Sans', sans-serif; font-size: 15px;
+    color: var(--text-muted); cursor: pointer;
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .merge-btn-new:active { background: var(--surface2); }
+
+  /* device tag on order cards */
+  .order-device-tag {
+    font-size: 11px; color: var(--text-dim);
+    background: var(--surface2);
+    border-radius: 6px; padding: 2px 8px;
+    margin-left: 6px; vertical-align: middle;
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 0; }
+</style>
+</head>
+<body>
+
+<!-- ════════════════ ENTRY SCREEN ════════════════ -->
+<div class="screen active" id="screen-entry">
+  <div class="entry-bg"></div>
+  <div class="logo-mark"><span>S</span></div>
+  <div class="hotel-name">Shakti Hotels</div>
+  <div class="welcome-text" id="welcome-text">Good evening,<br>welcome.</div>
+  <div class="room-badge">
+    <div class="room-label">Your Room</div>
+    <div class="room-number" id="splash-room-num">--</div>
+    <div class="guest-name" style="margin-top:14px;">
+      <input id="guest-name-input" type="text"
+        placeholder="Enter your name"
+        autocomplete="given-name"
+        style="width:100%;background:var(--dark3);border:1px solid rgba(201,169,110,0.4);border-radius:10px;padding:11px 14px;color:var(--text);font-size:15px;font-family:'DM Sans',sans-serif;outline:none;text-align:center;letter-spacing:0.02em;"
+        onkeydown="if(event.key==='Enter')startOrdering()"
+      >
+    </div>
+  </div>
+  <button class="btn-primary" onclick="startOrdering()">Continue</button>
+</div>
+
+<!-- ════════════════ HOME SCREEN ════════════════ -->
+<div class="screen" id="screen-home">
+  <div class="topbar">
+    <div>
+      <div class="topbar-label">Your Room</div>
+      <div class="topbar-room"><span class="dyn-room">Room 203</span></div>
+    </div>
+    <div class="theme-pill" id="theme-pill-home">
+      <button class="theme-opt" id="home-day" onclick="setTheme('day')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        Day
+      </button>
+      <button class="theme-opt" id="home-night" onclick="setTheme('night')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        Night
+      </button>
+    </div>
+  </div>
+  <div class="home-content">
+    <div class="home-greeting">How can we help?</div>
+    <div class="home-sub">We're here for you.</div>
+
+    <!-- Multi-device activity banner -->
+    <div class="room-activity-bar" id="room-activity-bar">
+      <div class="activity-pulse"></div>
+      <div class="activity-text" id="activity-text">Someone in this room is browsing the menu</div>
+      <button class="activity-action" onclick="go('orders')">View</button>
+    </div>
+
+    <div class="action-card" onclick="go('menu')">
+      <div class="action-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#C9A96E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div>
+      <div class="action-info">
+        <div class="action-title">Order Food</div>
+        <div class="action-desc">In-room dining · 25 min avg</div>
+      </div>
+      <div class="action-arrow">›</div>
+    </div>
+
+    <div class="action-card" onclick="go('service')">
+      <div class="action-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#C9A96E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></div>
+      <div class="action-info">
+        <div class="action-title">Request Service</div>
+        <div class="action-desc">Towels, cleaning, amenities</div>
+      </div>
+      <div class="action-arrow">›</div>
+    </div>
+
+    <div class="action-card" id="orders-card" onclick="go('orders')" style="display:none">
+      <div class="action-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#C9A96E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg></div>
+      <div class="action-info">
+        <div class="action-title">My Orders</div>
+        <div class="action-desc" id="orders-card-desc">View order history</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="orders-live-badge" id="orders-live-badge" style="display:none">LIVE</span>
+        <div class="action-arrow">›</div>
+      </div>
+    </div>
+
+    <div class="action-card" id="services-card" onclick="go('services')" style="display:none">
+      <div class="action-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#C9A96E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
+      <div class="action-info">
+        <div class="action-title">My Requests</div>
+        <div class="action-desc" id="services-card-desc">View service requests</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="orders-live-badge" id="services-live-badge" style="display:none">LIVE</span>
+        <div class="action-arrow">›</div>
+      </div>
+    </div>
+
+    <div class="action-card call-card" onclick="callReception()">
+      <div class="action-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#C9A96E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg></div>
+      <div class="action-info">
+        <div class="action-title">Call Reception</div>
+        <div class="action-desc">Available 24/7</div>
+      </div>
+      <div class="action-arrow" style="color:var(--gold)">›</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ MENU SCREEN ════════════════ -->
+<div class="screen" id="screen-menu">
+  <div class="topbar">
+    <button class="back-btn" onclick="go('home')">‹</button>
+    <div style="text-align:right">
+      <div class="topbar-label">Ordering for</div>
+      <div class="topbar-room"><span class="dyn-room">Room 203</span></div>
+    </div>
+  </div>
+
+  <div class="cat-tabs">
+    <button class="cat-tab active" onclick="filterCat('veg', this)">🥗 Veg</button>
+    <button class="cat-tab" onclick="filterCat('nonveg', this)">🍗 Non-Veg</button>
+    <button class="cat-tab" onclick="filterCat('drinks', this)">🥤 Drinks</button>
+  </div>
+
+  <div class="menu-body" id="menu-list"></div>
+
+  <div class="cart-sticky" id="cart-sticky">
+    <button class="float-call" id="float-call" onclick="callReception()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0D0D0D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
+    </button>
+    <button class="cart-btn" id="cart-btn" onclick="go('cart')">
+      <span id="cart-label">View Cart</span>
+      <span class="cart-btn-badge" id="cart-badge">0</span>
+    </button>
+  </div>
+</div>
+
+<!-- ════════════════ CART SCREEN ════════════════ -->
+<div class="screen" id="screen-cart">
+  <div class="topbar">
+    <button class="back-btn" onclick="go('menu')">‹</button>
+    <div style="text-align:right">
+      <div class="topbar-label">Your Order</div>
+      <div class="topbar-room"><span class="dyn-room">Room 203</span></div>
+    </div>
+  </div>
+
+  <div class="cart-body" id="cart-body">
+    <div class="cart-hint" id="cart-hint">Tap − to reduce · Tap 🗑 to remove item</div>
+    <div id="cart-items"></div>
+    <div class="cart-divider"></div>
+    <div class="cart-total">
+      <div>
+        <div class="cart-total-label">Total</div>
+        <div class="cart-item-count" id="cart-item-count"></div>
+      </div>
+      <div class="cart-total-amt" id="cart-total">₹0</div>
+    </div>
+    <div class="cart-actions">
+      <button class="btn-add-more" onclick="go('menu')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add more
+      </button>
+      <button class="place-btn" id="place-btn" onclick="placeOrder()">Place Order</button>
+    </div>
+  </div>
+
+  <div class="success-screen" id="order-success">
+    <div class="success-icon">✓</div>
+    <div class="success-title">Order Placed!</div>
+    <div class="success-sub" id="success-sub">Room -- · Your food is being prepared</div>
+    <div class="success-eta">Estimated time: 25 minutes</div>
+    <button class="btn-ghost" onclick="resetOrder(); go('home')">Back to Home</button>
+  </div>
+</div>
+
+<!-- ════════════════ ORDERS SCREEN ════════════════ -->
+<div class="screen" id="screen-orders">
+  <div class="topbar">
+    <button class="back-btn" onclick="go('home')">‹</button>
+    <div style="text-align:right">
+      <div class="topbar-label"><span class="dyn-room">Room 203</span></div>
+      <div class="topbar-room">My Orders</div>
+    </div>
+  </div>
+  <div class="orders-body" id="orders-body"></div>
+</div>
+
+<!-- ════════════════ SERVICES HISTORY SCREEN ════════════════ -->
+<div class="screen" id="screen-services">
+  <div class="topbar">
+    <button class="back-btn" onclick="go('home')">‹</button>
+    <div style="text-align:right">
+      <div class="topbar-label"><span class="dyn-room">Room 203</span></div>
+      <div class="topbar-room">My Requests</div>
+    </div>
+  </div>
+  <div class="orders-body" id="services-body"></div>
+</div>
+
+<!-- ════════════════ SERVICE SCREEN ════════════════ -->
+<div class="screen" id="screen-service">
+  <div class="topbar">
+    <button class="back-btn" onclick="go('home')">‹</button>
+    <div style="text-align:right">
+      <div class="topbar-label">Request for</div>
+      <div class="topbar-room"><span class="dyn-room">Room 203</span></div>
+    </div>
+  </div>
+
+  <div class="service-body">
+    <div style="font-size:14px;color:var(--text-muted);margin-bottom:18px;letter-spacing:0.05em">What do you need?</div>
+
+    <div class="service-grid" id="service-grid">
+      <div class="service-card" onclick="selectService(this, 'Water')">
+        <div class="service-card-icon">💧</div>
+        <div class="service-card-name">Water</div>
+      </div>
+      <div class="service-card" onclick="selectService(this, 'Towels')">
+        <div class="service-card-icon">🧻</div>
+        <div class="service-card-name">Towels</div>
+      </div>
+      <div class="service-card" onclick="selectService(this, 'Room Cleaning')">
+        <div class="service-card-icon">🧹</div>
+        <div class="service-card-name">Room Cleaning</div>
+      </div>
+      <div class="service-card" onclick="selectService(this, 'Other')">
+        <div class="service-card-icon">🔧</div>
+        <div class="service-card-name">Other</div>
+      </div>
+    </div>
+
+    <!-- Quantity picker — shown only for Water / Towels -->
+    <div class="svc-qty-row" id="svc-qty-row" style="display:none">
+      <div class="svc-qty-label" id="svc-qty-label">How many bottles?</div>
+      <div class="svc-qty-control">
+        <button class="svc-qty-btn" onclick="changeSvcQty(-1)">−</button>
+        <span class="svc-qty-num" id="svc-qty-num">1</span>
+        <button class="svc-qty-btn svc-qty-plus" onclick="changeSvcQty(1)">+</button>
+      </div>
+    </div>
+
+    <div class="note-label" style="margin-top:20px">Additional note (optional)</div>
+    <textarea class="service-note" id="service-note" placeholder="e.g. Extra pillows please…" rows="3"></textarea>
+  </div>
+
+  <div id="service-success" style="display:none;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:48px 32px;text-align:center;">
+    <div class="success-icon">✓</div>
+    <div class="success-title">Request Sent!</div>
+    <div class="success-sub" id="service-success-msg">Your request has been sent to reception.</div>
+    <div class="success-eta" style="margin-bottom:32px">We'll be there shortly</div>
+    <button class="btn-primary" style="margin-bottom:12px" onclick="resetService(); go('services')">Track Request</button>
+    <button class="btn-ghost" onclick="resetService(); go('home')">Back to Home</button>
+  </div>
+
+  <div class="submit-bar" id="submit-bar">
+    <button class="submit-btn" id="submit-btn" onclick="submitService()" disabled>Submit Request</button>
+  </div>
+</div>
+
+<!-- ════════════════ MERGE MODAL ════════════════ -->
+<div class="merge-overlay" id="merge-overlay" style="display:none" onclick="dismissMerge(event)">
+  <div class="merge-sheet">
+    <div class="merge-handle"></div>
+    <div class="merge-title">Order already placed</div>
+    <div class="merge-sub" id="merge-sub">Someone in Room -- just ordered. Want to add to it?</div>
+    <div class="merge-recent-order" id="merge-recent-order"></div>
+    <div class="merge-btns">
+      <button class="merge-btn-add" onclick="mergeAndOrder()">
+        Add to existing order
+      </button>
+      <button class="merge-btn-new" onclick="newOrderAnyway()">
+        Place as separate order
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ FLOATING CALL ════════════════ -->
+
+
+<!-- ════════════════ JS ════════════════ -->
+<script>
+// ── State
+const menuData = {
+  veg: [
+    { name: 'Paneer Butter Masala', price: 250 },
+    { name: 'Dal Tadka', price: 180 },
+    { name: 'Veg Biryani', price: 220 },
+    { name: 'Aloo Gobi', price: 160 },
+    { name: 'Palak Paneer', price: 230 },
+  ],
+  nonveg: [
+    { name: 'Chicken Biryani', price: 320 },
+    { name: 'Butter Chicken', price: 340 },
+    { name: 'Egg Fried Rice', price: 210 },
+    { name: 'Chicken Tikka', price: 380 },
+  ],
+  drinks: [
+    { name: 'Fresh Lime Soda', price: 90 },
+    { name: 'Masala Chai', price: 60 },
+    { name: 'Cold Coffee', price: 150 },
+    { name: 'Mango Lassi', price: 120 },
+    { name: 'Sparkling Water', price: 80 },
+  ]
+};
+
+let cart = {}; // { itemKey: { name, price, qty } }
+let currentCat = 'veg';
+let selectedService = null;
+let orderHistory = []; // all placed orders
+let serviceHistory = []; // all service requests
+
+// ── Navigation
+function _navigate(screenId) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + screenId).classList.add('active');
+  window.scrollTo(0,0);
+
+  const floatCall = document.getElementById('float-call');
+  const stickyRow = document.getElementById('cart-sticky');
+  const showPhone = screenId !== 'entry' && screenId !== 'home';
+  if (showPhone) {
+    if (stickyRow) stickyRow.classList.add('row-visible');
+    if (floatCall) floatCall.classList.add('visible');
+  } else {
+    if (stickyRow) stickyRow.classList.remove('row-visible');
+    if (floatCall) floatCall.classList.remove('visible');
+  }
+
+  if (screenId === 'menu') renderMenu(currentCat);
+  if (screenId === 'cart') renderCart();
+  if (screenId === 'orders') renderOrders();
+  if (screenId === 'services') renderServices();
+}
+
+// ── Menu
+function filterCat(cat, el) {
+  currentCat = cat;
+  document.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderMenu(cat);
+}
+
+function renderMenu(cat) {
+  const items = menuData[cat];
+  const html = `
+    <div class="menu-section">
+      <div class="section-label">${cat === 'veg' ? 'Vegetarian' : cat === 'nonveg' ? 'Non-Vegetarian' : 'Beverages'}</div>
+      ${items.map((item, i) => {
+        const key = cat + '_' + i;
+        const qty = cart[key] ? cart[key].qty : 0;
+        return `
+          <div class="menu-item">
+            <div class="menu-item-info">
+              <div class="menu-item-name">${item.name}</div>
+              <div class="menu-item-price">₹${item.price}</div>
+            </div>
+            <div class="qty-control" id="qty-ctrl-${key}">
+              ${qty === 0
+                ? `<button class="qty-add" onclick="addItem('${key}','${item.name}',${item.price})">+</button>`
+                : `<button class="qty-btn" onclick="changeQty('${key}',-1)">−</button>
+                   <span class="qty-num">${qty}</span>
+                   <button class="qty-btn" onclick="changeQty('${key}',1)" style="background:var(--gold);color:var(--dark);border-color:var(--gold)">+</button>`
+              }
+            </div>
+          </div>`;
+      }).join('')}
+    </div>`;
+  document.getElementById('menu-list').innerHTML = html;
+  updateCartBtn();
+}
+
+function addItem(key, name, price) {
+  cart[key] = { name, price, qty: 1 };
+  renderMenu(currentCat);
+}
+
+function changeQty(key, delta) {
+  if (!cart[key]) return;
+  cart[key].qty += delta;
+  if (cart[key].qty <= 0) delete cart[key];
+  renderMenu(currentCat);
+}
+
+
+// ── Cart
+function renderCart() {
+  const items = Object.entries(cart); // [[key, {name,price,qty}], ...]
+  const totalAmt = items.reduce((s,[,i])=>s+i.qty*i.price, 0);
+  const totalQty = items.reduce((s,[,i])=>s+i.qty, 0);
+
+  const container = document.getElementById('cart-items');
+
+  if (items.length === 0) {
+    container.innerHTML = `
+      <div class="cart-empty">
+        <div class="cart-empty-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.35;margin:0 auto;display:block"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+        </div>
+        <div style="margin-top:12px;color:var(--text-muted)">Your cart is empty</div>
+        <div style="font-size:13px;margin-top:4px;color:var(--text-dim)">Add items from the menu</div>
+      </div>`;
+    document.getElementById('place-btn').disabled = true;
+    document.getElementById('place-btn').style.opacity = '0.45';
+  } else {
+    container.innerHTML = items.map(([key, item]) => `
+      <div class="cart-item" id="ci-${key}">
+        <div class="cart-item-name">${item.name}</div>
+        <div class="cart-item-controls">
+          <button class="ci-btn minus" onclick="cartQty('${key}', -1)">−</button>
+          <span class="ci-qty">${item.qty}</span>
+          <button class="ci-btn plus" onclick="cartQty('${key}', 1)">+</button>
+          <button class="ci-btn del" onclick="cartRemove('${key}')" title="Remove">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </button>
+        </div>
+        <div class="ci-price">₹${item.qty * item.price}</div>
+      </div>`).join('');
+    document.getElementById('place-btn').disabled = false;
+    document.getElementById('place-btn').style.opacity = '1';
+  }
+
+  document.getElementById('cart-total').textContent = `₹${totalAmt}`;
+  document.getElementById('cart-item-count').textContent =
+    totalQty > 0 ? `${totalQty} item${totalQty > 1 ? 's' : ''}` : '';
+  document.getElementById('cart-body').style.display = 'block';
+  document.getElementById('order-success').classList.remove('visible');
+}
+
+function cartQty(key, delta) {
+  if (!cart[key]) return;
+  cart[key].qty += delta;
+  if (cart[key].qty <= 0) {
+    cartRemove(key);
+    return;
+  }
+  renderCart();
+  updateCartBtn();
+}
+
+function cartRemove(key) {
+  const el = document.getElementById('ci-' + key);
+  if (el) {
+    el.classList.add('removing');
+    setTimeout(() => {
+      delete cart[key];
+      renderCart();
+      updateCartBtn();
+    }, 220);
+  } else {
+    delete cart[key];
+    renderCart();
+    updateCartBtn();
+  }
+}
+
+function placeOrder(isMerge) {
+  isMerge = isMerge === true;
+  const items = Object.entries(cart).map(([key, item]) => ({...item}));
+  const total = items.reduce((s,i)=>s+i.qty*i.price, 0);
+  const now = new Date();
+  const orderId = window._pendingOrderId || ('ORD-' + String(orderHistory.length + 1).padStart(3, '0'));
+  const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  const order = {
+    id: orderId,
+    time: timeStr,
+    date: now.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+    items,
+    total,
+    status: 'new',
+    placedAt: Date.now(),
+    eta: 25,
+    isMerge,
+    fromPeer: false
+  };
+  orderHistory.unshift(order);
+
+  // Broadcast to other devices in the room
+  broadcastOrder(order);
+  broadcastActivity('ordered');
+
+  updateOrdersBadge();
+  document.getElementById('cart-body').style.display = 'none';
+  document.getElementById('order-success').classList.add('visible');
+}
+
+function resetOrder() {
+  cart = {};
+  updateCartBtn();
+}
+
+function updateOrdersBadge() {
+  const card = document.getElementById('orders-card');
+  const badge = document.getElementById('orders-live-badge');
+  const desc = document.getElementById('orders-card-desc');
+  if (orderHistory.length === 0) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'flex';
+  const active = orderHistory.filter(o => o.status !== 'delivered' && o.status !== 'rejected' && o.status !== 'cancelled');
+  if (active.length > 0) {
+    badge.style.display = 'inline-block';
+    // Guest visibility mapping: ready is hidden (shows as Preparing per spec)
+    const statusText = { new: 'Waiting for confirmation', accepted: 'Accepted · being prepared', preparing: 'Being prepared', ready: 'Being prepared' };
+    desc.textContent = active.length === 1
+      ? (statusText[active[0].status] || 'In progress') + ' · ' + active[0].eta + ' min est.'
+      : active.length + ' orders in progress';
+  } else {
+    badge.style.display = 'none';
+    desc.textContent = `${orderHistory.length} order${orderHistory.length > 1 ? 's' : ''} placed today`;
+  }
+}
+
+function renderOrders() {
+  const body = document.getElementById('orders-body');
+  if (orderHistory.length === 0) {
+    body.innerHTML = `<div class="orders-empty">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.25;margin:0 auto 14px;display:block"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+      <div style="color:var(--text-muted)">No orders yet</div>
+      <div style="font-size:13px;margin-top:4px;color:var(--text-dim)">Your orders will appear here</div>
+    </div>`;
+    return;
+  }
+
+  const active = orderHistory.filter(o => o.status !== 'delivered' && o.status !== 'rejected' && o.status !== 'cancelled');
+  const past   = orderHistory.filter(o => o.status === 'delivered' || o.status === 'rejected' || o.status === 'cancelled');
+
+  const statusLabel = { new: 'Waiting', accepted: 'Accepted', preparing: 'Preparing', ready: 'Ready!', delivered: 'Delivered', rejected: 'Not accepted', cancelled: 'Cancelled' };
+  const statusClass = { new: 'status-preparing', accepted: 'status-active', preparing: 'status-preparing', ready: 'status-active', delivered: 'status-delivered', rejected: 'status-delivered', cancelled: 'status-delivered' };
+
+  // 5 steps: Placed → Accepted → Preparing → Ready → Delivered
+  const stepsDef = ['Placed', 'Accepted', 'Preparing', 'Ready', 'Delivered'];
+  // stepIndex: how many steps are DONE (fully ticked green check)
+  // The CURRENT active step = stepIndex value itself
+  // steps before stepIndex = 'done' (green tick)
+  // step at stepIndex = 'active' (green ring)
+  // steps after = '' (grey)
+  function stepIndex(status) {
+    return { new:0, accepted:1, preparing:2, ready:3, delivered:4, rejected:-1, cancelled:-1 }[status] ?? 0;
+  }
+  // Progress bar: exact % for each status
+  const barPctMap = { new:5, accepted:25, preparing:55, ready:80, delivered:100 };
+
+  // ETA label shown under ORDER STATUS header
+  function getEtaHtml(o) {
+    const s = o.status;
+    if(s==='delivered') return '<div class="tracker-eta" style="color:var(--gold);">&#10003; Delivered</div>';
+    if(s==='rejected')  return '<div class="tracker-eta" style="color:var(--red);">&#10005; Not accepted</div>';
+    if(s==='cancelled') return '<div class="tracker-eta" style="color:var(--text-muted);">Cancelled</div>';
+    if(s==='new')       return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Waiting for kitchen…</div>';
+    if(s==='accepted'){
+      const startTime = o.acceptedAt || o.placedAt;
+      const elapsed = Math.floor((Date.now()-startTime)/60000);
+      const eta = Math.max(0, (o.eta||25) - elapsed);
+      return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Accepted · Est. '+eta+' min</div>';
+    }
+    if(s==='preparing'){
+      const startTime = o.acceptedAt || o.placedAt;
+      const elapsed = Math.floor((Date.now()-startTime)/60000);
+      const eta = Math.max(0, (o.eta||25) - elapsed);
+      return eta<=0
+        ? '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Almost ready!</div>'
+        : '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Preparing · '+eta+' min left</div>';
+    }
+    if(s==='ready') return '<div class="tracker-eta" style="color:var(--gold);font-weight:600;"><div class="tracker-eta-dot" style="background:var(--gold);"></div>&#127381; Your order is ready!</div>';
+    return '';
+  }
+
+  function renderCard(o) {
+    const si = stepIndex(o.status);
+    const isRejected = o.status === 'rejected';
+    const isCancelled = o.status === 'cancelled';
+    const barPct = barPctMap[o.status] || 8;
+    const etaHtml = getEtaHtml(o);
+    const checkSvgGreen = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    // Build step classes:
+    // i < si  → 'done' (green tick, fully completed)
+    // i === si → 'active' (green ring, current step)  
+    // i > si  → '' (grey, not yet)
+    // Special: if delivered, all steps are 'done'
+    const steps = isRejected
+      ? '<div style="font-size:12px;color:#C0392B;padding:4px 0;">✕ Order not accepted' + (o.rejection_reason ? ' · '+o.rejection_reason : '') + '</div>'
+      : isCancelled
+      ? '<div style="font-size:12px;color:var(--text-muted);padding:4px 0;">Order cancelled</div>'
+      : stepsDef.map((s, i) => {
+          var cls = '';
+          if(o.status === 'delivered') { cls = 'done'; }   // all ticked when delivered
+          else if(i === 0) { cls = 'done'; }               // Placed ALWAYS ticked green
+          else if(i < si) { cls = 'done'; }                // previous steps ticked
+          else if(i === si) { cls = 'active'; }            // current step = ring
+          return `<div class="tracker-step ${cls}">
+            <div class="tracker-dot">${cls==='done'?checkSvgGreen:''}</div>
+            <div class="tracker-step-name">${s}</div>
+          </div>`;
+        }).join('');
+
+    // Modify/cancel logic:
+    // 'new'      → can add, subtract, cancel freely (full edit)
+    // 'accepted' → can add more only, no subtraction, no cancel (call reception)
+    const minsElapsed = o.acceptedAt ? (Date.now() - o.acceptedAt) / 60000 : 999;
+    const isNew = o.status === 'new';
+    const isAccepted = o.status === 'accepted';
+    const canAct = isNew || isAccepted;
+    const minsLeft = Math.max(0, Math.ceil(5 - minsElapsed));
+    const modifyBtns = canAct ? `
+      <div style="display:flex;gap:8px;margin-top:14px;">
+        <button onclick="modifyOrder('${o.id}')"
+          style="flex:1;padding:12px 8px;background:rgba(201,169,110,0.1);border:1px solid rgba(201,169,110,0.3);
+          border-radius:12px;color:var(--gold);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;gap:6px;">
+          ✏ ${isNew ? 'Modify Order' : 'Add Items'}
+        </button>
+        ${isNew ? `<button onclick="cancelOrder('${o.id}')"
+          style="flex:1;padding:12px 8px;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.2);
+          border-radius:12px;color:var(--red);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;gap:6px;">
+          ✕ Cancel
+        </button>` : ''}
+      </div>
+      <div style="font-size:11px;color:var(--text-dim);text-align:center;margin-top:6px;">
+        ${isNew ? 'Add or remove items · Cancel anytime before acceptance' : 'Can only add items after acceptance · To cancel call reception'}
+      </div>` : '';
+
+    return `<div class="order-card" id="ocard-${o.id}" data-order-id="${o.id}">
+      <div class="order-card-head">
+        <div class="order-card-meta">
+          <div class="order-card-id">${o.id} · ${o.date}${o.fromPeer ? ' <span class="order-device-tag">Roommate</span>' : ''}${o.isMerge ? ' <span class="order-device-tag">Merged</span>' : ''}</div>
+          <div class="order-card-time">${o.time}</div>
+        </div>
+        <div class="order-status-pill ${statusClass[o.status]||'status-preparing'}">${statusLabel[o.status]||o.status}</div>
+      </div>
+      ${o.status === 'rejected' && o.rejection_reason ? `
+      <div style="margin:8px 0;padding:10px 12px;background:rgba(192,57,43,0.1);border-radius:10px;font-size:13px;color:var(--red);">
+        Reason: ${o.rejection_reason}
+      </div>` : ''}
+      <div class="order-card-items">
+        ${o.items.map(i => `
+          <div class="order-item-row">
+            <div><span class="order-item-qty">×${i.qty}</span>${i.name}</div>
+            <div class="order-item-price">₹${i.qty * i.price}</div>
+          </div>`).join('')}
+      </div>
+      ${o.status !== 'cancelled' && o.status !== 'rejected' ? `
+      <div class="order-tracker">
+        <div class="tracker-header">
+          <div class="tracker-label">Order Status</div>
+          ${etaHtml}
+        </div>
+        <div class="tracker-bar-wrap">
+          <div class="tracker-bar-fill" style="width:${barPct}%;${o.status==='delivered'?'background:var(--gold);':''}${o.status==='ready'?'background:var(--gold);':''}" >
+            ${(o.status==='preparing'||o.status==='accepted')?'<div class="tracker-bar-shimmer"></div>':''}
+          </div>
+        </div>
+        <div class="tracker-steps">${steps}</div>
+      </div>` : ''}
+      ${modifyBtns}
+      <div class="order-card-footer">
+        <div class="order-total-label">Total</div>
+        <div class="order-total-amt">₹${o.total}</div>
+      </div>
+    </div>`;
+  }
+
+  let html = '';
+  if (active.length > 0) {
+    html += `<div class="orders-section-label">In Progress</div>`;
+    html += active.map(renderCard).join('');
+  }
+  if (past.length > 0) {
+    html += `<div class="orders-section-label" style="margin-top:${active.length?'20px':'0'}">Past Orders</div>`;
+    html += past.map(renderCard).join('');
+  }
+  body.innerHTML = html;
+}
+
+// ── CANCEL / MODIFY ORDER
+function cancelOrder(orderId) {
+  var order = orderHistory.find(function(o){ return o.id === orderId; });
+  if (!order) return;
+  // If still 'new' — cancel directly without calling reception
+  if (order.status === 'new') {
+    if (!confirm('Cancel this order?')) return;
+    order.status = 'cancelled';
+    renderOrders(); updateOrdersBadge();
+    showGuestToast('Order cancelled', 'green');
+    waitForSupa().then(function(s){
+      if(s) s.from('orders').update({status:'cancelled'}).eq('id',orderId).catch(function(){});
+    });
+    return;
+  }
+  if (order.status !== 'accepted') { showGuestToast('Cannot cancel at this stage — call reception', 'red'); return; }
+  if (!order.acceptedAt || (Date.now() - order.acceptedAt) > 5 * 60000) { showGuestToast('Cancellation window expired — call reception', 'red'); return; }
+  // Show call reception modal — guest must call to cancel
+  var overlay = document.createElement('div');
+  overlay.id = 'cancel-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;';
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border:1px solid rgba(201,169,110,0.3);border-radius:24px;padding:32px 24px;text-align:center;width:100%;max-width:320px;">
+      <div style="width:64px;height:64px;border-radius:50%;background:rgba(192,57,43,0.12);border:1.5px solid var(--red);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/>
+        </svg>
+      </div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text);margin-bottom:8px;">Cancel Order?</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:24px;">Please call reception to cancel your order. They will assist you immediately.</div>
+      <button onclick="callReception();document.getElementById('cancel-overlay').remove();" style="width:100%;padding:14px;background:rgba(192,57,43,0.1);border:1.5px solid rgba(192,57,43,0.3);border-radius:14px;color:var(--red);font-family:'DM Sans',sans-serif;font-size:15px;cursor:pointer;margin-bottom:10px;">
+        📞 Call Reception
+      </button>
+      <button onclick="document.getElementById('cancel-overlay').remove();" style="width:100%;padding:14px;background:transparent;border:1px solid var(--card-border);border-radius:14px;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;">
+        Go Back
+      </button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function modifyOrder(orderId) {
+  var order = orderHistory.find(function(o){ return o.id === orderId; });
+  if (!order) return;
+  var isNew = order.status === 'new';
+  var isAccepted = order.status === 'accepted';
+  if (!isNew && !isAccepted) { showGuestToast('Cannot modify at this stage', 'red'); return; }
+
+  // Deep copy items for editing
+  var editItems = order.items.map(function(i){
+    return { name:i.name, price:i.price, qty:i.qty, category:i.category||'' };
+  });
+  // Store original qtys — can't go below these when accepted
+  var origQtys = editItems.map(function(i){ return i.qty; });
+
+  function renderEditModal() {
+    var existing = document.getElementById('modify-overlay');
+    if (existing) existing.remove();
+
+    var itemRows = editItems.map(function(item, idx) {
+      var canSubtract = isNew && item.qty > 1; // only subtract when 'new' and qty > 1
+      var canRemove   = isNew && item.qty === 1; // full remove only when 'new'
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--card-border);">'
+        + '<div style="flex:1;">'
+          + '<div style="font-size:14px;color:var(--text);font-weight:500;">'+item.name+'</div>'
+          + '<div style="font-size:12px;color:var(--text-muted);">₹'+item.price+' each</div>'
+        + '</div>'
+        + '<div style="display:flex;align-items:center;gap:8px;">'
+          + (canRemove
+            ? '<button onclick="_editRemove('+idx+')" style="width:32px;height:32px;border-radius:50%;background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.25);color:var(--red);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">🗑</button>'
+            : (canSubtract
+              ? '<button onclick="_editQty('+idx+',-1)" style="width:32px;height:32px;border-radius:50%;background:var(--surface2);border:1px solid var(--card-border);color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">−</button>'
+              : '<div style="width:32px;"></div>')
+            )
+          + '<span style="font-size:15px;color:var(--text);min-width:24px;text-align:center;">×'+item.qty+'</span>'
+          + '<button onclick="_editQty('+idx+',1)" style="width:32px;height:32px;border-radius:50%;background:var(--gold);border:none;color:var(--dark);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">+</button>'
+        + '</div>'
+      + '</div>';
+    }).join('');
+
+    var newTotal = editItems.reduce(function(s,i){ return s+i.qty*i.price; },0);
+    var titleText = isNew ? 'Modify Order' : 'Add Items';
+    var hintText = isNew
+      ? 'Add or remove items freely before kitchen accepts'
+      : 'You can only add items — to remove call reception';
+
+    var overlay = document.createElement('div');
+    overlay.id = 'modify-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:flex-end;justify-content:center;';
+    overlay.innerHTML =
+      '<div style="background:var(--surface);border-radius:24px 24px 0 0;padding:24px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;">'
+      + '<div style="width:36px;height:4px;background:var(--text-dim);border-radius:2px;margin:0 auto 16px;"></div>'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+        + '<div style="font-family:Cormorant Garamond,serif;font-size:22px;color:var(--text);">'+titleText+'</div>' + '<button data-close-modify="1" style="background:var(--surface2);border:1px solid var(--card-border);border-radius:8px;width:32px;height:32px;color:var(--text-muted);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>'
+      + '</div>'
+      + '<div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">'+hintText+'</div>'
+      + '<div>'+itemRows+'</div>'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;">'
+        + '<div style="font-size:13px;color:var(--text-muted);">Updated Total</div>'
+        + '<div style="font-size:20px;font-weight:600;color:var(--gold);">₹'+newTotal+'</div>'
+      + '</div>'
+      + '<button data-confirm-modify="1" style="width:100%;padding:15px;background:var(--gold);border:none;border-radius:14px;color:var(--dark);font-family:DM Sans,sans-serif;font-size:15px;font-weight:600;cursor:pointer;">Confirm Changes</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function(e){
+      if(e.target===overlay) overlay.remove();
+      if(e.target.getAttribute && e.target.getAttribute('data-close-modify')) overlay.remove();
+      if(e.target.getAttribute && e.target.getAttribute('data-confirm-modify')) _confirmModify(orderId);
+    });
+
+    window._editItems = editItems;
+    window._editOrigQtys = origQtys;
+    window._editIsNew = isNew;
+    window._editOrderId = orderId;
+    window._renderEditModal = renderEditModal;
+  }
+
+  renderEditModal();
+}
+
+window._editQty = function(idx, delta) {
+  var items = window._editItems;
+  var origQtys = window._editOrigQtys;
+  var isNew = window._editIsNew;
+  if (!items) return;
+  var newQty = items[idx].qty + delta;
+  // When accepted: can only add (never go below original qty)
+  var minQty = isNew ? 1 : origQtys[idx];
+  items[idx].qty = Math.max(minQty, newQty);
+  window._renderEditModal();
+};
+
+window._editRemove = function(idx) {
+  var items = window._editItems;
+  if (!items || !window._editIsNew) return; // only remove when new
+  items.splice(idx, 1);
+  window._editOrigQtys.splice(idx, 1);
+  window._renderEditModal();
+};
+
+window._confirmModify = async function(orderId) {
+  var items = window._editItems;
+  if (!items || items.length === 0) { showGuestToast('Order must have at least one item', 'red'); return; }
+  var newTotal = items.reduce(function(s,i){ return s+i.qty*i.price; },0);
+  var order = orderHistory.find(function(o){ return o.id===orderId; });
+  if (order) { order.items=items; order.total=newTotal; }
+  document.getElementById('modify-overlay').remove();
+  renderOrders(); updateOrdersBadge();
+  showGuestToast('Order updated!', 'green');
+  var s = await waitForSupa();
+  if (s) {
+    try { await s.from('orders').update({items:items,total:newTotal}).eq('id',orderId); }
+    catch(e) { console.warn('Modify update failed', e); }
+  }
+};
+
+
+
+// Re-render every 15s so ETA countdown ticks live
+setInterval(function(){
+  var hasActiveOrders=orderHistory.some(function(o){
+    return o.status==='accepted'||o.status==='preparing'||o.status==='ready';
+  });
+  if(hasActiveOrders){
+    updateOrdersBadge();
+    if(document.getElementById('screen-orders')&&document.getElementById('screen-orders').classList.contains('active')) renderOrders();
+  }
+  var hasActiveSvc=serviceHistory.some(function(r){return r.status!=='done';});
+  if(hasActiveSvc){
+    updateServicesBadge();
+    if(document.getElementById('screen-services')&&document.getElementById('screen-services').classList.contains('active')) renderServices();
+  }
+},15000);
+
+// ── Service
+const serviceIcons = {
+  'Water': '💧',
+  'Towels': '🧻',
+  'Room Cleaning': '🧹',
+  'Other': '🔧'
+};
+const serviceQtyItems = ['Water', 'Towels']; // items that show a quantity picker
+let serviceQty = 1;
+
+function selectService(el, name) {
+  document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedService = name;
+  document.getElementById('submit-btn').disabled = false;
+
+  // Show/hide quantity row
+  const qtyRow = document.getElementById('svc-qty-row');
+  const qtyLabel = document.getElementById('svc-qty-label');
+  if (serviceQtyItems.includes(name)) {
+    serviceQty = 1;
+    document.getElementById('svc-qty-num').textContent = '1';
+    qtyLabel.textContent = name === 'Water' ? 'How many bottles?' : 'How many towels?';
+    qtyRow.style.display = 'flex';
+  } else {
+    qtyRow.style.display = 'none';
+    serviceQty = 1;
+  }
+}
+
+function changeSvcQty(delta) {
+  serviceQty = Math.max(1, Math.min(10, serviceQty + delta));
+  document.getElementById('svc-qty-num').textContent = serviceQty;
+}
+
+function submitService() {
+  const note = document.getElementById('service-note').value.trim();
+  const hasQty = serviceQtyItems.includes(selectedService);
+  const qty = hasQty ? serviceQty : null;
+
+  const now = new Date();
+  const reqId = 'REQ-' + String(serviceHistory.length + 1).padStart(3, '0');
+  const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  const req = {
+    id: reqId,
+    type: selectedService,
+    icon: serviceIcons[selectedService] || '🔔',
+    qty: qty,
+    note: note,
+    time: timeStr,
+    date: now.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+    status: 'received',
+    placedAt: Date.now()
+  };
+  serviceHistory.unshift(req);
+  updateServicesBadge();
+
+  // Build confirmation message
+  let msg = selectedService;
+  if (qty) msg += ` · ${qty} ${selectedService === 'Water' ? (qty > 1 ? 'bottles' : 'bottle') : (qty > 1 ? 'towels' : 'towel')}`;
+  if (note) msg += ` · "${note}"`;
+  msg += ' — sent to housekeeping.';
+  document.getElementById('service-success-msg').textContent = msg;
+  document.querySelector('.service-body').style.display = 'none';
+  document.getElementById('submit-bar').style.display = 'none';
+  document.getElementById('service-success').style.display = 'flex';
+
+  // Write to Supabase + subscribe to live status updates
+  var svcData = JSON.stringify({id:reqId, room:String(window.ROOM_NUM||'000'), guest:String(window.GUEST_NAME||'Guest'), type:selectedService, icon:req.icon, qty:qty, note:note||null, status:'received', placed_at:now.toISOString()});
+  var xhrSvc = new XMLHttpRequest();
+  xhrSvc.open('POST', SUPA_URL + '/rest/v1/service_requests', true);
+  xhrSvc.setRequestHeader('Content-Type','application/json');
+  xhrSvc.setRequestHeader('apikey', SUPA_ANON_KEY);
+  xhrSvc.setRequestHeader('Authorization','Bearer ' + SUPA_ANON_KEY);
+  xhrSvc.setRequestHeader('Prefer','return=minimal');
+  xhrSvc.onload = function(){
+    if(xhrSvc.status>=200&&xhrSvc.status<300){
+      waitForSupa().then(function(s){
+        if(!s)return;
+        s.channel('svc-'+reqId).on('postgres_changes',{event:'UPDATE',schema:'public',table:'service_requests',filter:'id=eq.'+reqId},function(payload){
+          var r=serviceHistory.find(function(x){return x.id===reqId;});
+          if(!r)return;
+          r.status=payload.new.status;
+          updateServicesBadge();
+          if(document.getElementById('screen-services').classList.contains('active'))renderServices();
+          var t={assigned:'✓ Request assigned to staff',inprogress:'🚶 Staff is on the way…',done:'✓ Request completed!'};
+          if(t[payload.new.status])showGuestToast(t[payload.new.status], payload.new.status==='done' ? 'green' : 'green');
+        }).subscribe();
+      });
+    }
+  };
+  xhrSvc.onerror=function(){console.warn('Service XHR error');};
+  xhrSvc.send(svcData);
+}
+
+function resetService() {
+  selectedService = null;
+  serviceQty = 1;
+  document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('service-note').value = '';
+  document.getElementById('submit-btn').disabled = true;
+  document.getElementById('svc-qty-row').style.display = 'none';
+  document.getElementById('svc-qty-num').textContent = '1';
+  document.querySelector('.service-body').style.display = 'block';
+  document.getElementById('submit-bar').style.display = 'block';
+  document.getElementById('service-success').style.display = 'none';
+}
+
+function updateServicesBadge() {
+  const card = document.getElementById('services-card');
+  const badge = document.getElementById('services-live-badge');
+  const desc = document.getElementById('services-card-desc');
+  if (serviceHistory.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = 'flex';
+  const active = serviceHistory.filter(r => r.status !== 'done');
+  if (active.length > 0) {
+    badge.style.display = 'inline-block';
+    desc.textContent = `${active.length} request${active.length > 1 ? 's' : ''} in progress`;
+  } else {
+    badge.style.display = 'none';
+    desc.textContent = `${serviceHistory.length} request${serviceHistory.length > 1 ? 's' : ''} today`;
+  }
+}
+
+function renderServices() {
+  const body = document.getElementById('services-body');
+  if (serviceHistory.length === 0) {
+    body.innerHTML = `<div class="orders-empty">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.25;margin:0 auto 14px;display:block"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div style="color:var(--text-muted)">No requests yet</div>
+      <div style="font-size:13px;margin-top:4px;color:var(--text-dim)">Submitted requests will appear here</div>
+    </div>`;
+    return;
+  }
+
+  // 4-step service tracker: Received → Assigned → En Route → Done
+  const svcStepsDef   = ['Received', 'Assigned', 'En Route', 'Done'];
+  const svcStepIndex  = { received:0, assigned:1, inprogress:2, done:3 };
+  const svcBarPct     = { received:5, assigned:35, inprogress:70, done:100 };
+  const svcStatusLabel = { received:'Waiting', assigned:'Assigned', inprogress:'En Route', done:'Done!' };
+  const svcStatusClass = { received:'status-preparing', assigned:'status-preparing', inprogress:'status-active', done:'status-delivered' };
+
+  const checkSvgW = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+  function getSvcEtaHtml(r) {
+    const elapsed = Math.floor((Date.now() - r.placedAt) / 60000);
+    if (r.status === 'done')
+      return '<div class="tracker-eta" style="color:var(--gold);">&#10003; Request completed</div>';
+    if (r.status === 'received')
+      return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Waiting for staff assignment…</div>';
+    if (r.status === 'assigned')
+      return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Staff assigned · on the way soon</div>';
+    if (r.status === 'inprogress')
+      return '<div class="tracker-eta"><div class="tracker-eta-dot" style="background:var(--gold);"></div>Staff is on the way to your room</div>';
+    return '';
+  }
+
+  function renderSvcCard(r) {
+    const si = svcStepIndex[r.status] ?? 0;
+    const barPct = svcBarPct[r.status] || 5;
+    const isDone = r.status === 'done';
+
+    const steps = svcStepsDef.map(function(s, i) {
+      var cls = isDone ? 'done' : (i < si ? 'done' : i === si ? 'active' : '');
+      return '<div class="tracker-step ' + cls + '">'
+        + '<div class="tracker-dot">' + (cls === 'done' ? checkSvgW : '') + '</div>'
+        + '<div class="tracker-step-name">' + s + '</div>'
+        + '</div>';
+    }).join('');
+
+    let subtitle = '';
+    if (r.qty) {
+      const unit = r.type === 'Water'
+        ? (r.qty > 1 ? r.qty + ' bottles' : '1 bottle')
+        : (r.qty > 1 ? r.qty + ' towels'  : '1 towel');
+      subtitle += unit;
+    }
+    if (r.note) subtitle += (subtitle ? ' · ' : '') + '"' + r.note + '"';
+
+    const barColor = isDone ? 'var(--gold)' : (r.status === 'inprogress' ? 'var(--gold)' : 'linear-gradient(90deg,#3a9e6a,#4CAF7D)');
+    const showShimmer = r.status === 'inprogress' || r.status === 'assigned';
+
+    return '<div class="order-card" id="scard-' + r.id + '">'
+      // Header
+      + '<div class="svc-card-head">'
+        + '<div class="svc-type-icon">' + r.icon + '</div>'
+        + '<div class="svc-card-meta">'
+          + '<div class="svc-card-name">' + r.type + (r.qty ? ' <span style="color:var(--gold);font-size:14px;font-weight:400">×' + r.qty + '</span>' : '') + '</div>'
+          + (subtitle ? '<div class="svc-card-note">' + subtitle + '</div>' : '')
+          + '<div class="svc-card-time">' + r.id + ' · ' + (r.date||'') + ' · ' + r.time + '</div>'
+        + '</div>'
+        + '<div class="order-status-pill ' + (svcStatusClass[r.status]||'status-preparing') + '">' + (svcStatusLabel[r.status]||r.status) + '</div>'
+      + '</div>'
+      // Tracker
+      + '<div class="order-tracker">'
+        + '<div class="tracker-header">'
+          + '<div class="tracker-label">Request Status</div>'
+          + getSvcEtaHtml(r)
+        + '</div>'
+        + '<div class="tracker-bar-wrap">'
+          + '<div class="tracker-bar-fill" style="width:' + barPct + '%;background:' + barColor + ';">'
+            + (showShimmer ? '<div class="tracker-bar-shimmer"></div>' : '')
+          + '</div>'
+        + '</div>'
+        + '<div class="tracker-steps">' + steps + '</div>'
+      + '</div>'
+    + '</div>';
+  }
+
+  const active = serviceHistory.filter(r => r.status !== 'done');
+  const done   = serviceHistory.filter(r => r.status === 'done');
+  // Both use the same renderSvcCard — done state shows all-green ticked tracker
+
+  let html = '';
+
+  // In-progress banner at top when active requests exist
+  if (active.length > 0) {
+    const names = active.map(r => {
+      let label = r.type;
+      if (r.qty) label += ` ×${r.qty}`;
+      return label;
+    });
+    const bannerText = active.length === 1
+      ? `${names[0]} — on the way`
+      : `${active.length} requests in progress`;
+    html += '<div class="svc-active-banner" onclick="var el=document.getElementById(\'in-progress-section\');if(el)el.scrollIntoView();">'
+      + '<div class="svc-banner-dot"></div>'
+      + '<div class="svc-banner-text">' + bannerText + '</div>'
+      + '<div class="svc-banner-arrow">↓</div>'
+      + '</div>';
+  }
+
+  if (active.length > 0) {
+    html += `<div class="orders-section-label" id="in-progress-section">In Progress</div>`;
+    html += active.map(renderSvcCard).join('');
+  }
+  if (done.length > 0) {
+    html += `<div class="orders-section-label" style="margin-top:${active.length ? '20px' : '0'}">Completed</div>`;
+    html += done.map(renderSvcCard).join('');
+  }
+  body.innerHTML = html;
+}
+
+// ── Call
+function callReception() {
+  const overlay = document.createElement('div');
+  overlay.id = 'call-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;';
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border:1px solid rgba(201,169,110,0.3);border-radius:24px;padding:36px 28px;text-align:center;width:100%;max-width:320px;">
+      <div style="width:64px;height:64px;border-radius:50%;background:rgba(76,175,125,0.15);border:1.5px solid var(--green);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/>
+        </svg>
+      </div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:24px;color:var(--text);margin-bottom:8px;">Reception</div>
+      <div style="font-size:14px;color:var(--text-muted);margin-bottom:28px;">Connecting you now…</div>
+      <button id="end-call-btn" style="width:100%;padding:16px;border:1.5px solid rgba(201,169,110,0.35);border-radius:14px;background:transparent;color:var(--gold);font-family:'DM Sans',sans-serif;font-size:15px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+        Dismiss
+      </button>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('end-call-btn').addEventListener('click', function() {
+    const o = document.getElementById('call-overlay');
+    if (o) o.remove();
+  });
+}
+// ══════════════════════════════════════════
+// ── SHARED ROOM SESSION (BroadcastChannel)
+// Simulates multi-device awareness for same room.
+// In production replace with WebSocket / SSE on room token.
+// ══════════════════════════════════════════
+
+const DEVICE_ID = 'dev-' + Math.random().toString(36).slice(2, 7);
+const ROOM_ID   = 'room-' + window.ROOM_NUM;
+
+// BroadcastChannel works across tabs/windows on same origin.
+// Graceful fallback if not supported (older Safari).
+let roomChannel = null;
+try { roomChannel = new BroadcastChannel(ROOM_ID); } catch(e) {}
+
+// What this device is currently doing
+// states: 'idle' | 'browsing' | 'carting' | 'ordered'
+let myActivity = 'idle';
+
+// Track other devices: { deviceId: { activity, items, ts } }
+const peerActivity = {};
+let activityHeartbeat = null;
+
+function broadcastActivity(activity, extra) {
+  extra = extra || {};
+  myActivity = activity;
+  if (!roomChannel) return;
+  roomChannel.postMessage({
+    type: 'activity',
+    deviceId: DEVICE_ID,
+    activity,
+    cartItems: Object.values(cart).map(i => ({ name: i.name, qty: i.qty, price: i.price })),
+    ts: Date.now(),
+    ...extra
+  });
+}
+
+function broadcastOrder(order) {
+  if (!roomChannel) return;
+  roomChannel.postMessage({
+    type: 'order_placed',
+    deviceId: DEVICE_ID,
+    order,
+    ts: Date.now()
+  });
+}
+
+if (roomChannel) {
+  roomChannel.onmessage = (e) => {
+    const msg = e.data;
+    if (!msg || msg.deviceId === DEVICE_ID) return;
+
+    if (msg.type === 'activity') {
+      peerActivity[msg.deviceId] = { activity: msg.activity, cartItems: msg.cartItems, ts: msg.ts };
+      updateActivityBar();
+    }
+
+    if (msg.type === 'order_placed') {
+      // Another device just placed an order — show merge prompt if we have items
+      const cartCount = Object.keys(cart).length;
+      if (cartCount > 0) {
+        showMergePrompt(msg.order);
+      } else {
+        // Just show a subtle notification on home/orders screen
+        showOrderNotification(msg.order);
+      }
+      // Add to our local order history so we see it in My Orders
+      if (!orderHistory.find(o => o.id === msg.order.id)) {
+        orderHistory.unshift({ ...msg.order, fromPeer: true });
+        updateOrdersBadge();
+        if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
+      }
+    }
+
+    if (msg.type === 'ping') {
+      // Reply so new device knows we're here
+      roomChannel.postMessage({
+        type: 'activity',
+        deviceId: DEVICE_ID,
+        activity: myActivity,
+        cartItems: Object.values(cart).map(i => ({ name: i.name, qty: i.qty, price: i.price })),
+        ts: Date.now()
+      });
+    }
+  };
+}
+
+function updateActivityBar() {
+  const bar = document.getElementById('room-activity-bar');
+  const text = document.getElementById('activity-text');
+  if (!bar) return;
+
+  // Remove stale peers (>30s silent)
+  const now = Date.now();
+  Object.keys(peerActivity).forEach(id => {
+    if (now - peerActivity[id].ts > 30000) delete peerActivity[id];
+  });
+
+  const activePeers = Object.values(peerActivity).filter(p => p.activity !== 'idle');
+  if (activePeers.length === 0) {
+    bar.classList.remove('visible');
+    return;
+  }
+
+  const peer = activePeers[0]; // take the most relevant
+  let msg = '';
+  if (peer.activity === 'browsing') msg = 'Someone in this room is browsing the menu';
+  else if (peer.activity === 'carting') {
+    const count = (peer.cartItems && peer.cartItems.length) || 0;
+    msg = `Someone in this room has ${count} item${count!==1?'s':''} in their cart`;
+  } else if (peer.activity === 'ordered') msg = 'Someone in this room just placed an order';
+
+  text.textContent = msg;
+  bar.classList.add('visible');
+
+  // Update the view button target
+  const btn = bar.querySelector('.activity-action');
+  if (peer.activity === 'ordered') {
+    btn.textContent = 'See order';
+    btn.onclick = () => go('orders');
+  } else {
+    btn.textContent = 'View';
+    btn.onclick = () => go('orders');
+  }
+}
+
+// Single go() — handles navigation + broadcast in one place
+function go(screenId) {
+  _navigate(screenId);
+  if (screenId === 'menu')   broadcastActivity('browsing');
+  else if (screenId === 'cart') broadcastActivity('carting');
+  else if (screenId === 'home' || screenId === 'orders') broadcastActivity('idle');
+}
+
+// Broadcast cart changes so peer sees real-time item count
+function updateCartBtn() {
+  const btn = document.getElementById('cart-btn');
+  const badge = document.getElementById('cart-badge');
+  const label = document.getElementById('cart-label');
+  const sticky = document.getElementById('cart-sticky');
+  const floatCall = document.getElementById('float-call');
+  const total = Object.values(cart).reduce((s,i)=>s+i.qty,0);
+  const amt = Object.values(cart).reduce((s,i)=>s+i.qty*i.price,0);
+  if (total > 0) {
+    btn.classList.add('visible');
+    if (sticky) sticky.classList.add('row-visible');
+    badge.textContent = '₹'+amt;
+    label.textContent = 'View Cart · '+total+' item'+(total>1?'s':'');
+    if (floatCall) floatCall.classList.add('visible');
+    broadcastActivity('carting');
+  } else {
+    btn.classList.remove('visible');
+    if (sticky) sticky.classList.remove('row-visible');
+    if (floatCall) floatCall.classList.remove('visible');
+  }
+}
+
+// Announce to existing tabs that we just joined
+if (roomChannel) roomChannel.postMessage({ type: 'ping', deviceId: DEVICE_ID, ts: Date.now() });
+
+// Heartbeat every 10s so peers know we're still here
+activityHeartbeat = setInterval(() => broadcastActivity(myActivity), 10000);
+
+// ── Merge modal logic
+let mergeTargetOrder = null;
+
+function showMergePrompt(recentOrder) {
+  mergeTargetOrder = recentOrder;
+  const container = document.getElementById('merge-recent-order');
+  const preview = recentOrder.items.slice(0, 3).map(i =>
+    `<div class="merge-order-item">${i.name} <span>×${i.qty}</span></div>`
+  ).join('');
+  const more = recentOrder.items.length > 3
+    ? `<div style="font-size:12px;color:var(--text-dim);margin-top:4px">+${recentOrder.items.length-3} more items</div>` : '';
+  container.innerHTML = `
+    <div class="merge-order-label">${recentOrder.id} · just now · ₹${recentOrder.total}</div>
+    ${preview}${more}`;
+  document.getElementById('merge-overlay').style.display = 'flex';
+}
+
+function showOrderNotification(order) {
+  // Soft toast on the active screen — don't interrupt non-cart users
+  const toast = document.createElement('div');
+  toast.style.cssText = `
+    position:fixed;top:80px;left:50%;transform:translateX(-50%);
+    background:var(--surface);border:1px solid var(--topbar-border);
+    border-radius:14px;padding:12px 18px;z-index:250;
+    font-size:14px;color:var(--text-muted);
+    box-shadow:0 4px 20px rgba(0,0,0,0.3);
+    display:flex;align-items:center;gap:10px;
+    animation:fadeIn 0.25s ease;max-width:320px;width:90%;
+    -webkit-tap-highlight-color:transparent;cursor:pointer;`;
+  toast.innerHTML = `
+    <div style="width:8px;height:8px;border-radius:50%;background:var(--gold);flex-shrink:0;"></div>
+    <div>Someone in Room 203 placed an order</div>`;
+  toast.onclick = () => { toast.remove(); go('orders'); };
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
+
+function dismissMerge(e) {
+  if (e.target.id === 'merge-overlay') {
+    document.getElementById('merge-overlay').style.display = 'none';
+  }
+}
+
+function mergeAndOrder() {
+  // Place as a separate order but notify user items go to same room tab
+  document.getElementById('merge-overlay').style.display = 'none';
+  placeOrder(true); // true = is a merge
+}
+
+function newOrderAnyway() {
+  document.getElementById('merge-overlay').style.display = 'none';
+  placeOrder(false);
+}
+
+// ── THEME SYSTEM
+// Auto: day = 6:00–19:59, night = 20:00–5:59
+// Manual override stored in sessionStorage
+
+let currentTheme = 'auto';
+
+function getGreeting() {
+  var h = new Date().getHours();
+  if (h >= 5 && h < 12) return 'Good morning,';
+  if (h >= 12 && h < 17) return 'Good afternoon,';
+  return 'Good evening,';
+}
+
+function getAutoTheme() {
+  var h = new Date().getHours();
+  // Day: 6am–8pm, Night: 8pm–6am
+  return (h >= 6 && h < 20) ? 'day' : 'night';
+}
+
+function applyTheme(theme) {
+  const root = document.documentElement;
+  root.classList.remove('day', 'night');
+  root.classList.add(theme);
+  document.querySelectorAll('.theme-opt').forEach(btn => {
+    const isDay = btn.id.includes('day');
+    const isNight = btn.id.includes('night');
+    btn.classList.toggle('active', (theme === 'day' && isDay) || (theme === 'night' && isNight));
+  });
+}
+
+function setTheme(theme) {
+  currentTheme = theme;
+  sessionStorage.setItem('hyatt-theme', theme);
+  applyTheme(theme);
+}
+
+function initTheme() {
+  // Hotel name + logo from dashboard localStorage
+  var hotelName = window.HOTEL_NAME || localStorage.getItem('hyatt_hotel_name') || 'Shakti Hotels';
+  var initial = hotelName.trim().charAt(0).toUpperCase();
+  // Update all hotel name elements
+  document.querySelectorAll('.hotel-name').forEach(function(el){ el.textContent = hotelName; });
+  // Update page title
+  document.title = hotelName + ' · Room ' + (window.ROOM_NUM || '');
+  // Logo: image if set, else letter initial
+  var savedLogo = localStorage.getItem('hyatt_hotel_logo');
+  var logoMark = document.querySelector('.logo-mark');
+  if(logoMark){
+    if(savedLogo){
+      logoMark.innerHTML = '<img src="'+savedLogo+'" style="width:56px;height:56px;object-fit:contain;border-radius:50%;border:1.5px solid rgba(201,169,110,0.4);padding:6px;" alt="'+hotelName+'">';
+    } else {
+      var logoSpan = logoMark.querySelector('span');
+      if(logoSpan) logoSpan.textContent = initial;
+    }
+  }
+
+  // Set dynamic greeting
+  var greetEl = document.getElementById('welcome-text');
+  if (greetEl) greetEl.innerHTML = getGreeting() + '<br>welcome.';
+
+  const saved = sessionStorage.getItem('hyatt-theme');
+  if (saved === 'day' || saved === 'night') {
+    currentTheme = saved;
+    applyTheme(saved);
+  } else {
+    applyTheme(getAutoTheme());
+  }
+  // Re-check every minute
+  setInterval(() => {
+    var el = document.getElementById('welcome-text');
+    if (el) el.innerHTML = getGreeting() + '<br>welcome.';
+    if (!sessionStorage.getItem('hyatt-theme')) applyTheme(getAutoTheme());
+  }, 60000);
+}
+initTheme();
+
+// ══════════════════════════════════════════
+// ── SUPABASE
+// ══════════════════════════════════════════
+const SUPA_URL      = 'https://webvlxcypqhcwzbcpths.supabase.co';
+const SUPA_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw';
+let supa = null;
+
+function initSupa(){
+  try {
+    if(window.supabase && window.supabase.createClient && !supa){
+      supa = window.supabase.createClient(SUPA_URL, SUPA_ANON_KEY);
+    }
+  } catch(e) { console.warn('Supabase init failed', e); }
+}
+
+// Try at various points to handle async SDK loading
+initSupa();
+document.addEventListener('DOMContentLoaded', function(){ if(!supa) initSupa(); });
+// Start sync as early as possible — try on DOMContentLoaded, load, and after delay
+function _guestStartSync() {
+  waitForSupa().then(function(s){
+    if(!s){ console.warn('Guest: Supabase unavailable'); return; }
+    subscribeRoomOrders(s);  // WebSocket realtime
+    _startPolling(s);         // Polling every 5s backup
+    console.log('Guest sync started for room', window.ROOM_NUM);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  initSupa();
+  setTimeout(_guestStartSync, 800); // slight delay for SDK to fully init
+});
+
+window.addEventListener('load', function(){
+  if(!supa) initSupa();
+  _guestStartSync(); // also try on load event
+});
+
+// Final fallback — try 3 seconds after page start
+setTimeout(function(){
+  if(!supa) initSupa();
+  if(!_pollInterval) _guestStartSync();
+}, 3000);
+
+// ── ROOM-LEVEL REALTIME SUBSCRIPTION
+// Watches ALL orders/services for this room — updates status in real-time
+// ── Check if WebSocket/Realtime is available (requires HTTPS)
+function _canUseRealtime() {
+  return window.location.protocol === 'https:' ||
+         window.location.hostname === 'localhost' ||
+         window.location.hostname === '127.0.0.1';
+}
+
+// ── Poll Supabase for order/service updates (fallback when WS unavailable)
+var _pollInterval = null;
+// ── SINGLE source of truth for order status updates ──────────
+// Called by: per-order WS channel, room-level WS channel, _doPoll polling
+function _applyOrderUpdate(row) {
+  if (!row || !row.id) return;
+  var order = orderHistory.find(function(o){ return o.id === row.id; });
+  if (!order) return;                        // order not in this session — ignore
+  var prevStatus = order.status;
+  if (prevStatus === row.status) return;     // no change — skip re-render
+
+  // Apply all fields from DB row
+  order.status = row.status;
+  if (row.accepted_at) order.acceptedAt = new Date(row.accepted_at).getTime();
+  if (row.rejection_reason != null) order.rejection_reason = row.rejection_reason;
+  if (row.items && Array.isArray(row.items)) order.items = row.items;
+  if (row.total != null) order.total = row.total;
+
+  // Update badge always; re-render orders screen if open OR update card in-place
+  updateOrdersBadge();
+  var ordersScreen = document.getElementById('screen-orders');
+  if (ordersScreen && ordersScreen.classList.contains('active')) {
+    renderOrders();
+  } else {
+    // Update the existing card in-place so it's ready when guest opens My Orders
+    // The full re-render happens when they navigate to orders screen
+    var existingCard = document.getElementById('ocard-' + row.id);
+    if (existingCard) {
+      // Trigger a badge pulse to signal status changed
+      var badge = document.getElementById('orders-live-badge');
+      if (badge) { badge.style.transform='scale(1.3)'; setTimeout(function(){badge.style.transform='';},300); }
+    }
+  }
+
+  // Toast notifications per status
+  var toasts = {
+    accepted:  ['✓ Order accepted — kitchen is preparing', 'green'],
+    preparing: ['👨‍🍳 Kitchen is now preparing your order', 'green'],
+    ready:     ['🔔 Your order is ready for delivery!', 'gold'],
+    delivered: ['✅ Delivered! Enjoy your meal 🍽', 'green'],
+    rejected:  ['✕ Order not accepted — ' + (row.rejection_reason || 'contact reception'), 'red'],
+    cancelled: ['Order cancelled', 'green']
+  };
+  var t = toasts[row.status];
+  if (t) showGuestToast(t[0], t[1] === 'red' ? 'red' : 'green');
+}
+
+function _doPoll(s, roomNum) {
+  if(!s || !roomNum) return;
+  s.from('orders')
+    .select('id,status,accepted_at,rejection_reason,items,total')
+    .eq('room', roomNum)
+    .in('status', ['new','accepted','preparing','ready','delivered'])
+    .then(function(res) {
+      if (!res || !res.data) return;
+      res.data.forEach(function(row) { _applyOrderUpdate(row); });
+    }).catch(function(){});
+  // Poll services
+  s.from('service_requests').select('id,status')
+    .eq('room', roomNum)
+    .in('status', ['received','assigned','inprogress','done'])
+    .then(function(res) {
+      if (!res || !res.data) return;
+      res.data.forEach(function(row) {
+        var req = serviceHistory.find(function(r){ return r.id === row.id; });
+        if (req && req.status !== row.status) {
+          req.status = row.status;
+          updateServicesBadge();
+          if (document.getElementById('screen-services').classList.contains('active')) renderServices();
+          updateServicesBadge();
+          if (document.getElementById('screen-services').classList.contains('active')) renderServices();
+          var sMsgs = {
+            assigned:   '✓ Staff assigned — on the way soon',
+            inprogress: '🚶 Staff is on the way to your room',
+            done:       '✅ Request completed!'
+          };
+          if (sMsgs[row.status]) showGuestToast(sMsgs[row.status], 'green');
+        }
+      });
+    }).catch(function(){});
+}
+
+function _startPolling(s) {
+  if (_pollInterval) return;
+  var roomNum = String(window.ROOM_NUM || '');
+  if (!roomNum || !s) return;
+  _doPoll(s, roomNum); // immediate first poll
+  _pollInterval = setInterval(function() { _doPoll(s, roomNum); }, 5000);
+}
+
+
+function subscribeRoomOrders(s) {
+  var roomNum = String(window.ROOM_NUM || '');
+  if (!roomNum || !s) return;
+  if (!_canUseRealtime()) { return; } // polling already running as backup
+  try {
+    s.channel('room-orders-' + roomNum)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'orders',
+        filter: 'room=eq.' + roomNum
+      }, function(payload) {
+        var row = payload.new;
+        if (row) _applyOrderUpdate(row);
+      })
+      .subscribe(function(status) {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          // Fall back to polling if WS fails
+          _startPolling(s);
+        }
+      });
+  } catch(e) {
+    console.warn('Room orders sub (WS unavailable, using polling)');
+    _startPolling(s);
+  }
+}
+
+function subscribeRoomServices(s) {
+  var roomNum = String(window.ROOM_NUM || '');
+  if (!roomNum || !s) return;
+  if (!_canUseRealtime()) { return; }
+  try {
+    s.channel('room-svcs-' + roomNum)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'service_requests',
+        filter: 'room=eq.' + roomNum
+      }, function(payload) {
+        var row = payload.new;
+        if (!row) return;
+        var req = serviceHistory.find(function(r){ return r.id === row.id; });
+        if (req) {
+          req.status = row.status;
+          updateServicesBadge();
+          if (document.getElementById('screen-services').classList.contains('active')) renderServices();
+          var sMsgs = {
+            assigned:   '✓ Staff assigned — on the way soon',
+            inprogress: '🚶 Staff is on the way to your room',
+            done:       '✅ Request completed!'
+          };
+          if (sMsgs[row.status]) showGuestToast(sMsgs[row.status], 'green');
+        }
+      })
+      .subscribe(function(status) {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { _startPolling(s); }
+      });
+  } catch(e) {
+    console.warn('Room svcs sub (WS unavailable, using polling)');
+    _startPolling(s);
+  }
+}
+
+// Returns a promise that resolves when supa is ready (max 5s wait)
+function waitForSupa(){
+  return new Promise(function(resolve){
+    if(supa){ resolve(supa); return; }
+    var tries=0;
+    var iv=setInterval(function(){
+      if(supa){ clearInterval(iv); resolve(supa); return; }
+      if(++tries>50){ clearInterval(iv); resolve(null); } // give up after 5s
+    },100);
+  });
+}
+
+// ══════════════════════════════════════════
+// ── ENTRY SCREEN
+document.addEventListener('DOMContentLoaded', function() {
+  var rn = window.ROOM_NUM;
+  var sRoom = document.getElementById('splash-room-num');
+  if (sRoom) sRoom.textContent = rn;
+  document.querySelectorAll('.dyn-room').forEach(function(el){ el.textContent = 'Room ' + rn; });
+  var ss = document.getElementById('success-sub');
+  if (ss) ss.textContent = 'Room ' + rn + ' · Your food is being prepared';
+  var ms = document.getElementById('merge-sub');
+  if (ms) ms.textContent = 'Someone in Room ' + rn + ' just ordered. Want to add to it?';
+  setTimeout(function(){
+    var inp = document.getElementById('guest-name-input');
+    if(inp) inp.focus();
+  }, 500);
+});
+
+function startOrdering() {
+  var inp = document.getElementById('guest-name-input');
+  var name = inp ? inp.value.trim() : '';
+  if (!name) {
+    if(inp){ inp.style.borderColor='rgba(192,57,43,0.6)'; inp.focus(); }
+    return;
+  }
+  window.GUEST_NAME = name;
+  go('home');
+}
+
+// ── OVERRIDE placeOrder TO INSERT TO SUPABASE + SUBSCRIBE TO STATUS UPDATES
+const _origPlaceOrder = placeOrder;
+placeOrder = async function(isMerge) {
+  // Capture cart BEFORE _origPlaceOrder runs (it clears cart)
+  // Use JSON round-trip to guarantee clean serializable plain objects
+  var cartSnapshot;
+  try {
+    cartSnapshot = JSON.parse(JSON.stringify(
+      Object.entries(cart).map(function(entry) {
+        var item = entry[1];
+        return {
+          name: String(item.name || ''),
+          qty: Number(item.qty || 1),
+          price: Number(item.price || 0),
+          category: String(item.category || '')
+        };
+      })
+    ));
+  } catch(e) { cartSnapshot = []; }
+  const totalSnapshot = cartSnapshot.reduce(function(s,i){ return s + i.qty*i.price; }, 0);
+
+  // Generate ID before calling original so both use same ID
+  const orderId = 'ORD-' + Date.now() + '-' + Math.random().toString(36).slice(2,6).toUpperCase();
+  window._pendingOrderId = orderId;
+  _origPlaceOrder(isMerge);
+  window._pendingOrderId = null;
+
+  const supaReady = await waitForSupa();
+  if (!supaReady) { console.warn('Supabase not available'); return; }
+  // Ensure real-time sync is active
+  if (!_pollInterval) {
+    subscribeRoomOrders(supaReady);
+    _startPolling(supaReady);
+  }
+  try {
+    const insertData = {
+      id: orderId,
+      room: String(window.ROOM_NUM || '000'),
+      guest: String(window.GUEST_NAME || 'Guest'),
+      items: cartSnapshot,
+      total: Number(totalSnapshot),
+      status: 'new',
+      placed_at: new Date().toISOString()
+    };
+
+    // Use XMLHttpRequest — Safari iOS compatible, no DataCloneError
+    await new Promise(function(resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', SUPA_URL + '/rest/v1/orders', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.setRequestHeader('apikey', SUPA_ANON_KEY);
+      xhr.setRequestHeader('Authorization', 'Bearer ' + SUPA_ANON_KEY);
+      xhr.setRequestHeader('Prefer', 'return=minimal');
+      xhr.onload = function() {
+        if (xhr.status >= 200 && xhr.status < 300) { resolve(); }
+        else { reject(new Error('HTTP ' + xhr.status + ': ' + xhr.responseText)); }
+      };
+      xhr.onerror = function() { reject(new Error('Network error')); };
+      xhr.send(JSON.stringify(insertData));
+    });
+
+    // Per-order realtime channel — ALL status changes
+    supaReady.channel('order-status-' + orderId)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'orders',
+        filter: 'id=eq.' + orderId
+      }, function(payload) {
+        _applyOrderUpdate(payload.new);
+      })
+      .subscribe();
+
+  } catch(e) { console.error('Order insert failed:', e && e.message || e, e && e.stack || ''); }
+};
+
+function showGuestToast(msg, color) {
+  // Remove existing toast
+  var old = document.getElementById('guest-toast');
+  if (old) old.remove();
+  var bg = color === 'red' ? 'rgba(192,57,43,0.95)' : color === 'gold' ? '#C9A96E' : 'rgba(22,120,80,0.95)';
+  var textCol = color === 'gold' ? '#0D0D0D' : 'white';
+  var toast = document.createElement('div');
+  toast.id = 'guest-toast';
+  toast.style.cssText = [
+    'position:fixed',
+    'bottom:90px',
+    'left:50%',
+    'transform:translateX(-50%)',
+    'width:calc(100% - 48px)',
+    'max-width:360px',
+    'padding:14px 18px',
+    'border-radius:14px',
+    'background:' + bg,
+    'color:' + textCol,
+    'font-family:DM Sans,sans-serif',
+    'font-size:14px',
+    'font-weight:500',
+    'z-index:999',
+    'box-shadow:0 4px 24px rgba(0,0,0,0.35)',
+    'pointer-events:none',
+    'text-align:center',
+    'line-height:1.4',
+    'transition:opacity 0.3s ease'
+  ].join(';') + ';';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(function(){
+    toast.style.opacity = '0';
+    setTimeout(function(){ if (toast.parentElement) toast.remove(); }, 350);
+  }, 3500);
+}
+>
