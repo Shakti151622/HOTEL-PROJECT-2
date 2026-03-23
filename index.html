@@ -3741,30 +3741,36 @@ async function loadOrdersFromSupabase(){
     setConnBadge('disconnected','Error');
   }
 }
+var realtimeInited = false;
 function subscribeRealtime(){
-  if(!sbClient)return;
-  if(realtimeChan){sbClient.removeChannel(realtimeChan);realtimeChan=null;}
+  if(!sbClient) return;
+  if(realtimeInited) return; // prevent duplicate channels
+  realtimeInited = true;
+
+  if(realtimeChan){try{sbClient.removeChannel(realtimeChan);}catch(e){} realtimeChan=null;}
   if(window._svcChan){try{sbClient.removeChannel(window._svcChan);}catch(e){} window._svcChan=null;}
   if(window._chkChan){try{sbClient.removeChannel(window._chkChan);}catch(e){} window._chkChan=null;}
 
-  // Orders channel
-  realtimeChan=sbClient.channel('orders-rt')
+  realtimeChan=sbClient.channel('orders-realtime')
     .on('postgres_changes',{event:'*',schema:'public',table:'orders'},handleRealtimeEvent)
     .subscribe(function(status){
-      if(status==='SUBSCRIBED'){setConnBadge('connected','Live');}
-      else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){setConnBadge('disconnected','Reconnecting…');setTimeout(subscribeRealtime,5000);}
+      if(status==='SUBSCRIBED'){ setConnBadge('connected','Live'); }
+      else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
+        setConnBadge('connecting','Reconnecting…');
+        realtimeInited = false;
+        setTimeout(function(){ if(sbClient) subscribeRealtime(); }, 2000);
+      }
     });
 
-  // Service requests channel
-  window._svcChan=sbClient.channel('svc-rt')
+  window._svcChan=sbClient.channel('svc-realtime')
     .on('postgres_changes',{event:'*',schema:'public',table:'service_requests'},handleSvcRealtimeEvent)
     .subscribe();
 
-  // Checkins channel — updates room tiles in realtime
-  window._chkChan=sbClient.channel('chk-rt')
+  window._chkChan=sbClient.channel('chk-realtime')
     .on('postgres_changes',{event:'*',schema:'public',table:'checkins'},handleCheckinEvent)
     .subscribe();
 }
+
 
 function handleCheckinEvent(payload){
   var evt=payload.eventType, row=payload.new||{};
@@ -3955,6 +3961,7 @@ function cfgOverlayClick(e){if(e.target.id==='cfg-overlay')closeCfg();}
 function maybeShowCfgOnLoad(){
   setConnBadge('connecting','Connecting…');
   SUPABASE_URL=SUPABASE_URL.replace(/\/+$/,'');
+  realtimeInited = false;
   sbClient=window._hyattSb||supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storageKey:'hyatt-sb-auth'}});
   window._hyattSb=sbClient;
   var u=document.getElementById('cfg-url');if(u)u.value=SUPABASE_URL;

@@ -1826,7 +1826,7 @@ function renderOrders() {
         ${isNew ? 'Add or remove items · Cancel anytime before acceptance' : 'Can only add items after acceptance · To cancel call reception'}
       </div>` : '';
 
-    return `<div class="order-card" id="ocard-${o.id}">
+    return `<div class="order-card" id="ocard-${o.id}" data-order-id="${o.id}">
       <div class="order-card-head">
         <div class="order-card-meta">
           <div class="order-card-id">${o.id} · ${o.date}${o.fromPeer ? ' <span class="order-device-tag">Roommate</span>' : ''}${o.isMerge ? ' <span class="order-device-tag">Merged</span>' : ''}</div>
