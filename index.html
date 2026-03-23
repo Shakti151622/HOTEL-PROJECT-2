@@ -3638,162 +3638,104 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
 (function() {
 if (window.APP_MODE === 'guest') return;
 
-var SUPABASE_URL=(localStorage.getItem('hyatt_sb_url')||'https://webvlxcypqhcwzbcpths.supabase.co').replace(/\/+$/,'');
-var SUPABASE_KEY=(localStorage.getItem('hyatt_sb_key')||'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw').trim();
+var _SB_URL='https://webvlxcypqhcwzbcpths.supabase.co';
+var _SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw';
+var SUPABASE_URL=(localStorage.getItem('hyatt_sb_url')||_SB_URL).replace(/\/+$/,'');
+var SUPABASE_KEY=(localStorage.getItem('hyatt_sb_key')||_SB_KEY).trim();
+if(!localStorage.getItem('hyatt_sb_url'))localStorage.setItem('hyatt_sb_url',_SB_URL);
+if(!localStorage.getItem('hyatt_sb_key'))localStorage.setItem('hyatt_sb_key',_SB_KEY);
 var sbClient=null,realtimeChan=null;
 var SETUP_SQL=`-- Run once in Supabase SQL Editor
--- STEP 1: Create orders table
+
+-- Orders table (food orders from guests)
 create table if not exists orders (
-  id                text primary key,
-  room              text not null,
-  guest             text not null default 'Guest',
-  items             jsonb not null default '[]',
-  total             integer not null default 0,
-  status            text not null default 'new',
-  placed_at         timestamptz not null default now(),
-  accepted_at       timestamptz,
-  prep_start_at     timestamptz,
-  ready_at          timestamptz,
-  delivered_at      timestamptz,
-  rejection_reason  text,
-  updated_at        timestamptz default now()
+  id          text primary key,
+  room        text        not null,
+  guest       text        not null default 'Guest',
+  items       jsonb       not null default '[]',
+  total       integer     not null default 0,
+  status      text        not null default 'new',
+  rejection_reason text,
+  placed_at   timestamptz not null default now()
 );
-
--- STEP 2: Enable RLS
 alter table orders enable row level security;
-
--- STEP 3: RLS policies (allow anon read/write)
-drop policy if exists "allow all orders" on orders;
-create policy "allow all orders" on orders for all using (true) with check (true);
-
--- STEP 4: Enable realtime
+create policy "guests can insert orders" on orders for insert with check (true);
+create policy "staff can select orders" on orders for select using (true);
+create policy "staff can update orders" on orders for update using (true);
 alter publication supabase_realtime add table orders;
 
--- STEP 5: Create service_requests table
+-- Service requests table (housekeeping requests from guests)
 create table if not exists service_requests (
   id          text primary key,
-  room        text not null,
-  guest       text not null default 'Guest',
-  type        text not null,
-  icon        text default '🔔',
+  room        text        not null,
+  guest       text        not null default 'Guest',
+  type        text        not null,
+  icon        text        not null default 'bell',
   qty         integer,
   note        text,
-  status      text not null default 'received',
-  placed_at   timestamptz not null default now(),
-  updated_at  timestamptz default now()
+  status      text        not null default 'received',
+  placed_at   timestamptz not null default now()
 );
-
 alter table service_requests enable row level security;
-drop policy if exists "allow all svc" on service_requests;
-create policy "allow all svc" on service_requests for all using (true) with check (true);
+create policy "guests can insert svc" on service_requests for insert with check (true);
+create policy "staff can select svc" on service_requests for select using (true);
+create policy "staff can update svc" on service_requests for update using (true);
 alter publication supabase_realtime add table service_requests;
 
--- STEP 6: Auto-update updated_at
-create or replace function update_updated_at()
-returns trigger language plpgsql as $$
-begin new.updated_at = now(); return new; end; $$;
-
-drop trigger if exists orders_updated_at on orders;
-create trigger orders_updated_at before update on orders
-  for each row execute function update_updated_at();
-
-drop trigger if exists svc_updated_at on service_requests;
-create trigger svc_updated_at before update on service_requests
-  for each row execute function update_updated_at();
-`;
+-- Check-ins table (guest check-in/checkout via QR scan)
+create table if not exists checkins (
+  id             text primary key,
+  room           text        not null,
+  guest_name     text        not null,
+  checked_in_at  timestamptz not null default now(),
+  checked_out_at timestamptz,
+  status         text        not null default 'active'
+);
+alter table checkins enable row level security;
+create policy "guests can insert checkins" on checkins for insert with check (true);
+create policy "staff can select checkins" on checkins for select using (true);
+create policy "staff can update checkins" on checkins for update using (true);
+alter publication supabase_realtime add table checkins;`;
 
 // ROOMS_DATA replaced by buildRoomsData()
 
 var orderFilter='all',svcFilter='all';
-var orders=[];   // start empty — populated from Supabase
-var services=[]; // start empty — populated from Supabase
-function rowToOrder(row){return{id:row.id,room:String(row.room),guest:row.guest||'Guest',items:Array.isArray(row.items)?row.items:[],total:row.total||0,status:row.status||'new',placedAt:row.placed_at?new Date(row.placed_at).getTime():Date.now(),accepted_at:row.accepted_at?new Date(row.accepted_at).getTime():null,rejection_reason:row.rejection_reason||null,fromSupa:true};}
+var orders=[];  // starts empty — demo orders only shown when not connected to Supabase
+var _demoOrders=[
+  {id:'ORD-001',room:'203',guest:'R*** S***',items:[{name:'Paneer Butter Masala',qty:1,price:250},{name:'Dal Tadka',qty:1,price:180}],total:430,status:'new',placedAt:Date.now()-5*60000},
+  {id:'ORD-002',room:'105',guest:'Nisha Patel',items:[{name:'Chicken Biryani',qty:2,price:320}],total:640,status:'accepted',placedAt:Date.now()-12*60000},
+];
+var services=[
+  {id:'REQ-001',room:'102',guest:'Priya Sharma',type:'Towels',icon:'🧻',qty:3,note:'',status:'received',placedAt:Date.now()-8*60000},
+  {id:'REQ-002',room:'107',guest:'Rahul Gupta',type:'Room Cleaning',icon:'🧹',qty:null,note:'Please clean before 3pm',status:'assigned',assignee:'Housekeeping',placedAt:Date.now()-22*60000},
+];
+function rowToOrder(row){return{id:row.id,room:String(row.room),guest:row.guest||'Guest',items:Array.isArray(row.items)?row.items:[],total:row.total||0,status:row.status||'new',rejection_reason:row.rejection_reason||null,placedAt:row.placed_at?new Date(row.placed_at).getTime():Date.now(),fromSupa:true};}
 function setConnBadge(state,label){var b=document.getElementById('conn-badge'),l=document.getElementById('conn-label');if(!b)return;b.className='conn-badge '+state;l.textContent=label;}
-async function connectSupabase(){
-  var url=(document.getElementById('cfg-url').value||'').trim().replace(/\/+$/,'');
-  var key=(document.getElementById('cfg-key').value||'').trim();
-  if(!url||!key){alert('Please enter both URL and Anon Key.');return;}
-  var btn=document.getElementById('cfg-connect-btn');
-  var prevErr=document.getElementById('cfg-err');if(prevErr)prevErr.remove();
-  btn.disabled=true;btn.textContent='Connecting…';
-  try{
-    if(!window.supabase||!window.supabase.createClient) throw new Error('Supabase SDK not loaded');
-    // Reuse existing client if URL/key match, otherwise create new
-    if(!sbClient || SUPABASE_URL!==url || SUPABASE_KEY!==key){
-      sbClient=window.supabase.createClient(url,key,{auth:{storageKey:'hyatt-sb-auth',autoRefreshToken:false,persistSession:false}});
-      window._hyattSb=sbClient;
-    }
-    var res=await sbClient.from('orders').select('id').limit(1);
-    if(res.error){
-      if(res.error.code==='42P01'||String(res.error.message).includes('does not exist')){
-        document.getElementById('sql-panel').classList.add('visible');
-        document.getElementById('sql-code').textContent=SETUP_SQL;
-        throw new Error('Table "orders" not found. Run the SQL shown below first.');
-      }
-      throw new Error(res.error.message||res.error.code||'Query failed');
-    }
-    localStorage.setItem('hyatt_sb_url',url);
-    localStorage.setItem('hyatt_sb_key',key);
-    SUPABASE_URL=url;SUPABASE_KEY=key;
-    closeCfg();
-    setConnBadge('connecting','Syncing…');
-    await loadOrdersFromSupabase();
-    await loadServicesFromSupabase();
-    try{subscribeRealtime();}catch(e){console.warn('Realtime:',e&&e.message||e);}
-    showToast('service','Connected','Live orders active');
-  }catch(err){
-    sbClient=null;window._hyattSb=null;
-    btn.disabled=false;btn.textContent='Connect';
-    var msg=String(err.message||err);
-    setConnBadge('disconnected','Error');
-    var prevErr2=document.getElementById('cfg-err');if(prevErr2)prevErr2.remove();
-    var errDiv=document.createElement('div');
-    errDiv.id='cfg-err';
-    errDiv.style.cssText='color:var(--red);font-size:13px;margin-top:10px;padding:12px;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.25);border-radius:10px;line-height:1.5;';
-    if(msg.includes('42P01')||msg.includes('does not exist')){
-      errDiv.innerHTML='<b>Tables not found.</b> Run the SQL shown below in Supabase → SQL Editor, then try again.';
-      document.getElementById('sql-panel').classList.add('visible');
-      document.getElementById('sql-code').textContent=SETUP_SQL;
-    } else if(msg.includes('Invalid API key')||msg.includes('apikey')){
-      errDiv.textContent='Invalid API key. Check your anon key in Supabase → Settings → API.';
-    } else if(msg.includes('Failed to fetch')||msg.includes('NetworkError')){
-      errDiv.textContent='Network error. Check your internet connection and Supabase URL.';
-    } else {
-      errDiv.textContent='Error: '+msg;
-    }
-    btn.parentNode.insertBefore(errDiv,btn.nextSibling);
-  }
-}
-
-
+async function connectSupabase(){var url=(document.getElementById('cfg-url').value||'').trim().replace(/\/+$/,''),key=(document.getElementById('cfg-key').value||'').trim();if(!url||!key){alert('Please enter both the Project URL and Anon Key.');return;}var btn=document.getElementById('cfg-connect-btn');btn.disabled=true;btn.textContent='Connecting…';try{sbClient=window._hyattSb||supabase.createClient(url,key,{auth:{storageKey:'hyatt-sb-auth'}});window._hyattSb=sbClient;var{data,error}=await sbClient.from('orders').select('id').limit(1);if(error)throw error;localStorage.setItem('hyatt_sb_url',url);localStorage.setItem('hyatt_sb_key',key);SUPABASE_URL=url;SUPABASE_KEY=key;closeCfg();setConnBadge('connecting','Syncing…');await loadOrdersFromSupabase();await loadServicesFromSupabase();await loadCheckinsFromSupabase();try{subscribeRealtime();}catch(e){console.warn('Realtime init:',e&&e.message||e);}}catch(err){btn.disabled=false;btn.textContent='Connect';var msg=err.message||String(err);if(msg.includes('relation')||msg.includes('does not exist')||msg.includes('42P01')){document.getElementById('sql-panel').classList.add('visible');document.getElementById('sql-code').textContent=SETUP_SQL;alert('Table "orders" not found.\n\nRun the SQL shown in the panel, then try again.');}else{alert('Connection failed: '+msg);}}}
 async function loadOrdersFromSupabase(){
   if(!sbClient)return;
   try{
-    // 24-hour rolling window (avoids UTC/IST midnight cutoff issues)
-    var since24h = new Date(Date.now() - 24*60*60*1000);
+    var since=new Date(Date.now()-24*60*60*1000).toISOString();
     var res=await sbClient.from('orders').select('*')
       .not('status','eq','delivered')
-      .gte('placed_at', since24h.toISOString())
-      .order('placed_at',{ascending:false}).limit(200);
-    if(res.error){console.warn('Orders fetch:',res.error.message||res.error.code);setConnBadge('disconnected','Error');return;}
-    // SMART MERGE: keep local status if it's ahead of DB (write in-flight)
+      .not('status','eq','rejected')
+      .not('status','eq','cancelled')
+      .gte('placed_at',since)
+      .order('placed_at',{ascending:false})
+      .limit(200);
+    var hasErr=false;try{if(res&&res.error)hasErr=true;}catch(e){}
+    if(hasErr){try{console.warn('Orders fetch:',String(res.error&&res.error.message||'error'));}catch(e){}setConnBadge('disconnected','Error');return;}
+    // Smart merge: keep local status if ahead of DB (write in-flight)
     var _sRank={'new':0,'accepted':1,'preparing':2,'ready':3,'delivered':4,'rejected':5,'cancelled':5};
     var fetched=(res.data||[]).map(rowToOrder);
-    fetched.forEach(function(dbOrder){
-      var local=orders.find(function(o){return o.id===dbOrder.id;});
-      if(local){
-        // Keep local if local status is ahead of DB (optimistic update in-flight)
-        var localRank=_sRank[local.status]||0;
-        var dbRank=_sRank[dbOrder.status]||0;
-        if(localRank>dbRank){ dbOrder.status=local.status; dbOrder.accepted_at=local.accepted_at; }
+    fetched.forEach(function(dbO){
+      var loc=orders.find(function(o){return o.id===dbO.id;});
+      if(loc&&(_sRank[loc.status]||0)>(_sRank[dbO.status]||0)){
+        dbO.status=loc.status; dbO.accepted_at=loc.accepted_at;
       }
     });
     orders=fetched;
-    if(typeof renderTasks==='function')renderTasks();else renderOrders();
-    updateStats(); if(document.getElementById('conn-badge')&&document.getElementById('conn-badge').className!=='conn-badge connected')setConnBadge('connected','Live');
-    orders.forEach(function(o){
-      if(o.status==='new'&&typeof startAlertBeep==='function')startAlertBeep(o.id,'order');
-    });
+    renderOrders();updateStats();setConnBadge('connected','Live');
   }catch(err){
     console.warn('Orders load exception:',err&&err.message||String(err));
     setConnBadge('disconnected','Error');
@@ -3801,34 +3743,54 @@ async function loadOrdersFromSupabase(){
 }
 function subscribeRealtime(){
   if(!sbClient)return;
-  // Clean up existing channels
-  if(realtimeChan){try{sbClient.removeChannel(realtimeChan);}catch(e){} realtimeChan=null;}
+  if(realtimeChan){sbClient.removeChannel(realtimeChan);realtimeChan=null;}
   if(window._svcChan){try{sbClient.removeChannel(window._svcChan);}catch(e){} window._svcChan=null;}
+  if(window._chkChan){try{sbClient.removeChannel(window._chkChan);}catch(e){} window._chkChan=null;}
 
-  // Orders channel — Supabase SDK handles reconnection internally
+  // Orders channel
   realtimeChan=sbClient.channel('orders-rt')
     .on('postgres_changes',{event:'*',schema:'public',table:'orders'},handleRealtimeEvent)
     .subscribe(function(status){
-      if(status==='SUBSCRIBED'){
-        setConnBadge('connected','Live');
-      } else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
-        // SDK will auto-retry — just show status, don't trigger reload
-        setConnBadge('connecting','Reconnecting…');
-      }
-      // CLOSED = normal teardown, ignore
+      if(status==='SUBSCRIBED'){setConnBadge('connected','Live');}
+      else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){setConnBadge('disconnected','Reconnecting…');setTimeout(subscribeRealtime,5000);}
     });
 
   // Service requests channel
   window._svcChan=sbClient.channel('svc-rt')
     .on('postgres_changes',{event:'*',schema:'public',table:'service_requests'},handleSvcRealtimeEvent)
     .subscribe();
+
+  // Checkins channel — updates room tiles in realtime
+  window._chkChan=sbClient.channel('chk-rt')
+    .on('postgres_changes',{event:'*',schema:'public',table:'checkins'},handleCheckinEvent)
+    .subscribe();
 }
 
-var _reconnectTimer=null;
-var _dashPollInterval=null;
-function _startDashPolling(){ /* no-op: Supabase SDK handles reconnection */ }
-function _scheduleReconnect(){
-  // No longer used — kept for compat
+function handleCheckinEvent(payload){
+  var evt=payload.eventType, row=payload.new||{};
+  if(evt==='INSERT' && row.status==='active'){
+    // New guest checked in — update STATIC_ROOMS and re-render
+    var room = String(row.room);
+    if(!STATIC_ROOMS[room]) STATIC_ROOMS[room]={};
+    STATIC_ROOMS[room].guest    = row.guest_name;
+    STATIC_ROOMS[room].status   = 'occupied';
+    STATIC_ROOMS[room].checkout = '—';
+    STATIC_ROOMS[room].checkinId = row.id;
+    try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}
+    renderRooms();
+    showToast('checkin','Check-in · Room '+room, row.guest_name+' just checked in');
+  } else if(evt==='UPDATE' && row.status==='checked_out'){
+    var room = String(row.room);
+    if(STATIC_ROOMS[room]){
+      STATIC_ROOMS[room].guest    = '—';
+      STATIC_ROOMS[room].status   = 'vacant';
+      STATIC_ROOMS[room].checkout = '—';
+      delete STATIC_ROOMS[room].checkinId;
+    }
+    try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}
+    renderRooms();
+    showToast('checkin','Checkout · Room '+room, row.guest_name+' checked out');
+  }
 }
 
 function rowToService(row){
@@ -3841,119 +3803,163 @@ function handleSvcRealtimeEvent(payload){
     var s=rowToService(row);
     if(!services.find(function(x){return x.id===s.id;})){
       services.unshift(s);
-      if(typeof renderTasks==='function') renderTasks();
       renderServices();updateUrgencyStrip();
+      // New request — single alert
       showToast('service','Service Request — Room '+s.room,s.type+(s.qty?' ×'+s.qty:''));
-      if(typeof playBeep==='function') playBeep('service');
+      playBeep('service');
     }
   } else if(evt==='UPDATE'){
     var idx=services.findIndex(function(x){return x.id===row.id;});
-    if(idx!==-1)services[idx]=rowToService(row);
+    if(idx!==-1) services[idx]=rowToService(row);
     else services.unshift(rowToService(row));
-    if(typeof renderTasks==='function') renderTasks();
     renderServices();updateUrgencyStrip();
+    // inprogress = staff en route (toast only, no sound)
+    if(row.status==='inprogress'){
+      showToast('service','En Route — Room '+row.room,'Staff is on the way');
+    }
+    // done = completion alert
+    if(row.status==='done'){
+      showToast('service','Completed — Room '+row.room,'Request fulfilled ✓');
+    }
   } else if(evt==='DELETE'){
     services=services.filter(function(x){return x.id!==old.id;});
-    if(typeof renderTasks==='function') renderTasks();
     renderServices();updateUrgencyStrip();
   }
 }
 
-async function loadServicesFromSupabase(){
-  if(!sbClient)return;
+async function loadServicesFromSupabase(){  if(!sbClient)return;
   try{
-    var since = new Date(Date.now() - 24*60*60*1000);
-    var res=await sbClient.from('service_requests').select('*')
-      .not('status','eq','done')
-      .gte('placed_at', since.toISOString())
-      .order('placed_at',{ascending:false}).limit(200);
+    var res=await sbClient.from('service_requests').select('*').not('status','eq','done').order('placed_at',{ascending:false}).limit(200);
     if(res.error){console.warn('Services fetch:',res.error.message||res.error.code);return;}
-    services=(res.data||[]).map(rowToService);
-    if(typeof renderTasks==='function')renderTasks();
+    if(res.data&&res.data.length>0&&typeof rowToService==='function')services=res.data.map(rowToService);
     renderServices();updateUrgencyStrip();
   }catch(err){console.warn('Services load exception:',err&&err.message||String(err));}
+}
+async function loadCheckinsFromSupabase(){
+  if(!sbClient)return;
+  try{
+    var res=await sbClient.from('checkins').select('*').eq('status','active');
+    if(res.error){console.warn('Checkins fetch:',res.error.message);return;}
+    if(res.data){
+      res.data.forEach(function(row){
+        var room=String(row.room);
+        if(!STATIC_ROOMS[room])STATIC_ROOMS[room]={};
+        STATIC_ROOMS[room].guest=row.guest_name;
+        STATIC_ROOMS[room].status='occupied';
+        STATIC_ROOMS[room].checkinId=row.id;
+        STATIC_ROOMS[room].checkout=new Date(row.checked_in_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+      });
+      try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}
+      renderRooms();
+    }
+  }catch(err){console.warn('Checkins load exception:',err&&err.message||String(err));}
 }
 function handleRealtimeEvent(payload){
   var evt=payload.eventType,row=payload.new||{},old=payload.old||{};
   if(evt==='INSERT'){
     var o=rowToOrder(row);
     if(!orders.find(function(x){return x.id===o.id;})){
-      orders.unshift(o);
-      if(typeof renderTasks==='function')renderTasks();else renderOrders();
-      updateStats();
+      orders.unshift(o);renderOrders();updateStats();
+      // Step 1: New order alert — sound + highlight
       showToast('order','New Order — Room '+o.room,'₹'+o.total+' · '+o.items.length+' item'+(o.items.length!==1?'s':''));
-      if(typeof startAlertBeep==='function') startAlertBeep(o.id,'order');
+      startAlertBeep(o.id,'order');
     }
   } else if(evt==='UPDATE'){
     var idx=orders.findIndex(function(x){return x.id===row.id;});
-    var mapped=rowToOrder(row);
-    var prevStatus = idx!==-1 ? orders[idx].status : null;
-    if(idx!==-1)orders[idx]=mapped;else orders.unshift(mapped);
-    if(typeof renderTasks==='function')renderTasks();else renderOrders();
-    updateStats();
-    // Sound on status change
-    if(prevStatus && prevStatus!==mapped.status){
-      if(mapped.status==='ready' && typeof playBeep==='function') playBeep('ready');
-      if(mapped.status==='new' && typeof startAlertBeep==='function') startAlertBeep(mapped.id,'order');
-      if((mapped.status==='accepted'||mapped.status==='preparing') && typeof stopAlertBeep==='function') stopAlertBeep(mapped.id);
+    if(idx!==-1) orders[idx]=rowToOrder(row);
+    else orders.unshift(rowToOrder(row));
+    renderOrders();updateStats();
+    // Stop new-order beep once actioned
+    if(row.status!=='new') stopAlertBeep(row.id);
+    // Step 4: Ready = delivery queue alert
+    if(row.status==='ready'){
+      showToast('service','🚀 Ready to Deliver — Room '+row.room,'Send to room now');
+      playBeep('order');
     }
   } else if(evt==='DELETE'){
     orders=orders.filter(function(x){return x.id!==old.id;});
-    if(typeof renderTasks==='function')renderTasks();else renderOrders();
-    updateStats();
+    stopAlertBeep(old.id);renderOrders();updateStats();
+  }
+}
+async function acceptOrder(id){
+  var order=orders.find(function(o){return o.id===id;});
+  if(!order)return;
+  order.status='accepted';
+  stopAlertBeep(id);
+  renderOrders();updateStats();
+  if(sbClient){
+    try{await sbClient.from('orders').update({status:'accepted'}).eq('id',id);}
+    catch(e){console.warn('Accept failed',e);}
+  }
+}
+
+var _rejectOrderId=null,_rejectReason=null;
+function openRejectModal(id){
+  _rejectOrderId=id;_rejectReason=null;
+  document.querySelectorAll('.reject-reason-btn').forEach(function(b){b.classList.remove('selected');});
+  document.getElementById('rejection-note').value='';
+  document.getElementById('custom-reason-input').value='';
+  document.getElementById('custom-reason-input').style.display='none';
+  document.getElementById('reject-modal').classList.add('open');
+}
+function closeRejectModal(){document.getElementById('reject-modal').classList.remove('open');}
+function selectReason(btn,reason){
+  document.querySelectorAll('.reject-reason-btn').forEach(function(b){b.classList.remove('selected');});
+  btn.classList.add('selected');
+  _rejectReason=reason;
+  var customInput=document.getElementById('custom-reason-input');
+  if(reason==='__custom__'){
+    customInput.style.display='block';
+    customInput.focus();
+  } else {
+    customInput.style.display='none';
+  }
+}
+async function confirmReject(){
+  var customInput=document.getElementById('custom-reason-input');
+  var finalReason=_rejectReason;
+  if(_rejectReason==='__custom__'){
+    finalReason=customInput.value.trim();
+    if(!finalReason){customInput.style.borderColor='rgba(192,57,43,0.6)';customInput.focus();return;}
+  }
+  if(!finalReason){alert('Please select or enter a reason.');return;}
+  var note=document.getElementById('rejection-note').value.trim();
+  var fullReason=note?finalReason+': '+note:finalReason;
+  var order=orders.find(function(o){return o.id===_rejectOrderId;});
+  if(!order){closeRejectModal();return;}
+  order.status='rejected';
+  order.rejection_reason=fullReason;
+  closeRejectModal();
+  renderOrders();updateStats();
+  stopAlertBeep(_rejectOrderId);
+  showToast('service','Order Rejected — Room '+order.room,fullReason);
+  if(sbClient){
+    try{await sbClient.from('orders').update({status:'rejected',rejection_reason:fullReason}).eq('id',_rejectOrderId);}
+    catch(e){console.warn('Reject failed',e);}
+  }
+}
+
+async function advanceOrder(id,toStatus){
+  var order=orders.find(function(o){return o.id===id;});
+  if(!order)return;
+  order.status=toStatus;
+  renderOrders();updateStats();
+  if(sbClient){
+    try{await sbClient.from('orders').update({status:toStatus}).eq('id',id);}
+    catch(e){console.warn('Advance failed',e);}
   }
 }
 function openCfg(){document.getElementById('sql-code').textContent=SETUP_SQL;if(SUPABASE_URL)document.getElementById('cfg-url').value=SUPABASE_URL;if(SUPABASE_KEY)document.getElementById('cfg-key').value=SUPABASE_KEY;var btn=document.getElementById('cfg-connect-btn');btn.disabled=false;btn.textContent='Connect';document.getElementById('cfg-overlay').style.display='flex';}
 function closeCfg(){document.getElementById('cfg-overlay').style.display='none';}
 function cfgOverlayClick(e){if(e.target.id==='cfg-overlay')closeCfg();}
 function maybeShowCfgOnLoad(){
-  if(!window.supabase||!window.supabase.createClient){
-    setTimeout(maybeShowCfgOnLoad,400); return;
-  }
-  if(!SUPABASE_URL||!SUPABASE_KEY){ return; } // no credentials — user opens manually
   setConnBadge('connecting','Connecting…');
   SUPABASE_URL=SUPABASE_URL.replace(/\/+$/,'');
-  // Pre-fill modal inputs so user sees credentials if they open settings
-  var urlEl=document.getElementById('cfg-url'); if(urlEl) urlEl.value=SUPABASE_URL;
-  var keyEl=document.getElementById('cfg-key'); if(keyEl) keyEl.value=SUPABASE_KEY;
-  try{
-    if(!sbClient){
-      sbClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{
-        auth:{storageKey:'hyatt-sb-auth',autoRefreshToken:false,persistSession:false}
-      });
-      window._hyattSb=sbClient;
-    }
-  }catch(e){ console.warn('createClient:',e); setConnBadge('disconnected','SDK Error'); return; }
-  // Try to connect — retry up to 3 times before showing error
-  var _attempts = 0;
-  function _tryConnect(){
-    _attempts++;
-    var _t = setTimeout(function(){
-      if(_attempts < 3){ _tryConnect(); }
-      else { setConnBadge('disconnected','Check connection'); }
-    }, 6000);
-    sbClient.from('orders').select('id').limit(1)
-      .then(function(res){
-        clearTimeout(_t);
-        if(res.error){
-          if(_attempts < 3){ setTimeout(_tryConnect, 2000); }
-          else { setConnBadge('disconnected', res.error.message||'Error'); }
-          return;
-        }
-        setConnBadge('connecting','Syncing…');
-        return loadOrdersFromSupabase()
-          .then(function(){ return loadServicesFromSupabase(); })
-          .then(function(){
-            try{ subscribeRealtime(); }catch(e){ console.warn('RT:',e); }
-          });
-      })
-      .catch(function(e){
-        clearTimeout(_t);
-        if(_attempts < 3){ setTimeout(_tryConnect, 2000); }
-        else { setConnBadge('disconnected','Offline'); }
-      });
-  }
-  _tryConnect();
+  sbClient=window._hyattSb||supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storageKey:'hyatt-sb-auth'}});
+  window._hyattSb=sbClient;
+  var u=document.getElementById('cfg-url');if(u)u.value=SUPABASE_URL;
+  var k=document.getElementById('cfg-key');if(k)k.value=SUPABASE_KEY;
+  loadOrdersFromSupabase().then(function(){return loadServicesFromSupabase();}).then(function(){return loadCheckinsFromSupabase();}).then(function(){try{subscribeRealtime();}catch(e){}}).catch(function(e){console.warn('Init error:',e&&e.message||e);setConnBadge('disconnected','Offline');});
 }
 function updateClock(){var d=new Date(),el=document.getElementById('clock');if(el)el.textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');}
 setInterval(updateClock,1000);updateClock();
@@ -4298,14 +4304,12 @@ async function acceptOrder(id) {
   var order = orders.find(function(o){ return o.id===id; });
   if (!order) return;
   var now = new Date().toISOString();
-  // Write to Supabase FIRST — only update local if write succeeds
   if (sbClient) {
     try {
-      var res = await sbClient.from('orders').update({status:'accepted', accepted_at:now}).eq('id',id);
+      var res = await sbClient.from('orders').update({status:'accepted',accepted_at:now}).eq('id',id);
       if (res.error) { console.warn('Accept write failed:', res.error.message); return; }
     } catch(e) { console.warn('Accept write error:', e); return; }
   }
-  // Write confirmed — now update local state
   pushUndo(id, order.status, {});
   order.status = 'accepted';
   order.accepted_at = now;
