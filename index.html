@@ -3746,10 +3746,21 @@ async function connectSupabase(){
     btn.disabled=false;btn.textContent='Connect';
     var msg=String(err.message||err);
     setConnBadge('disconnected','Error');
+    var prevErr2=document.getElementById('cfg-err');if(prevErr2)prevErr2.remove();
     var errDiv=document.createElement('div');
     errDiv.id='cfg-err';
-    errDiv.style.cssText='color:var(--red);font-size:12px;margin-top:8px;padding:10px;background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.3);border-radius:8px;';
-    errDiv.textContent='Error: '+msg;
+    errDiv.style.cssText='color:var(--red);font-size:13px;margin-top:10px;padding:12px;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.25);border-radius:10px;line-height:1.5;';
+    if(msg.includes('42P01')||msg.includes('does not exist')){
+      errDiv.innerHTML='<b>Tables not found.</b> Run the SQL shown below in Supabase → SQL Editor, then try again.';
+      document.getElementById('sql-panel').classList.add('visible');
+      document.getElementById('sql-code').textContent=SETUP_SQL;
+    } else if(msg.includes('Invalid API key')||msg.includes('apikey')){
+      errDiv.textContent='Invalid API key. Check your anon key in Supabase → Settings → API.';
+    } else if(msg.includes('Failed to fetch')||msg.includes('NetworkError')){
+      errDiv.textContent='Network error. Check your internet connection and Supabase URL.';
+    } else {
+      errDiv.textContent='Error: '+msg;
+    }
     btn.parentNode.insertBefore(errDiv,btn.nextSibling);
   }
 }
@@ -3779,7 +3790,7 @@ async function loadOrdersFromSupabase(){
     });
     orders=fetched;
     if(typeof renderTasks==='function')renderTasks();else renderOrders();
-    updateStats();setConnBadge('connected','Live');
+    updateStats(); if(document.getElementById('conn-badge')&&document.getElementById('conn-badge').className!=='conn-badge connected')setConnBadge('connected','Live');
     orders.forEach(function(o){
       if(o.status==='new'&&typeof startAlertBeep==='function')startAlertBeep(o.id,'order');
     });
@@ -3790,55 +3801,34 @@ async function loadOrdersFromSupabase(){
 }
 function subscribeRealtime(){
   if(!sbClient)return;
-  // Realtime requires HTTPS — fall back to polling on HTTP
-  var canWS = window.location.protocol==='https:' || window.location.hostname==='localhost' || window.location.hostname==='127.0.0.1';
-  if(!canWS){ _startDashPolling(); return; }
+  // Clean up existing channels
   if(realtimeChan){try{sbClient.removeChannel(realtimeChan);}catch(e){} realtimeChan=null;}
   if(window._svcChan){try{sbClient.removeChannel(window._svcChan);}catch(e){} window._svcChan=null;}
-  if(window._rtKeepalive){clearInterval(window._rtKeepalive); window._rtKeepalive=null;}
 
+  // Orders channel — Supabase SDK handles reconnection internally
   realtimeChan=sbClient.channel('orders-rt')
     .on('postgres_changes',{event:'*',schema:'public',table:'orders'},handleRealtimeEvent)
     .subscribe(function(status){
       if(status==='SUBSCRIBED'){
         setConnBadge('connected','Live');
-        window._rtKeepalive=setInterval(function(){
-          if(!sbClient)return;
-          sbClient.from('orders').select('id').limit(1)
-            .then(function(r){
-              if(r.error){setConnBadge('disconnected','Reconnecting…');_scheduleReconnect();}
-              else setConnBadge('connected','Live');
-            }).catch(function(){_scheduleReconnect();});
-        },25000);
-      } else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED'){
-        setConnBadge('disconnected','Reconnecting…');
-        _scheduleReconnect();
+      } else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
+        // SDK will auto-retry — just show status, don't trigger reload
+        setConnBadge('connecting','Reconnecting…');
       }
+      // CLOSED = normal teardown, ignore
     });
 
+  // Service requests channel
   window._svcChan=sbClient.channel('svc-rt')
     .on('postgres_changes',{event:'*',schema:'public',table:'service_requests'},handleSvcRealtimeEvent)
     .subscribe();
 }
 
 var _reconnectTimer=null;
-// Polling fallback for HTTP environments
 var _dashPollInterval=null;
-function _startDashPolling(){
-  // Dashboard uses Supabase Realtime — no aggressive polling needed
-  // Polling would overwrite local-optimistic state and cause revert flicker
-  setConnBadge('connected','Live (polling)');
-}
+function _startDashPolling(){ /* no-op: Supabase SDK handles reconnection */ }
 function _scheduleReconnect(){
-  if(_reconnectTimer)return;
-  _reconnectTimer=setTimeout(function(){
-    _reconnectTimer=null;
-    if(sbClient){
-      subscribeRealtime();
-      loadOrdersFromSupabase().catch(function(){});
-      loadServicesFromSupabase().catch(function(){});
-    }
-  },4000);
+  // No longer used — kept for compat
 }
 
 function rowToService(row){
@@ -3934,29 +3924,36 @@ function maybeShowCfgOnLoad(){
       window._hyattSb=sbClient;
     }
   }catch(e){ console.warn('createClient:',e); setConnBadge('disconnected','SDK Error'); return; }
-  // Silent background connect — 8s timeout to prevent infinite hang
-  var _connTimeout = setTimeout(function(){
-    setConnBadge('disconnected','Timeout — tap DB to retry');
-  }, 8000);
-  sbClient.from('orders').select('id').limit(1)
-    .then(function(res){
-      clearTimeout(_connTimeout);
-      if(res.error){
-        setConnBadge('disconnected',res.error.message||'Error');
-        return;
-      }
-      setConnBadge('connecting','Syncing…');
-      return loadOrdersFromSupabase()
-        .then(function(){ return loadServicesFromSupabase(); })
-        .then(function(){
-          try{ subscribeRealtime(); }catch(e){}
-          setConnBadge('connected','Live');
-        });
-    })
-    .catch(function(e){
-      clearTimeout(_connTimeout);
-      setConnBadge('disconnected','Offline');
-    });
+  // Try to connect — retry up to 3 times before showing error
+  var _attempts = 0;
+  function _tryConnect(){
+    _attempts++;
+    var _t = setTimeout(function(){
+      if(_attempts < 3){ _tryConnect(); }
+      else { setConnBadge('disconnected','Check connection'); }
+    }, 6000);
+    sbClient.from('orders').select('id').limit(1)
+      .then(function(res){
+        clearTimeout(_t);
+        if(res.error){
+          if(_attempts < 3){ setTimeout(_tryConnect, 2000); }
+          else { setConnBadge('disconnected', res.error.message||'Error'); }
+          return;
+        }
+        setConnBadge('connecting','Syncing…');
+        return loadOrdersFromSupabase()
+          .then(function(){ return loadServicesFromSupabase(); })
+          .then(function(){
+            try{ subscribeRealtime(); }catch(e){ console.warn('RT:',e); }
+          });
+      })
+      .catch(function(e){
+        clearTimeout(_t);
+        if(_attempts < 3){ setTimeout(_tryConnect, 2000); }
+        else { setConnBadge('disconnected','Offline'); }
+      });
+  }
+  _tryConnect();
 }
 function updateClock(){var d=new Date(),el=document.getElementById('clock');if(el)el.textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');}
 setInterval(updateClock,1000);updateClock();
