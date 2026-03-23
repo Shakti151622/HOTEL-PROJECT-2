@@ -2660,35 +2660,51 @@ function _canUseRealtime() {
 
 // ── Poll Supabase for order/service updates (fallback when WS unavailable)
 var _pollInterval = null;
+// ── SINGLE source of truth for order status updates ──────────
+// Called by: per-order WS channel, room-level WS channel, _doPoll polling
+function _applyOrderUpdate(row) {
+  if (!row || !row.id) return;
+  var order = orderHistory.find(function(o){ return o.id === row.id; });
+  if (!order) return;                        // order not in this session — ignore
+  var prevStatus = order.status;
+  if (prevStatus === row.status) return;     // no change — skip re-render
+
+  // Apply all fields from DB row
+  order.status = row.status;
+  if (row.accepted_at) order.acceptedAt = new Date(row.accepted_at).getTime();
+  if (row.rejection_reason != null) order.rejection_reason = row.rejection_reason;
+  if (row.items && Array.isArray(row.items)) order.items = row.items;
+  if (row.total != null) order.total = row.total;
+
+  // Always update badge and re-render orders screen
+  updateOrdersBadge();
+  if (document.getElementById('screen-orders') &&
+      document.getElementById('screen-orders').classList.contains('active')) {
+    renderOrders();
+  }
+
+  // Toast notifications per status
+  var toasts = {
+    accepted:  ['✓ Order accepted — kitchen is preparing', 'green'],
+    preparing: ['👨‍🍳 Kitchen is now preparing your order', 'green'],
+    ready:     ['🔔 Your order is ready for delivery!', 'gold'],
+    delivered: ['✅ Delivered! Enjoy your meal 🍽', 'green'],
+    rejected:  ['✕ Order not accepted — ' + (row.rejection_reason || 'contact reception'), 'red'],
+    cancelled: ['Order cancelled', 'green']
+  };
+  var t = toasts[row.status];
+  if (t) showGuestToast(t[0], t[1] === 'red' ? 'red' : 'green');
+}
+
 function _doPoll(s, roomNum) {
   if(!s || !roomNum) return;
-  // Poll orders for this room
-  s.from('orders').select('id,status,accepted_at,rejection_reason,items,total')
+  s.from('orders')
+    .select('id,status,accepted_at,rejection_reason,items,total')
     .eq('room', roomNum)
     .in('status', ['new','accepted','preparing','ready','delivered'])
     .then(function(res) {
       if (!res || !res.data) return;
-      res.data.forEach(function(row) {
-        var order = orderHistory.find(function(o){ return o.id === row.id; });
-        if (order && order.status !== row.status) {
-          order.status = row.status;
-          if (row.accepted_at) order.acceptedAt = new Date(row.accepted_at).getTime();
-          if (row.rejection_reason) order.rejection_reason = row.rejection_reason;
-          updateOrdersBadge();
-          // Always re-render on status change
-          updateOrdersBadge();
-          if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
-          var msgs = {
-            accepted: '✓ Order accepted — kitchen is preparing',
-            preparing: '👨‍🍳 Kitchen is preparing your order',
-            ready: '🔔 Your order is ready for delivery!',
-            delivered: '✅ Order delivered — enjoy your meal!',
-            rejected: '✕ Order not accepted'
-          };
-          var isRed = row.status === 'rejected';
-          if (msgs[row.status]) showGuestToast(msgs[row.status], isRed ? 'red' : 'green');
-        }
-      });
+      res.data.forEach(function(row) { _applyOrderUpdate(row); });
     }).catch(function(){});
   // Poll services
   s.from('service_requests').select('id,status')
@@ -2735,26 +2751,7 @@ function subscribeRoomOrders(s) {
         filter: 'room=eq.' + roomNum
       }, function(payload) {
         var row = payload.new;
-        if (!row) return;
-        var order = orderHistory.find(function(o){ return o.id === row.id; });
-        if (order) {
-          order.status = row.status;
-          if (row.accepted_at) order.acceptedAt = new Date(row.accepted_at).getTime();
-          if (row.rejection_reason) order.rejection_reason = row.rejection_reason;
-          updateOrdersBadge();
-          if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
-          updateOrdersBadge();
-          if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
-          var msgs = {
-            accepted: '✓ Order accepted — kitchen is preparing',
-            preparing: '👨‍🍳 Kitchen is preparing your order',
-            ready: '🔔 Your order is ready for delivery!',
-            delivered: '✅ Order delivered — enjoy your meal!',
-            rejected: '✕ Order not accepted',
-            cancelled: 'Order cancelled'
-          };
-          if (msgs[row.status]) showGuestToast(msgs[row.status], row.status === 'rejected' ? 'red' : 'green');
-        }
+        if (row) _applyOrderUpdate(row);
       })
       .subscribe(function(status) {
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
@@ -2903,29 +2900,13 @@ placeOrder = async function(isMerge) {
       xhr.send(JSON.stringify(insertData));
     });
 
-    // Subscribe to status updates for this order
+    // Per-order realtime channel — ALL status changes
     supaReady.channel('order-status-' + orderId)
       .on('postgres_changes', {
         event: 'UPDATE', schema: 'public', table: 'orders',
         filter: 'id=eq.' + orderId
       }, function(payload) {
-        var row = payload.new;
-        var order = orderHistory.find(function(o){ return o.id === orderId; });
-        if (!order) return;
-        order.status = row.status;
-        order.rejection_reason = row.rejection_reason || null;
-        if (row.status === 'accepted') order.acceptedAt = Date.now();
-        updateOrdersBadge();
-        if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
-        if (row.status === 'accepted') {
-          showGuestToast('✓ Order accepted! You can modify/cancel within 5 mins.', 'green');
-        } else if (row.status === 'rejected') {
-          var reason = row.rejection_reason || 'Please contact reception';
-          showGuestToast('Order not accepted: ' + reason, 'red');
-        } else if (row.status === 'delivered') {
-          showGuestToast('Your order has been delivered!', 'green');
-          broadcastActivity('idle');
-        }
+        _applyOrderUpdate(payload.new);
       })
       .subscribe();
 
@@ -2934,7 +2915,7 @@ placeOrder = async function(isMerge) {
 
 function showGuestToast(msg, color) {
   var toast = document.createElement('div');
-  var bg = color === 'red' ? 'rgba(192,57,43,0.95)' : 'rgba(76,175,125,0.95)';
+  var bg = color === 'red' ? 'rgba(192,57,43,0.95)' : color === 'gold' ? 'rgba(201,169,110,0.95)' : 'rgba(76,175,125,0.95)';
   toast.style.cssText = 'position:fixed;top:24px;left:50%;transform:translateX(-50%);'+
     'background:'+bg+';color:white;border-radius:14px;padding:14px 20px;z-index:999;'+
     'font-size:14px;font-family:DM Sans,sans-serif;text-align:center;'+
