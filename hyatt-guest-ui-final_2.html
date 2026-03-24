@@ -437,16 +437,12 @@
     bottom: 0; left: 50%; transform: translateX(-50%);
     width: 100%; max-width: 430px;
     padding: 16px 24px 28px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    background: linear-gradient(to top, var(--dark2) 80%, transparent);
     pointer-events: none;
-    display: none;
   }
-  .cart-sticky.row-visible { display: flex; background: linear-gradient(to top, var(--dark2) 80%, transparent); }
   .cart-btn {
-    flex: 1;
-    padding: 18px 20px;
+    width: 100%;
+    padding: 18px 24px;
     background: var(--gold);
     color: var(--dark);
     border: none;
@@ -646,17 +642,20 @@
 
   /* ── FLOATING CALL ── */
   .float-call {
-    position: static;
-    width: 56px; height: 56px;
-    flex-shrink: 0;
-    border-radius: 16px;
+    position: fixed;
+    bottom: 32px; left: 24px;
+    width: 54px; height: 54px;
+    border-radius: 50%;
     background: var(--gold);
     color: var(--dark);
     border: none;
+    font-size: 22px;
     cursor: pointer;
-    display: none; align-items: center; justify-content: center;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 24px rgba(201,169,110,0.4);
+    z-index: 100;
     transition: all 0.2s;
-    pointer-events: all;
+    display: none;
   }
   .float-call.visible { display: flex; }
   .float-call:active { transform: scale(0.9); }
@@ -932,7 +931,6 @@
   .tracker-bar-fill { position:absolute; top:0; left:0; bottom:0; background:linear-gradient(90deg,#3a9e6a,#4CAF7D); border-radius:3px; transition:width 1s ease; }
   .tracker-bar-shimmer { position:absolute; top:0; left:-60%; width:60%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent); animation:shimmer 2s infinite; }
   @keyframes shimmer { 0%{left:-60%} 100%{left:120%} }
-  @keyframes toastSlideUp { from{opacity:0;transform:translateX(-50%) translateY(20px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
   .tracker-steps {
     display: flex; align-items: center; gap: 0;
   }
@@ -1326,10 +1324,7 @@
 
   <div class="menu-body" id="menu-list"></div>
 
-  <div class="cart-sticky" id="cart-sticky">
-    <button class="float-call" id="float-call" onclick="callReception()">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0D0D0D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
-    </button>
+  <div class="cart-sticky">
     <button class="cart-btn" id="cart-btn" onclick="go('cart')">
       <span id="cart-label">View Cart</span>
       <span class="cart-btn-badge" id="cart-badge">0</span>
@@ -1479,7 +1474,7 @@
 </div>
 
 <!-- ════════════════ FLOATING CALL ════════════════ -->
-
+<button class="float-call" id="float-call" onclick="callReception()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0D0D0D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg></button>
 
 <!-- ════════════════ JS ════════════════ -->
 <script>
@@ -1520,15 +1515,7 @@ function _navigate(screenId) {
   window.scrollTo(0,0);
 
   const floatCall = document.getElementById('float-call');
-  const stickyRow = document.getElementById('cart-sticky');
-  const showPhone = screenId !== 'entry' && screenId !== 'home';
-  if (showPhone) {
-    if (stickyRow) stickyRow.classList.add('row-visible');
-    if (floatCall) floatCall.classList.add('visible');
-  } else {
-    if (stickyRow) stickyRow.classList.remove('row-visible');
-    if (floatCall) floatCall.classList.remove('visible');
-  }
+  floatCall.classList.toggle('visible', screenId !== 'entry' && screenId !== 'home');
 
   if (screenId === 'menu') renderMenu(currentCat);
   if (screenId === 'cart') renderCart();
@@ -1730,45 +1717,23 @@ function renderOrders() {
   const active = orderHistory.filter(o => o.status !== 'delivered' && o.status !== 'rejected' && o.status !== 'cancelled');
   const past   = orderHistory.filter(o => o.status === 'delivered' || o.status === 'rejected' || o.status === 'cancelled');
 
-  const statusLabel = { new: 'Waiting', accepted: 'Accepted', preparing: 'Preparing', ready: 'Ready!', delivered: 'Delivered', rejected: 'Not accepted', cancelled: 'Cancelled' };
+  const statusLabel = { new: 'Waiting', accepted: 'Accepted', preparing: 'Preparing', ready: 'Preparing', delivered: 'Delivered', rejected: 'Not accepted', cancelled: 'Cancelled' };
   const statusClass = { new: 'status-preparing', accepted: 'status-active', preparing: 'status-preparing', ready: 'status-active', delivered: 'status-delivered', rejected: 'status-delivered', cancelled: 'status-delivered' };
 
-  // 5 steps: Placed → Accepted → Preparing → Ready → Delivered
-  const stepsDef = ['Placed', 'Accepted', 'Preparing', 'Ready', 'Delivered'];
-  // stepIndex: how many steps are DONE (fully ticked green check)
-  // The CURRENT active step = stepIndex value itself
-  // steps before stepIndex = 'done' (green tick)
-  // step at stepIndex = 'active' (green ring)
-  // steps after = '' (grey)
+  const stepsDef = ['Placed', 'Accepted', 'Preparing', 'Delivered'];
   function stepIndex(status) {
-    return { new:0, accepted:1, preparing:2, ready:3, delivered:4, rejected:-1, cancelled:-1 }[status] ?? 0;
+    return { new:0, accepted:1, preparing:2, ready:2, delivered:3, rejected:-1 }[status] ?? 0;
   }
-  // Progress bar: exact % for each status
-  const barPctMap = { new:5, accepted:25, preparing:55, ready:80, delivered:100 };
-
-  // ETA label shown under ORDER STATUS header
+  const barPctMap = { new:8, accepted:33, preparing:66, ready:75, delivered:100 };
   function getEtaHtml(o) {
-    const s = o.status;
-    if(s==='delivered') return '<div class="tracker-eta" style="color:var(--gold);">&#10003; Delivered</div>';
-    if(s==='rejected')  return '<div class="tracker-eta" style="color:var(--red);">&#10005; Not accepted</div>';
-    if(s==='cancelled') return '<div class="tracker-eta" style="color:var(--text-muted);">Cancelled</div>';
-    if(s==='new')       return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Waiting for kitchen…</div>';
-    if(s==='accepted'){
-      const startTime = o.acceptedAt || o.placedAt;
-      const elapsed = Math.floor((Date.now()-startTime)/60000);
-      const eta = Math.max(0, (o.eta||25) - elapsed);
-      return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Accepted · Est. '+eta+' min</div>';
-    }
-    if(s==='preparing'){
-      const startTime = o.acceptedAt || o.placedAt;
-      const elapsed = Math.floor((Date.now()-startTime)/60000);
-      const eta = Math.max(0, (o.eta||25) - elapsed);
-      return eta<=0
-        ? '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Almost ready!</div>'
-        : '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Preparing · '+eta+' min left</div>';
-    }
-    if(s==='ready') return '<div class="tracker-eta" style="color:var(--gold);font-weight:600;"><div class="tracker-eta-dot" style="background:var(--gold);"></div>&#127381; Your order is ready!</div>';
-    return '';
+    if(o.status==='delivered'||o.status==='rejected'||o.status==='cancelled') return '';
+    if(o.status==='new') return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Waiting for kitchen…</div>';
+    const startTime = o.acceptedAt || o.placedAt;
+    const remaining = Math.max(0, (o.eta||25) - Math.floor((Date.now()-startTime)/60000));
+    if(o.status==='accepted') return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Est. '+remaining+' min</div>';
+    return remaining<=0
+      ? '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Almost ready!</div>'
+      : '<div class="tracker-eta"><div class="tracker-eta-dot"></div>'+remaining+' min remaining</div>';
   }
 
   function renderCard(o) {
@@ -1778,55 +1743,36 @@ function renderOrders() {
     const barPct = barPctMap[o.status] || 8;
     const etaHtml = getEtaHtml(o);
     const checkSvgGreen = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-    // Build step classes:
-    // i < si  → 'done' (green tick, fully completed)
-    // i === si → 'active' (green ring, current step)  
-    // i > si  → '' (grey, not yet)
-    // Special: if delivered, all steps are 'done'
     const steps = isRejected
-      ? '<div style="font-size:12px;color:#C0392B;padding:4px 0;">✕ Order not accepted' + (o.rejection_reason ? ' · '+o.rejection_reason : '') + '</div>'
+      ? '<div style="font-size:12px;color:#C0392B;padding:4px 0;">✕ Order was not accepted</div>'
       : isCancelled
       ? '<div style="font-size:12px;color:var(--text-muted);padding:4px 0;">Order cancelled</div>'
       : stepsDef.map((s, i) => {
-          var cls = '';
-          if(o.status === 'delivered') { cls = 'done'; }   // all ticked when delivered
-          else if(i === 0) { cls = 'done'; }               // Placed ALWAYS ticked green
-          else if(i < si) { cls = 'done'; }                // previous steps ticked
-          else if(i === si) { cls = 'active'; }            // current step = ring
+          const cls = i < si ? 'done' : i === si ? 'active' : '';
           return `<div class="tracker-step ${cls}">
             <div class="tracker-dot">${cls==='done'?checkSvgGreen:''}</div>
             <div class="tracker-step-name">${s}</div>
           </div>`;
         }).join('');
 
-    // Modify/cancel logic:
-    // 'new'      → can add, subtract, cancel freely (full edit)
-    // 'accepted' → can add more only, no subtraction, no cancel (call reception)
+    // 5-min cancel/modify window — only if status is 'accepted' and within 5 mins of acceptance
     const minsElapsed = o.acceptedAt ? (Date.now() - o.acceptedAt) / 60000 : 999;
-    const isNew = o.status === 'new';
-    const isAccepted = o.status === 'accepted';
-    const canAct = isNew || isAccepted;
-    const minsLeft = Math.max(0, Math.ceil(5 - minsElapsed));
-    const modifyBtns = canAct ? `
-      <div style="display:flex;gap:8px;margin-top:14px;">
-        <button onclick="modifyOrder('${o.id}')"
-          style="flex:1;padding:12px 8px;background:rgba(201,169,110,0.1);border:1px solid rgba(201,169,110,0.3);
-          border-radius:12px;color:var(--gold);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;
-          display:flex;align-items:center;justify-content:center;gap:6px;">
-          ✏ ${isNew ? 'Modify Order' : 'Add Items'}
+    const canModify = o.status === 'accepted' && minsElapsed < 5;
+    const minsLeft = Math.ceil(5 - minsElapsed);
+    const modifyBtns = canModify ? `
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button onclick="modifyOrder('${o.id}')" style="flex:1;padding:10px;background:rgba(201,169,110,0.1);border:1px solid rgba(201,169,110,0.3);border-radius:10px;color:var(--gold);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;">
+          ✏ Modify
         </button>
-        ${isNew ? `<button onclick="cancelOrder('${o.id}')"
-          style="flex:1;padding:12px 8px;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.2);
-          border-radius:12px;color:var(--red);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;
-          display:flex;align-items:center;justify-content:center;gap:6px;">
+        <button onclick="cancelOrder('${o.id}')" style="flex:1;padding:10px;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.2);border-radius:10px;color:var(--red);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;">
           ✕ Cancel
-        </button>` : ''}
+        </button>
       </div>
       <div style="font-size:11px;color:var(--text-dim);text-align:center;margin-top:6px;">
-        ${isNew ? 'Add or remove items · Cancel anytime before acceptance' : 'Can only add items after acceptance · To cancel call reception'}
+        Can modify/cancel for ${minsLeft} min${minsLeft!==1?'s':''}
       </div>` : '';
 
-    return `<div class="order-card" id="ocard-${o.id}" data-order-id="${o.id}">
+    return `<div class="order-card" id="ocard-${o.id}">
       <div class="order-card-head">
         <div class="order-card-meta">
           <div class="order-card-id">${o.id} · ${o.date}${o.fromPeer ? ' <span class="order-device-tag">Roommate</span>' : ''}${o.isMerge ? ' <span class="order-device-tag">Merged</span>' : ''}</div>
@@ -1845,15 +1791,15 @@ function renderOrders() {
             <div class="order-item-price">₹${i.qty * i.price}</div>
           </div>`).join('')}
       </div>
-      ${o.status !== 'cancelled' && o.status !== 'rejected' ? `
+      ${o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'rejected' ? `
       <div class="order-tracker">
         <div class="tracker-header">
           <div class="tracker-label">Order Status</div>
           ${etaHtml}
         </div>
         <div class="tracker-bar-wrap">
-          <div class="tracker-bar-fill" style="width:${barPct}%;${o.status==='delivered'?'background:var(--gold);':''}${o.status==='ready'?'background:var(--gold);':''}" >
-            ${(o.status==='preparing'||o.status==='accepted')?'<div class="tracker-bar-shimmer"></div>':''}
+          <div class="tracker-bar-fill" style="width:${barPct}%">
+            ${o.status==='preparing'?'<div class="tracker-bar-shimmer"></div>':''}
           </div>
         </div>
         <div class="tracker-steps">${steps}</div>
@@ -1882,19 +1828,8 @@ function renderOrders() {
 function cancelOrder(orderId) {
   var order = orderHistory.find(function(o){ return o.id === orderId; });
   if (!order) return;
-  // If still 'new' — cancel directly without calling reception
-  if (order.status === 'new') {
-    if (!confirm('Cancel this order?')) return;
-    order.status = 'cancelled';
-    renderOrders(); updateOrdersBadge();
-    showGuestToast('Order cancelled', 'green');
-    waitForSupa().then(function(s){
-      if(s) s.from('orders').update({status:'cancelled'}).eq('id',orderId).catch(function(){});
-    });
-    return;
-  }
-  if (order.status !== 'accepted') { showGuestToast('Cannot cancel at this stage — call reception', 'red'); return; }
-  if (!order.acceptedAt || (Date.now() - order.acceptedAt) > 5 * 60000) { showGuestToast('Cancellation window expired — call reception', 'red'); return; }
+  if (order.status !== 'accepted') { alert('Order cannot be cancelled at this stage.'); return; }
+  if (!order.acceptedAt || (Date.now() - order.acceptedAt) > 5 * 60000) { alert('Cancellation window has expired.'); return; }
   // Show call reception modal — guest must call to cancel
   var overlay = document.createElement('div');
   overlay.id = 'cancel-overlay';
@@ -1921,75 +1856,54 @@ function cancelOrder(orderId) {
 function modifyOrder(orderId) {
   var order = orderHistory.find(function(o){ return o.id === orderId; });
   if (!order) return;
-  var isNew = order.status === 'new';
-  var isAccepted = order.status === 'accepted';
-  if (!isNew && !isAccepted) { showGuestToast('Cannot modify at this stage', 'red'); return; }
+  if (order.status !== 'accepted') { alert('Order cannot be modified at this stage.'); return; }
+  if (!order.acceptedAt || (Date.now() - order.acceptedAt) > 5 * 60000) { alert('Modification window has expired.'); return; }
 
-  // Deep copy items for editing
-  var editItems = order.items.map(function(i){
-    return { name:i.name, price:i.price, qty:i.qty, category:i.category||'' };
-  });
-  // Store original qtys — can't go below these when accepted
-  var origQtys = editItems.map(function(i){ return i.qty; });
+  // Build edit state — copy current items
+  var editItems = order.items.map(function(i){ return { name: i.name, price: i.price, qty: i.qty, category: i.category || '' }; });
 
   function renderEditModal() {
     var existing = document.getElementById('modify-overlay');
     if (existing) existing.remove();
 
-    var itemRows = editItems.map(function(item, idx) {
-      var canSubtract = isNew && item.qty > 1; // only subtract when 'new' and qty > 1
-      var canRemove   = isNew && item.qty === 1; // full remove only when 'new'
-      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--card-border);">'
-        + '<div style="flex:1;">'
-          + '<div style="font-size:14px;color:var(--text);font-weight:500;">'+item.name+'</div>'
-          + '<div style="font-size:12px;color:var(--text-muted);">₹'+item.price+' each</div>'
-        + '</div>'
-        + '<div style="display:flex;align-items:center;gap:8px;">'
-          + (canRemove
-            ? '<button onclick="_editRemove('+idx+')" style="width:32px;height:32px;border-radius:50%;background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.25);color:var(--red);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">🗑</button>'
-            : (canSubtract
-              ? '<button onclick="_editQty('+idx+',-1)" style="width:32px;height:32px;border-radius:50%;background:var(--surface2);border:1px solid var(--card-border);color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">−</button>'
-              : '<div style="width:32px;"></div>')
-            )
-          + '<span style="font-size:15px;color:var(--text);min-width:24px;text-align:center;">×'+item.qty+'</span>'
-          + '<button onclick="_editQty('+idx+',1)" style="width:32px;height:32px;border-radius:50%;background:var(--gold);border:none;color:var(--dark);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">+</button>'
-        + '</div>'
-      + '</div>';
-    }).join('');
-
-    var newTotal = editItems.reduce(function(s,i){ return s+i.qty*i.price; },0);
-    var titleText = isNew ? 'Modify Order' : 'Add Items';
-    var hintText = isNew
-      ? 'Add or remove items freely before kitchen accepts'
-      : 'You can only add items — to remove call reception';
-
     var overlay = document.createElement('div');
     overlay.id = 'modify-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:flex-end;justify-content:center;';
-    overlay.innerHTML =
-      '<div style="background:var(--surface);border-radius:24px 24px 0 0;padding:24px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;">'
-      + '<div style="width:36px;height:4px;background:var(--text-dim);border-radius:2px;margin:0 auto 16px;"></div>'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
-        + '<div style="font-family:Cormorant Garamond,serif;font-size:22px;color:var(--text);">'+titleText+'</div>' + '<button data-close-modify="1" style="background:var(--surface2);border:1px solid var(--card-border);border-radius:8px;width:32px;height:32px;color:var(--text-muted);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>'
-      + '</div>'
-      + '<div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">'+hintText+'</div>'
-      + '<div>'+itemRows+'</div>'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;">'
-        + '<div style="font-size:13px;color:var(--text-muted);">Updated Total</div>'
-        + '<div style="font-size:20px;font-weight:600;color:var(--gold);">₹'+newTotal+'</div>'
-      + '</div>'
-      + '<button data-confirm-modify="1" style="width:100%;padding:15px;background:var(--gold);border:none;border-radius:14px;color:var(--dark);font-family:DM Sans,sans-serif;font-size:15px;font-weight:600;cursor:pointer;">Confirm Changes</button>'
-      + '</div>';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:flex-end;justify-content:center;';
+
+    var itemRows = editItems.map(function(item, idx) {
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--card-border);">
+        <div>
+          <div style="font-size:14px;color:var(--text);font-weight:500;">${item.name}</div>
+          <div style="font-size:12px;color:var(--text-muted);">₹${item.price} each</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:15px;color:var(--text);min-width:20px;text-align:center;">×${item.qty}</span>
+          <button onclick="editQty(${idx},1)" style="width:32px;height:32px;border-radius:50%;background:var(--gold);border:none;color:var(--dark);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">+</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    var newTotal = editItems.reduce(function(s,i){ return s + i.qty * i.price; }, 0);
+
+    overlay.innerHTML = `
+      <div style="background:var(--surface);border-radius:24px 24px 0 0;padding:24px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--text);">Add to Order</div>
+          <button onclick="document.getElementById('modify-overlay').remove();" style="background:var(--surface2);border:1px solid var(--card-border);border-radius:8px;width:30px;height:30px;color:var(--text-muted);font-size:18px;cursor:pointer;">×</button>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Tap + to add more of any item. To cancel, call reception.</div>
+        <div>${itemRows}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;margin-top:4px;">
+          <div style="font-size:13px;color:var(--text-muted);">Updated Total</div>
+          <div style="font-size:18px;font-weight:600;color:var(--gold);">₹${newTotal}</div>
+        </div>
+        <button onclick="confirmModify('${orderId}')" style="width:100%;padding:15px;background:var(--gold);border:none;border-radius:14px;color:var(--dark);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;">
+          Confirm Addition
+        </button>
+      </div>`;
     document.body.appendChild(overlay);
-    overlay.addEventListener('click', function(e){
-      if(e.target===overlay) overlay.remove();
-      if(e.target.getAttribute && e.target.getAttribute('data-close-modify')) overlay.remove();
-      if(e.target.getAttribute && e.target.getAttribute('data-confirm-modify')) _confirmModify(orderId);
-    });
 
     window._editItems = editItems;
-    window._editOrigQtys = origQtys;
-    window._editIsNew = isNew;
     window._editOrderId = orderId;
     window._renderEditModal = renderEditModal;
   }
@@ -1997,59 +1911,40 @@ function modifyOrder(orderId) {
   renderEditModal();
 }
 
-window._editQty = function(idx, delta) {
+window.editQty = function(idx, delta) {
   var items = window._editItems;
-  var origQtys = window._editOrigQtys;
-  var isNew = window._editIsNew;
   if (!items) return;
-  var newQty = items[idx].qty + delta;
-  // When accepted: can only add (never go below original qty)
-  var minQty = isNew ? 1 : origQtys[idx];
-  items[idx].qty = Math.max(minQty, newQty);
+  // Only allow adding — qty can only go up
+  items[idx].qty = Math.max(items[idx].qty, items[idx].qty + Math.max(0, delta));
+  items[idx].qty += 1; // delta is always +1 now
   window._renderEditModal();
 };
 
-window._editRemove = function(idx) {
+window.confirmModify = async function(orderId) {
   var items = window._editItems;
-  if (!items || !window._editIsNew) return; // only remove when new
-  items.splice(idx, 1);
-  window._editOrigQtys.splice(idx, 1);
-  window._renderEditModal();
-};
-
-window._confirmModify = async function(orderId) {
-  var items = window._editItems;
-  if (!items || items.length === 0) { showGuestToast('Order must have at least one item', 'red'); return; }
-  var newTotal = items.reduce(function(s,i){ return s+i.qty*i.price; },0);
-  var order = orderHistory.find(function(o){ return o.id===orderId; });
-  if (order) { order.items=items; order.total=newTotal; }
+  if (!items) return;
+  var newTotal = items.reduce(function(s,i){ return s + i.qty*i.price; }, 0);
+  var order = orderHistory.find(function(o){ return o.id === orderId; });
+  if (order) {
+    order.items = items;
+    order.total = newTotal;
+  }
   document.getElementById('modify-overlay').remove();
-  renderOrders(); updateOrdersBadge();
-  showGuestToast('Order updated!', 'green');
+  renderOrders();
+  updateOrdersBadge();
+  showGuestToast('Items added to your order!', 'green');
   var s = await waitForSupa();
   if (s) {
-    try { await s.from('orders').update({items:items,total:newTotal}).eq('id',orderId); }
+    try { await s.from('orders').update({ items: items, total: newTotal }).eq('id', orderId); }
     catch(e) { console.warn('Modify update failed', e); }
   }
 };
 
-
-
-// Re-render every 15s so ETA countdown ticks live
+// Re-render every 30s so ETA countdown ticks
 setInterval(function(){
-  var hasActiveOrders=orderHistory.some(function(o){
-    return o.status==='accepted'||o.status==='preparing'||o.status==='ready';
-  });
-  if(hasActiveOrders){
-    updateOrdersBadge();
-    if(document.getElementById('screen-orders')&&document.getElementById('screen-orders').classList.contains('active')) renderOrders();
-  }
-  var hasActiveSvc=serviceHistory.some(function(r){return r.status!=='done';});
-  if(hasActiveSvc){
-    updateServicesBadge();
-    if(document.getElementById('screen-services')&&document.getElementById('screen-services').classList.contains('active')) renderServices();
-  }
-},15000);
+  var hasActive=orderHistory.some(function(o){return o.status==='accepted'||o.status==='preparing';});
+  if(hasActive){updateOrdersBadge();if(document.getElementById('screen-orders').classList.contains('active'))renderOrders();}
+},30000);
 
 // ── Service
 const serviceIcons = {
@@ -2122,10 +2017,10 @@ function submitService() {
   // Write to Supabase + subscribe to live status updates
   var svcData = JSON.stringify({id:reqId, room:String(window.ROOM_NUM||'000'), guest:String(window.GUEST_NAME||'Guest'), type:selectedService, icon:req.icon, qty:qty, note:note||null, status:'received', placed_at:now.toISOString()});
   var xhrSvc = new XMLHttpRequest();
-  xhrSvc.open('POST', SUPA_URL + '/rest/v1/service_requests', true);
+  xhrSvc.open('POST', 'https://webvlxcypqhcwzbcpths.supabase.co/rest/v1/service_requests', true);
   xhrSvc.setRequestHeader('Content-Type','application/json');
-  xhrSvc.setRequestHeader('apikey', SUPA_ANON_KEY);
-  xhrSvc.setRequestHeader('Authorization','Bearer ' + SUPA_ANON_KEY);
+  xhrSvc.setRequestHeader('apikey','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw');
+  xhrSvc.setRequestHeader('Authorization','Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw');
   xhrSvc.setRequestHeader('Prefer','return=minimal');
   xhrSvc.onload = function(){
     if(xhrSvc.status>=200&&xhrSvc.status<300){
@@ -2187,83 +2082,56 @@ function renderServices() {
     return;
   }
 
-  // 4-step service tracker: Received → Assigned → En Route → Done
-  const svcStepsDef   = ['Received', 'Assigned', 'En Route', 'Done'];
-  const svcStepIndex  = { received:0, assigned:1, inprogress:2, done:3 };
-  const svcBarPct     = { received:5, assigned:35, inprogress:70, done:100 };
-  const svcStatusLabel = { received:'Waiting', assigned:'Assigned', inprogress:'En Route', done:'Done!' };
-  const svcStatusClass = { received:'status-preparing', assigned:'status-preparing', inprogress:'status-active', done:'status-delivered' };
-
-  const checkSvgW = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-
-  function getSvcEtaHtml(r) {
-    const elapsed = Math.floor((Date.now() - r.placedAt) / 60000);
-    if (r.status === 'done')
-      return '<div class="tracker-eta" style="color:var(--gold);">&#10003; Request completed</div>';
-    if (r.status === 'received')
-      return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Waiting for staff assignment…</div>';
-    if (r.status === 'assigned')
-      return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Staff assigned · on the way soon</div>';
-    if (r.status === 'inprogress')
-      return '<div class="tracker-eta"><div class="tracker-eta-dot" style="background:var(--gold);"></div>Staff is on the way to your room</div>';
-    return '';
-  }
+  const svcStepsDef  = ['Received', 'Assigned', 'In Progress', 'Done'];
+  const svcStepIndex = { received: 0, assigned: 1, inprogress: 2, done: 3 };
+  const svcStatusLabel = { received: 'Received', assigned: 'Assigned', inprogress: 'In Progress', done: 'Done' };
+  const svcStatusClass = { received: 'status-preparing', assigned: 'status-preparing', inprogress: 'status-active', done: 'status-delivered' };
 
   function renderSvcCard(r) {
-    const si = svcStepIndex[r.status] ?? 0;
-    const barPct = svcBarPct[r.status] || 5;
-    const isDone = r.status === 'done';
-
-    const steps = svcStepsDef.map(function(s, i) {
-      var cls = isDone ? 'done' : (i < si ? 'done' : i === si ? 'active' : '');
-      return '<div class="tracker-step ' + cls + '">'
-        + '<div class="tracker-dot">' + (cls === 'done' ? checkSvgW : '') + '</div>'
-        + '<div class="tracker-step-name">' + s + '</div>'
-        + '</div>';
+    const si = svcStepIndex[r.status];
+    const steps = svcStepsDef.map((s, i) => {
+      const cls = i < si ? 'done' : i === si ? 'active' : '';
+      const checkSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polyline points="20 6 9 17 4 12"/></svg>`;
+      return `<div class="tracker-step ${cls}">
+        <div class="tracker-dot">${checkSvg}</div>
+        <div class="tracker-step-name">${s}</div>
+      </div>`;
     }).join('');
 
+    // Build subtitle: qty + note
     let subtitle = '';
     if (r.qty) {
       const unit = r.type === 'Water'
-        ? (r.qty > 1 ? r.qty + ' bottles' : '1 bottle')
-        : (r.qty > 1 ? r.qty + ' towels'  : '1 towel');
+        ? (r.qty > 1 ? `${r.qty} bottles` : '1 bottle')
+        : (r.qty > 1 ? `${r.qty} towels` : '1 towel');
       subtitle += unit;
     }
-    if (r.note) subtitle += (subtitle ? ' · ' : '') + '"' + r.note + '"';
+    if (r.note) subtitle += (subtitle ? ' · ' : '') + `"${r.note}"`;
 
-    const barColor = isDone ? 'var(--gold)' : (r.status === 'inprogress' ? 'var(--gold)' : 'linear-gradient(90deg,#3a9e6a,#4CAF7D)');
-    const showShimmer = r.status === 'inprogress' || r.status === 'assigned';
-
-    return '<div class="order-card" id="scard-' + r.id + '">'
-      // Header
-      + '<div class="svc-card-head">'
-        + '<div class="svc-type-icon">' + r.icon + '</div>'
-        + '<div class="svc-card-meta">'
-          + '<div class="svc-card-name">' + r.type + (r.qty ? ' <span style="color:var(--gold);font-size:14px;font-weight:400">×' + r.qty + '</span>' : '') + '</div>'
-          + (subtitle ? '<div class="svc-card-note">' + subtitle + '</div>' : '')
-          + '<div class="svc-card-time">' + r.id + ' · ' + (r.date||'') + ' · ' + r.time + '</div>'
-        + '</div>'
-        + '<div class="order-status-pill ' + (svcStatusClass[r.status]||'status-preparing') + '">' + (svcStatusLabel[r.status]||r.status) + '</div>'
-      + '</div>'
-      // Tracker
-      + '<div class="order-tracker">'
-        + '<div class="tracker-header">'
-          + '<div class="tracker-label">Request Status</div>'
-          + getSvcEtaHtml(r)
-        + '</div>'
-        + '<div class="tracker-bar-wrap">'
-          + '<div class="tracker-bar-fill" style="width:' + barPct + '%;background:' + barColor + ';">'
-            + (showShimmer ? '<div class="tracker-bar-shimmer"></div>' : '')
-          + '</div>'
-        + '</div>'
-        + '<div class="tracker-steps">' + steps + '</div>'
-      + '</div>'
-    + '</div>';
+    return `<div class="order-card">
+      <div class="svc-card-head">
+        <div class="svc-type-icon">${r.icon}</div>
+        <div class="svc-card-meta">
+          <div class="svc-card-name">${r.type}${r.qty ? ` <span style="color:var(--gold);font-size:14px;font-weight:400">×${r.qty}</span>` : ''}</div>
+          ${subtitle ? `<div class="svc-card-note">${subtitle}</div>` : ''}
+          <div class="svc-card-time">${r.id} · ${r.date} · ${r.time}</div>
+        </div>
+        <div class="order-status-pill ${svcStatusClass[r.status]}">${svcStatusLabel[r.status]}</div>
+      </div>
+      ${r.status !== 'done' ? `
+      <div class="order-tracker">
+        <div class="tracker-label">Request Status</div>
+        <div class="tracker-steps">${steps}</div>
+      </div>` : `
+      <div style="padding:12px 18px;display:flex;align-items:center;gap:8px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span style="font-size:13px;color:var(--green)">Completed</span>
+      </div>`}
+    </div>`;
   }
 
   const active = serviceHistory.filter(r => r.status !== 'done');
   const done   = serviceHistory.filter(r => r.status === 'done');
-  // Both use the same renderSvcCard — done state shows all-green ticked tracker
 
   let html = '';
 
@@ -2457,21 +2325,15 @@ function updateCartBtn() {
   const btn = document.getElementById('cart-btn');
   const badge = document.getElementById('cart-badge');
   const label = document.getElementById('cart-label');
-  const sticky = document.getElementById('cart-sticky');
-  const floatCall = document.getElementById('float-call');
   const total = Object.values(cart).reduce((s,i)=>s+i.qty,0);
   const amt = Object.values(cart).reduce((s,i)=>s+i.qty*i.price,0);
   if (total > 0) {
     btn.classList.add('visible');
-    if (sticky) sticky.classList.add('row-visible');
-    badge.textContent = '₹'+amt;
-    label.textContent = 'View Cart · '+total+' item'+(total>1?'s':'');
-    if (floatCall) floatCall.classList.add('visible');
+    badge.textContent = `₹${amt}`;
+    label.textContent = `View Cart · ${total} item${total>1?'s':''}`;
     broadcastActivity('carting');
   } else {
     btn.classList.remove('visible');
-    if (sticky) sticky.classList.remove('row-visible');
-    if (floatCall) floatCall.classList.remove('visible');
   }
 }
 
@@ -2620,199 +2482,16 @@ let supa = null;
 
 function initSupa(){
   try {
-    if(window.supabase && window.supabase.createClient && !supa){
+    if(window.supabase && window.supabase.createClient){
       supa = window.supabase.createClient(SUPA_URL, SUPA_ANON_KEY);
     }
   } catch(e) { console.warn('Supabase init failed', e); }
 }
 
-// Try at various points to handle async SDK loading
+// Try immediately (sync load), then again on DOMContentLoaded and load
 initSupa();
 document.addEventListener('DOMContentLoaded', function(){ if(!supa) initSupa(); });
-// Start sync as early as possible — try on DOMContentLoaded, load, and after delay
-function _guestStartSync() {
-  waitForSupa().then(function(s){
-    if(!s){ console.warn('Guest: Supabase unavailable'); return; }
-    subscribeRoomOrders(s);  // WebSocket realtime
-    _startPolling(s);         // Polling every 5s backup
-    console.log('Guest sync started for room', window.ROOM_NUM);
-  });
-}
-
-document.addEventListener('DOMContentLoaded', function(){
-  initSupa();
-  setTimeout(_guestStartSync, 800); // slight delay for SDK to fully init
-});
-
-window.addEventListener('load', function(){
-  if(!supa) initSupa();
-  _guestStartSync(); // also try on load event
-});
-
-// Final fallback — try 3 seconds after page start
-setTimeout(function(){
-  if(!supa) initSupa();
-  if(!_pollInterval) _guestStartSync();
-}, 3000);
-
-// ── ROOM-LEVEL REALTIME SUBSCRIPTION
-// Watches ALL orders/services for this room — updates status in real-time
-// ── Check if WebSocket/Realtime is available (requires HTTPS)
-function _canUseRealtime() {
-  return window.location.protocol === 'https:' ||
-         window.location.hostname === 'localhost' ||
-         window.location.hostname === '127.0.0.1';
-}
-
-// ── Poll Supabase for order/service updates (fallback when WS unavailable)
-var _pollInterval = null;
-// ── SINGLE source of truth for order status updates ──────────
-// Called by: per-order WS channel, room-level WS channel, _doPoll polling
-function _applyOrderUpdate(row) {
-  if (!row || !row.id) return;
-  var order = orderHistory.find(function(o){ return o.id === row.id; });
-  if (!order) return;                        // order not in this session — ignore
-  var prevStatus = order.status;
-  if (prevStatus === row.status) return;     // no change — skip re-render
-
-  // Apply all fields from DB row
-  order.status = row.status;
-  if (row.accepted_at) order.acceptedAt = new Date(row.accepted_at).getTime();
-  if (row.rejection_reason != null) order.rejection_reason = row.rejection_reason;
-  if (row.items && Array.isArray(row.items)) order.items = row.items;
-  if (row.total != null) order.total = row.total;
-
-  // Update badge always; re-render orders screen if open OR update card in-place
-  updateOrdersBadge();
-  var ordersScreen = document.getElementById('screen-orders');
-  if (ordersScreen && ordersScreen.classList.contains('active')) {
-    renderOrders();
-  } else {
-    // Update the existing card in-place so it's ready when guest opens My Orders
-    // The full re-render happens when they navigate to orders screen
-    var existingCard = document.getElementById('ocard-' + row.id);
-    if (existingCard) {
-      // Trigger a badge pulse to signal status changed
-      var badge = document.getElementById('orders-live-badge');
-      if (badge) { badge.style.transform='scale(1.3)'; setTimeout(function(){badge.style.transform='';},300); }
-    }
-  }
-
-  // Toast notifications per status
-  var toasts = {
-    accepted:  ['✓ Order accepted — kitchen is preparing', 'green'],
-    preparing: ['👨‍🍳 Kitchen is now preparing your order', 'green'],
-    ready:     ['🔔 Your order is ready for delivery!', 'gold'],
-    delivered: ['✅ Delivered! Enjoy your meal 🍽', 'green'],
-    rejected:  ['✕ Order not accepted — ' + (row.rejection_reason || 'contact reception'), 'red'],
-    cancelled: ['Order cancelled', 'green']
-  };
-  var t = toasts[row.status];
-  if (t) showGuestToast(t[0], t[1] === 'red' ? 'red' : 'green');
-}
-
-function _doPoll(s, roomNum) {
-  if(!s || !roomNum) return;
-  s.from('orders')
-    .select('id,status,accepted_at,rejection_reason,items,total')
-    .eq('room', roomNum)
-    .in('status', ['new','accepted','preparing','ready','delivered'])
-    .then(function(res) {
-      if (!res || !res.data) return;
-      res.data.forEach(function(row) { _applyOrderUpdate(row); });
-    }).catch(function(){});
-  // Poll services
-  s.from('service_requests').select('id,status')
-    .eq('room', roomNum)
-    .in('status', ['received','assigned','inprogress','done'])
-    .then(function(res) {
-      if (!res || !res.data) return;
-      res.data.forEach(function(row) {
-        var req = serviceHistory.find(function(r){ return r.id === row.id; });
-        if (req && req.status !== row.status) {
-          req.status = row.status;
-          updateServicesBadge();
-          if (document.getElementById('screen-services').classList.contains('active')) renderServices();
-          updateServicesBadge();
-          if (document.getElementById('screen-services').classList.contains('active')) renderServices();
-          var sMsgs = {
-            assigned:   '✓ Staff assigned — on the way soon',
-            inprogress: '🚶 Staff is on the way to your room',
-            done:       '✅ Request completed!'
-          };
-          if (sMsgs[row.status]) showGuestToast(sMsgs[row.status], 'green');
-        }
-      });
-    }).catch(function(){});
-}
-
-function _startPolling(s) {
-  if (_pollInterval) return;
-  var roomNum = String(window.ROOM_NUM || '');
-  if (!roomNum || !s) return;
-  _doPoll(s, roomNum); // immediate first poll
-  _pollInterval = setInterval(function() { _doPoll(s, roomNum); }, 5000);
-}
-
-
-function subscribeRoomOrders(s) {
-  var roomNum = String(window.ROOM_NUM || '');
-  if (!roomNum || !s) return;
-  if (!_canUseRealtime()) { return; } // polling already running as backup
-  try {
-    s.channel('room-orders-' + roomNum)
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'orders',
-        filter: 'room=eq.' + roomNum
-      }, function(payload) {
-        var row = payload.new;
-        if (row) _applyOrderUpdate(row);
-      })
-      .subscribe(function(status) {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          // Fall back to polling if WS fails
-          _startPolling(s);
-        }
-      });
-  } catch(e) {
-    console.warn('Room orders sub (WS unavailable, using polling)');
-    _startPolling(s);
-  }
-}
-
-function subscribeRoomServices(s) {
-  var roomNum = String(window.ROOM_NUM || '');
-  if (!roomNum || !s) return;
-  if (!_canUseRealtime()) { return; }
-  try {
-    s.channel('room-svcs-' + roomNum)
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'service_requests',
-        filter: 'room=eq.' + roomNum
-      }, function(payload) {
-        var row = payload.new;
-        if (!row) return;
-        var req = serviceHistory.find(function(r){ return r.id === row.id; });
-        if (req) {
-          req.status = row.status;
-          updateServicesBadge();
-          if (document.getElementById('screen-services').classList.contains('active')) renderServices();
-          var sMsgs = {
-            assigned:   '✓ Staff assigned — on the way soon',
-            inprogress: '🚶 Staff is on the way to your room',
-            done:       '✅ Request completed!'
-          };
-          if (sMsgs[row.status]) showGuestToast(sMsgs[row.status], 'green');
-        }
-      })
-      .subscribe(function(status) {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { _startPolling(s); }
-      });
-  } catch(e) {
-    console.warn('Room svcs sub (WS unavailable, using polling)');
-    _startPolling(s);
-  }
-}
+window.addEventListener('load', function(){ if(!supa) initSupa(); });
 
 // Returns a promise that resolves when supa is ready (max 5s wait)
 function waitForSupa(){
@@ -2883,11 +2562,6 @@ placeOrder = async function(isMerge) {
 
   const supaReady = await waitForSupa();
   if (!supaReady) { console.warn('Supabase not available'); return; }
-  // Ensure real-time sync is active
-  if (!_pollInterval) {
-    subscribeRoomOrders(supaReady);
-    _startPolling(supaReady);
-  }
   try {
     const insertData = {
       id: orderId,
@@ -2915,13 +2589,29 @@ placeOrder = async function(isMerge) {
       xhr.send(JSON.stringify(insertData));
     });
 
-    // Per-order realtime channel — ALL status changes
+    // Subscribe to status updates for this order
     supaReady.channel('order-status-' + orderId)
       .on('postgres_changes', {
         event: 'UPDATE', schema: 'public', table: 'orders',
         filter: 'id=eq.' + orderId
       }, function(payload) {
-        _applyOrderUpdate(payload.new);
+        var row = payload.new;
+        var order = orderHistory.find(function(o){ return o.id === orderId; });
+        if (!order) return;
+        order.status = row.status;
+        order.rejection_reason = row.rejection_reason || null;
+        if (row.status === 'accepted') order.acceptedAt = Date.now();
+        updateOrdersBadge();
+        if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
+        if (row.status === 'accepted') {
+          showGuestToast('✓ Order accepted! You can modify/cancel within 5 mins.', 'green');
+        } else if (row.status === 'rejected') {
+          var reason = row.rejection_reason || 'Please contact reception';
+          showGuestToast('Order not accepted: ' + reason, 'red');
+        } else if (row.status === 'delivered') {
+          showGuestToast('Your order has been delivered!', 'green');
+          broadcastActivity('idle');
+        }
       })
       .subscribe();
 
@@ -2929,39 +2619,17 @@ placeOrder = async function(isMerge) {
 };
 
 function showGuestToast(msg, color) {
-  // Remove existing toast
-  var old = document.getElementById('guest-toast');
-  if (old) old.remove();
-  var bg = color === 'red' ? 'rgba(192,57,43,0.95)' : color === 'gold' ? '#C9A96E' : 'rgba(22,120,80,0.95)';
-  var textCol = color === 'gold' ? '#0D0D0D' : 'white';
   var toast = document.createElement('div');
-  toast.id = 'guest-toast';
-  toast.style.cssText = [
-    'position:fixed',
-    'bottom:90px',
-    'left:50%',
-    'transform:translateX(-50%)',
-    'width:calc(100% - 48px)',
-    'max-width:360px',
-    'padding:14px 18px',
-    'border-radius:14px',
-    'background:' + bg,
-    'color:' + textCol,
-    'font-family:DM Sans,sans-serif',
-    'font-size:14px',
-    'font-weight:500',
-    'z-index:999',
-    'box-shadow:0 4px 24px rgba(0,0,0,0.35)',
-    'pointer-events:none',
-    'text-align:center',
-    'line-height:1.4',
-    'transition:opacity 0.3s ease'
-  ].join(';') + ';';
+  var bg = color === 'red' ? 'rgba(192,57,43,0.95)' : 'rgba(76,175,125,0.95)';
+  toast.style.cssText = 'position:fixed;top:24px;left:50%;transform:translateX(-50%);'+
+    'background:'+bg+';color:white;border-radius:14px;padding:14px 20px;z-index:999;'+
+    'font-size:14px;font-family:DM Sans,sans-serif;text-align:center;'+
+    'max-width:320px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3);';
   toast.textContent = msg;
   document.body.appendChild(toast);
-  setTimeout(function(){
-    toast.style.opacity = '0';
-    setTimeout(function(){ if (toast.parentElement) toast.remove(); }, 350);
-  }, 3500);
+  setTimeout(function(){ toast.remove(); }, 5000);
 }
->
+
+</script>
+</body>
+</html>
