@@ -10,7 +10,6 @@
 <title>Hyatt Hotel</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 
 <!-- ══ ROUTER — runs before anything else ══ -->
 <script>
@@ -1302,7 +1301,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
   z-index: 50;
   padding-bottom: env(safe-area-inset-bottom, 8px);
 }
-@media(min-width:1280px){ .bottom-nav{display:none;} }
+@media(min-width:1025px){ .bottom-nav{display:none;} }
 .bnav-item {
   flex: 1;
   display: flex; flex-direction:column; align-items:center; justify-content:center;
@@ -1341,7 +1340,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 }
 
 /* ── DESKTOP SIDEBAR (kept for wide screens) ── */
-@media(min-width:1280px){
+@media(min-width:1025px){
   .main { margin-left:240px; }
   .sidebar-desk {
     position:fixed; top:0; left:0; bottom:0; width:240px;
@@ -1350,8 +1349,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
   }
 }
 .sidebar-desk { display:none; }
-@media(min-width:1280px){ .sidebar-desk{ display:flex; } }
-@media(min-width:1280px){ .bottom-nav{display:none;} }
+@media(min-width:1025px){ .sidebar-desk{ display:flex; } }
 
 /* ── URGENCY STRIP ── */
 .urgency-strip {
@@ -1519,7 +1517,8 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 .filter-tab { padding:7px 16px; border-radius:100px; border:1px solid rgba(201,169,110,0.14); background:transparent; font-family:'DM Sans',sans-serif; font-size:12px; color:var(--text-muted); cursor:pointer; transition:all 0.15s; letter-spacing:0.03em; white-space:nowrap; flex-shrink:0; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
 .filter-tab.active { background:rgba(201,169,110,0.12); border-color:rgba(201,169,110,0.35); color:var(--gold); }
 .filter-tab:hover:not(.active) { background:var(--surface2); color:var(--text); }
-.orders-grid { display:grid; grid-template-columns:1fr !important; gap:14px; }
+.orders-grid { display:grid; grid-template-columns:1fr; gap:14px; }
+@media(min-width:1400px){ .orders-grid{ grid-template-columns:repeat(2,1fr); } }
 .order-card { background:var(--surface); border:1px solid var(--card-border); border-radius:16px; overflow:hidden; animation:slideUpD 0.3s ease; transition:border-color 0.2s; }
 .order-card:hover { border-color:rgba(201,169,110,0.22); }
 .order-card.urgent { border-color:rgba(192,57,43,0.35); }
@@ -1549,18 +1548,8 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 .btn-call:hover { background:var(--dark3); border-color:rgba(201,169,110,0.2); }
 .status-pill { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:100px; font-size:11px; font-weight:400; font-family:'DM Sans',sans-serif; white-space:nowrap; letter-spacing:0.04em; }
 .pill-new{background:rgba(192,57,43,0.1);color:var(--red);border:1px solid rgba(192,57,43,0.22);}
-.pill-accepted{background:rgba(76,175,125,0.1);color:var(--green);border:1px solid rgba(76,175,125,0.22);}
 .pill-preparing{background:rgba(201,169,110,0.1);color:var(--gold);border:1px solid rgba(201,169,110,0.25);}
 .pill-ready{background:rgba(76,175,125,0.1);color:var(--green);border:1px solid rgba(76,175,125,0.22);}
-.pill-rejected{background:rgba(192,57,43,0.1);color:var(--red);border:1px solid rgba(192,57,43,0.22);}
-.pill-delivered{background:rgba(255,255,255,0.04);color:var(--text-dim);border:1px solid var(--card-border);}
-.btn-accept{background:rgba(76,175,125,0.12);color:var(--green);border:1px solid rgba(76,175,125,0.28);flex:1;}
-.btn-reject{background:rgba(192,57,43,0.08);color:var(--red);border:1px solid rgba(192,57,43,0.2);flex:1;}
-.btn-accept:hover{background:rgba(76,175,125,0.22);}
-.btn-reject:hover{background:rgba(192,57,43,0.16);}
-.reject-reason-btn{background:var(--surface);border:1px solid var(--card-border);border-radius:8px;padding:8px 12px;color:var(--text-muted);font-size:12px;cursor:pointer;text-align:left;transition:all 0.15s;}
-.reject-reason-btn:hover,.reject-reason-btn.selected{background:rgba(192,57,43,0.1);border-color:rgba(192,57,43,0.3);color:var(--red);}
-.rejection-note{background:var(--dark);border:1px solid var(--card-border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;width:100%;outline:none;font-family:'DM Sans',sans-serif;margin-top:10px;resize:none;}
 .pill-delivered{background:rgba(255,255,255,0.04);color:var(--text-muted);border:1px solid var(--card-border);}
 .pill-received{background:rgba(201,169,110,0.1);color:var(--gold);border:1px solid rgba(201,169,110,0.25);}
 .pill-assigned{background:rgba(107,159,191,0.1);color:var(--blue);border:1px solid rgba(107,159,191,0.22);}
@@ -1583,7 +1572,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 .svc-complete { flex:1; padding:8px 12px; background:rgba(76,175,125,0.08); border:1px solid rgba(76,175,125,0.22); border-radius:10px; font-family:'DM Sans',sans-serif; font-size:13px; color:var(--green); cursor:pointer; transition:all 0.15s; font-weight:400; }
 .svc-complete:hover { background:rgba(76,175,125,0.16); }
 .rooms-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
-.room-tile { background:var(--surface); border:1px solid var(--card-border); border-radius:16px; padding:14px 12px 10px; cursor:pointer; transition:all 0.2s; position:relative; overflow:hidden; }
+.room-tile { background:var(--surface); border:1px solid var(--card-border); border-radius:16px; padding:18px 16px; cursor:pointer; transition:all 0.2s; position:relative; overflow:hidden; }
 .room-tile::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
 .room-tile.occupied::before{background:var(--green);} .room-tile.vacant::before{background:var(--text-dim);}
 .room-tile.checkout::before{background:var(--gold);} .room-tile.issue::before{background:var(--red);}
@@ -2946,17 +2935,6 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
         <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Front Desk Manager</div>
       </div>
     </div>
-    <!-- Hotel Name -->
-    <div class="settings-row">
-      <div class="settings-label">
-        <div class="settings-label-title">Hotel Name</div>
-        <div class="settings-label-sub">Shown on QR codes & guest page</div>
-      </div>
-      <input id="hotel-name-input" type="text"
-        style="background:var(--surface);border:1px solid var(--card-border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:13px;width:130px;outline:none;text-align:right;"
-        onchange="saveHotelName(this.value)"
-        onfocus="this.select()">
-    </div>
     <!-- Theme -->
     <div class="settings-row">
       <div class="settings-label">
@@ -3047,10 +3025,9 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
         </div>
         <div class="filter-tabs">
           <button class="filter-tab active" onclick="filterOrders('all',this)">All</button>
-          <button class="filter-tab" onclick="filterOrders('new',this)">🟡 New</button>
-          <button class="filter-tab" onclick="filterOrders('accepted',this)">🟢 Accepted</button>
-          <button class="filter-tab" onclick="filterOrders('rejected',this)">🔴 Rejected</button>
-          <button class="filter-tab" onclick="filterOrders('delivered',this)">⚪ Delivered</button>
+          <button class="filter-tab" onclick="filterOrders('new',this)">New</button>
+          <button class="filter-tab" onclick="filterOrders('preparing',this)">Prep</button>
+          <button class="filter-tab" onclick="filterOrders('ready',this)">Ready</button>
         </div>
       </div>
 
@@ -3128,17 +3105,11 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
       </div>
       <div class="section-header">
         <div class="section-title">Room Status</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <div style="display:flex;gap:4px;align-items:center;font-size:11px;color:var(--text-dim);flex-wrap:wrap;margin-right:8px;">
-            <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;background:var(--green);border-radius:2px;display:inline-block"></span>Occupied</span>
-            <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;background:var(--gold);border-radius:2px;display:inline-block"></span>Checkout</span>
-            <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;background:var(--text-dim);border-radius:2px;display:inline-block"></span>Vacant</span>
-            <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;background:var(--red);border-radius:2px;display:inline-block"></span>Issue</span>
-          </div>
-          <button onclick="downloadAllQR()" style="background:rgba(201,169,110,0.1);border:1px solid rgba(201,169,110,0.25);border-radius:8px;color:var(--gold);font-size:11px;padding:6px 12px;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            All QR Codes
-          </button>
+        <div style="display:flex;gap:8px;align-items:center;font-size:11px;color:var(--text-dim);flex-wrap:wrap;">
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;background:var(--green);border-radius:2px;display:inline-block"></span>Occupied</span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;background:var(--gold);border-radius:2px;display:inline-block"></span>Checkout</span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;background:var(--text-dim);border-radius:2px;display:inline-block"></span>Vacant</span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;background:var(--red);border-radius:2px;display:inline-block"></span>Issue</span>
         </div>
       </div>
       <div class="rooms-grid" id="rooms-grid"></div>
@@ -3201,60 +3172,20 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
 
 <!-- QR MODAL -->
 <div class="modal-overlay" id="qr-modal" onclick="handleModalClick(event)">
-  <div class="modal-box" style="width:min(300px,90vw);padding:18px;">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;">
-      <div><div class="modal-title">Room QR Code</div><div class="modal-sub" id="qr-modal-sub">Scan to order</div></div>
+  <div class="modal-box" style="width:min(380px,94vw);max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px;">
+      <div><div class="modal-title">Room QR Code</div><div class="modal-sub" id="qr-modal-sub">Scan to access guest portal</div></div>
       <button onclick="closeQRModal()" style="background:var(--surface);border:1px solid var(--card-border);border-radius:8px;width:32px;height:32px;color:var(--text-muted);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">×</button>
     </div>
-    <div style="display:flex;justify-content:center;margin-bottom:12px;">
-      <div style="background:#1A1814;border:1px solid rgba(201,169,110,0.2);border-radius:16px;padding:14px 14px 10px;display:flex;flex-direction:column;align-items:center;position:relative;overflow:hidden;">
-        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#C9A96E,transparent);"></div>
-        <div id="qr-hotel-name" style="font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:0.2em;color:#C9A96E;text-transform:uppercase;margin-bottom:8px;">Hyatt Hotel</div>
-        <div style="position:relative;background:white;border-radius:10px;padding:10px;display:inline-block;">
-          <img id="qr-canvas" width="200" height="200" style="display:block;" alt="QR Code">
-          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:36px;height:36px;background:white;border-radius:8px;display:flex;align-items:center;justify-content:center;">
-            <div style="width:26px;height:26px;background:#C9A96E;border-radius:6px;display:flex;align-items:center;justify-content:center;">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            </div>
-          </div>
-        </div>
-        <div style="margin-top:8px;text-align:center;">
-          <div style="font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(201,169,110,0.5);">Room</div>
-          <div style="font-family:'Cormorant Garamond',serif;font-size:26px;color:#F5EFE6;letter-spacing:0.08em;line-height:1.1;" id="qr-room-label">101</div>
-        </div>
-        <div style="margin-top:4px;font-size:9px;color:rgba(255,255,255,0.2);letter-spacing:0.1em;text-transform:uppercase;">Scan to order</div>
-      </div>
+    <div style="background:white;border-radius:16px;padding:20px;margin:20px 0;display:flex;flex-direction:column;align-items:center;gap:12px;">
+      <canvas id="qr-canvas" width="200" height="200" style="display:block;border-radius:4px;"></canvas>
+      <div style="font-family:'DM Sans',sans-serif;font-size:10px;color:#1A1814;opacity:0.5;letter-spacing:0.2em;text-transform:uppercase;" id="qr-room-label">ROOM 101</div>
     </div>
-    <div class="modal-url" id="qr-url" style="cursor:pointer;font-size:11px;" onclick="copyURL()" title="Click to copy"><span id="qr-url-text"></span></div>
-    <div class="modal-actions" style="flex-wrap:wrap;gap:8px;margin-top:12px;">
-      <button class="btn-modal-close" onclick="closeQRModal()" style="flex:1;min-width:70px;">Close</button>
-      <button class="btn-modal-close" onclick="downloadSingleQR()" style="flex:1;min-width:70px;display:flex;align-items:center;justify-content:center;gap:5px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download</button>
-      <button class="btn-modal-action" onclick="copyURL()" id="copy-btn" style="flex:1;min-width:70px;">Copy URL</button>
-    </div>
-  </div>
-</div>
-
-<!-- REJECTION MODAL -->
-<div class="modal-overlay" id="reject-modal" onclick="if(event.target.id==='reject-modal')closeRejectModal()">
-  <div class="modal-box" style="width:min(360px,94vw);padding:24px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-      <div class="modal-title">Reject Order</div>
-      <button onclick="closeRejectModal()" style="background:var(--surface);border:1px solid var(--card-border);border-radius:8px;width:32px;height:32px;color:var(--text-muted);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>
-    </div>
-    <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Select a reason — guest will be notified.</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;" id="reason-grid">
-      <button class="reject-reason-btn" onclick="selectReason(this,'Item not available')">Item not available</button>
-      <button class="reject-reason-btn" onclick="selectReason(this,'Kitchen closed')">Kitchen closed</button>
-      <button class="reject-reason-btn" onclick="selectReason(this,'Out of service hours')">Out of service hours</button>
-      <button class="reject-reason-btn" onclick="selectReason(this,'Duplicate order')">Duplicate order</button>
-      <button class="reject-reason-btn" onclick="selectReason(this,'Payment issue')">Payment issue</button>
-      <button class="reject-reason-btn" onclick="selectReason(this,'__custom__')">✏ Custom reason</button>
-    </div>
-    <input id="custom-reason-input" type="text" placeholder="Type your reason..." style="display:none;width:100%;background:var(--dark);border:1px solid rgba(192,57,43,0.3);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;outline:none;font-family:'DM Sans',sans-serif;margin-bottom:4px;">
-    <textarea class="rejection-note" id="rejection-note" rows="2" placeholder="Additional note (optional)"></textarea>
-    <div style="display:flex;gap:8px;margin-top:14px;">
-      <button class="btn-modal-close" onclick="closeRejectModal()" style="flex:1;">Cancel</button>
-      <button onclick="confirmReject()" style="flex:1;background:rgba(192,57,43,0.12);color:var(--red);border:1px solid rgba(192,57,43,0.25);border-radius:10px;padding:11px;font-size:14px;font-weight:500;cursor:pointer;">Confirm Reject</button>
+    <div class="modal-url" id="qr-url" style="cursor:pointer;" onclick="copyURL()" title="Click to copy"><span id="qr-url-text">https://yourhotel.com/r/101</span></div>
+    <div class="modal-actions" style="flex-wrap:wrap;gap:8px;">
+      <button class="btn-modal-close" onclick="closeQRModal()" style="flex:1;min-width:80px;">Close</button>
+      <button class="btn-modal-close" onclick="downloadQR()" style="flex:1;min-width:80px;display:flex;align-items:center;justify-content:center;gap:6px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download</button>
+      <button class="btn-modal-action" onclick="copyURL()" id="copy-btn" style="flex:1;min-width:80px;">Copy URL</button>
     </div>
   </div>
 </div>
@@ -3342,7 +3273,6 @@ create table if not exists orders (
   items       jsonb       not null default '[]',
   total       integer     not null default 0,
   status      text        not null default 'new',
-  rejection_reason text,
   placed_at   timestamptz not null default now()
 );
 alter table orders enable row level security;
@@ -3367,51 +3297,30 @@ alter table service_requests enable row level security;
 create policy "guests can insert svc" on service_requests for insert with check (true);
 create policy "staff can select svc" on service_requests for select using (true);
 create policy "staff can update svc" on service_requests for update using (true);
-alter publication supabase_realtime add table service_requests;
-
--- Check-ins table (guest check-in/checkout via QR scan)
-create table if not exists checkins (
-  id             text primary key,
-  room           text        not null,
-  guest_name     text        not null,
-  checked_in_at  timestamptz not null default now(),
-  checked_out_at timestamptz,
-  status         text        not null default 'active'
-);
-alter table checkins enable row level security;
-create policy "guests can insert checkins" on checkins for insert with check (true);
-create policy "staff can select checkins" on checkins for select using (true);
-create policy "staff can update checkins" on checkins for update using (true);
-alter publication supabase_realtime add table checkins;`;
+alter publication supabase_realtime add table service_requests;`;
 
 // ROOMS_DATA replaced by buildRoomsData()
 
 var orderFilter='all',svcFilter='all';
-var orders=[];  // starts empty — demo orders only shown when not connected to Supabase
-var _demoOrders=[
-  {id:'ORD-001',room:'203',guest:'R*** S***',items:[{name:'Paneer Butter Masala',qty:1,price:250},{name:'Dal Tadka',qty:1,price:180}],total:430,status:'new',placedAt:Date.now()-5*60000},
-  {id:'ORD-002',room:'105',guest:'Nisha Patel',items:[{name:'Chicken Biryani',qty:2,price:320}],total:640,status:'accepted',placedAt:Date.now()-12*60000},
+var orders=[
+  {id:'ORD-001',room:'203',guest:'R*** S***',items:[{name:'Paneer Butter Masala',qty:1,price:250},{name:'Dal Tadka',qty:1,price:180},{name:'Veg Biryani',qty:1,price:220}],total:650,status:'preparing',placedAt:Date.now()-18*60000},
+  {id:'ORD-002',room:'105',guest:'Nisha Patel',items:[{name:'Chicken Biryani',qty:2,price:320},{name:'Mango Lassi',qty:2,price:120}],total:880,status:'new',placedAt:Date.now()-4*60000},
+  {id:'ORD-003',room:'201',guest:'Deepa Nair',items:[{name:'Masala Chai',qty:2,price:60},{name:'Cold Coffee',qty:1,price:150}],total:270,status:'ready',placedAt:Date.now()-28*60000},
 ];
 var services=[
   {id:'REQ-001',room:'102',guest:'Priya Sharma',type:'Towels',icon:'🧻',qty:3,note:'',status:'received',placedAt:Date.now()-8*60000},
   {id:'REQ-002',room:'107',guest:'Rahul Gupta',type:'Room Cleaning',icon:'🧹',qty:null,note:'Please clean before 3pm',status:'assigned',assignee:'Housekeeping',placedAt:Date.now()-22*60000},
 ];
-function rowToOrder(row){return{id:row.id,room:String(row.room),guest:row.guest||'Guest',items:Array.isArray(row.items)?row.items:[],total:row.total||0,status:row.status||'new',rejection_reason:row.rejection_reason||null,placedAt:row.placed_at?new Date(row.placed_at).getTime():Date.now(),fromSupa:true};}
+function rowToOrder(row){return{id:row.id,room:String(row.room),guest:row.guest||'Guest',items:Array.isArray(row.items)?row.items:[],total:row.total||0,status:row.status||'new',placedAt:row.placed_at?new Date(row.placed_at).getTime():Date.now(),fromSupa:true};}
 function setConnBadge(state,label){var b=document.getElementById('conn-badge'),l=document.getElementById('conn-label');if(!b)return;b.className='conn-badge '+state;l.textContent=label;}
-async function connectSupabase(){var url=(document.getElementById('cfg-url').value||'').trim().replace(/\/+$/,''),key=(document.getElementById('cfg-key').value||'').trim();if(!url||!key){alert('Please enter both the Project URL and Anon Key.');return;}var btn=document.getElementById('cfg-connect-btn');btn.disabled=true;btn.textContent='Connecting…';try{sbClient=window._hyattSb||supabase.createClient(url,key,{auth:{storageKey:'hyatt-sb-auth'}});window._hyattSb=sbClient;var{data,error}=await sbClient.from('orders').select('id').limit(1);if(error)throw error;localStorage.setItem('hyatt_sb_url',url);localStorage.setItem('hyatt_sb_key',key);SUPABASE_URL=url;SUPABASE_KEY=key;closeCfg();setConnBadge('connecting','Syncing…');await loadOrdersFromSupabase();await loadServicesFromSupabase();await loadCheckinsFromSupabase();try{subscribeRealtime();}catch(e){console.warn('Realtime init:',e&&e.message||e);}}catch(err){btn.disabled=false;btn.textContent='Connect';var msg=err.message||String(err);if(msg.includes('relation')||msg.includes('does not exist')||msg.includes('42P01')){document.getElementById('sql-panel').classList.add('visible');document.getElementById('sql-code').textContent=SETUP_SQL;alert('Table "orders" not found.\n\nRun the SQL shown in the panel, then try again.');}else{alert('Connection failed: '+msg);}}}
+async function connectSupabase(){var url=(document.getElementById('cfg-url').value||'').trim().replace(/\/+$/,''),key=(document.getElementById('cfg-key').value||'').trim();if(!url||!key){alert('Please enter both the Project URL and Anon Key.');return;}var btn=document.getElementById('cfg-connect-btn');btn.disabled=true;btn.textContent='Connecting…';try{sbClient=window._hyattSb||supabase.createClient(url,key,{auth:{storageKey:'hyatt-sb-auth'}});window._hyattSb=sbClient;var{data,error}=await sbClient.from('orders').select('id').limit(1);if(error)throw error;localStorage.setItem('hyatt_sb_url',url);localStorage.setItem('hyatt_sb_key',key);SUPABASE_URL=url;SUPABASE_KEY=key;closeCfg();setConnBadge('connecting','Syncing…');await loadOrdersFromSupabase();await loadServicesFromSupabase();try{subscribeRealtime();}catch(e){console.warn('Realtime init:',e&&e.message||e);}}catch(err){btn.disabled=false;btn.textContent='Connect';var msg=err.message||String(err);if(msg.includes('relation')||msg.includes('does not exist')||msg.includes('42P01')){document.getElementById('sql-panel').classList.add('visible');document.getElementById('sql-code').textContent=SETUP_SQL;alert('Table "orders" not found.\n\nRun the SQL shown in the panel, then try again.');}else{alert('Connection failed: '+msg);}}}
 async function loadOrdersFromSupabase(){
   if(!sbClient)return;
   try{
-    var since=new Date(Date.now()-24*60*60*1000).toISOString();
-    var res=await sbClient.from('orders').select('*')
-      .not('status','eq','delivered')
-      .not('status','eq','rejected')
-      .not('status','eq','cancelled')
-      .gte('placed_at',since)
-      .order('placed_at',{ascending:false})
-      .limit(200);
+    var res=await sbClient.from('orders').select('*').not('status','eq','delivered').order('placed_at',{ascending:false}).limit(200);
     if(res.error){console.warn('Orders fetch:',res.error.message||res.error.code);setConnBadge('disconnected','Error');return;}
-    orders=(res.data||[]).map(rowToOrder);
+    var fetched=(res.data||[]).map(rowToOrder);
+    if(fetched.length>0){orders=fetched;}
     renderOrders();updateStats();setConnBadge('connected','Live');
   }catch(err){
     console.warn('Orders load exception:',err&&err.message||String(err));
@@ -3422,7 +3331,6 @@ function subscribeRealtime(){
   if(!sbClient)return;
   if(realtimeChan){sbClient.removeChannel(realtimeChan);realtimeChan=null;}
   if(window._svcChan){try{sbClient.removeChannel(window._svcChan);}catch(e){} window._svcChan=null;}
-  if(window._chkChan){try{sbClient.removeChannel(window._chkChan);}catch(e){} window._chkChan=null;}
 
   // Orders channel
   realtimeChan=sbClient.channel('orders-rt')
@@ -3436,38 +3344,6 @@ function subscribeRealtime(){
   window._svcChan=sbClient.channel('svc-rt')
     .on('postgres_changes',{event:'*',schema:'public',table:'service_requests'},handleSvcRealtimeEvent)
     .subscribe();
-
-  // Checkins channel — updates room tiles in realtime
-  window._chkChan=sbClient.channel('chk-rt')
-    .on('postgres_changes',{event:'*',schema:'public',table:'checkins'},handleCheckinEvent)
-    .subscribe();
-}
-
-function handleCheckinEvent(payload){
-  var evt=payload.eventType, row=payload.new||{};
-  if(evt==='INSERT' && row.status==='active'){
-    // New guest checked in — update STATIC_ROOMS and re-render
-    var room = String(row.room);
-    if(!STATIC_ROOMS[room]) STATIC_ROOMS[room]={};
-    STATIC_ROOMS[room].guest    = row.guest_name;
-    STATIC_ROOMS[room].status   = 'occupied';
-    STATIC_ROOMS[room].checkout = '—';
-    STATIC_ROOMS[room].checkinId = row.id;
-    try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}
-    renderRooms();
-    showToast('checkin','Check-in · Room '+room, row.guest_name+' just checked in');
-  } else if(evt==='UPDATE' && row.status==='checked_out'){
-    var room = String(row.room);
-    if(STATIC_ROOMS[room]){
-      STATIC_ROOMS[room].guest    = '—';
-      STATIC_ROOMS[room].status   = 'vacant';
-      STATIC_ROOMS[room].checkout = '—';
-      delete STATIC_ROOMS[room].checkinId;
-    }
-    try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}
-    renderRooms();
-    showToast('checkin','Checkout · Room '+room, row.guest_name+' checked out');
-  }
 }
 
 function rowToService(row){
@@ -3482,7 +3358,6 @@ function handleSvcRealtimeEvent(payload){
       services.unshift(s);
       renderServices();updateUrgencyStrip();
       showToast('service','Service Request — Room '+s.room,s.type+(s.qty?' ×'+s.qty:''));
-      playBeep('service');
     }
   } else if(evt==='UPDATE'){
     var idx=services.findIndex(function(x){return x.id===row.id;});
@@ -3495,7 +3370,8 @@ function handleSvcRealtimeEvent(payload){
   }
 }
 
-async function loadServicesFromSupabase(){  if(!sbClient)return;
+async function loadServicesFromSupabase(){
+  if(!sbClient)return;
   try{
     var res=await sbClient.from('service_requests').select('*').not('status','eq','done').order('placed_at',{ascending:false}).limit(200);
     if(res.error){console.warn('Services fetch:',res.error.message||res.error.code);return;}
@@ -3503,171 +3379,17 @@ async function loadServicesFromSupabase(){  if(!sbClient)return;
     renderServices();updateUrgencyStrip();
   }catch(err){console.warn('Services load exception:',err&&err.message||String(err));}
 }
-async function loadCheckinsFromSupabase(){
-  if(!sbClient)return;
-  try{
-    var res=await sbClient.from('checkins').select('*').eq('status','active');
-    if(res.error){console.warn('Checkins fetch:',res.error.message);return;}
-    if(res.data){
-      res.data.forEach(function(row){
-        var room=String(row.room);
-        if(!STATIC_ROOMS[room])STATIC_ROOMS[room]={};
-        STATIC_ROOMS[room].guest=row.guest_name;
-        STATIC_ROOMS[room].status='occupied';
-        STATIC_ROOMS[room].checkinId=row.id;
-        STATIC_ROOMS[room].checkout=new Date(row.checked_in_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'});
-      });
-      try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}
-      renderRooms();
-    }
-  }catch(err){console.warn('Checkins load exception:',err&&err.message||String(err));}
-}
-function handleRealtimeEvent(payload){var evt=payload.eventType,row=payload.new||{},old=payload.old||{};if(evt==='INSERT'){var o=rowToOrder(row);if(!orders.find(function(x){return x.id===o.id;})){orders.unshift(o);renderOrders();updateStats();showToast('order','New Order — Room '+o.room,'₹'+o.total+' · '+o.items.length+' item'+(o.items.length!==1?'s':''));startAlertBeep(o.id,'order');}}else if(evt==='UPDATE'){var idx=orders.findIndex(function(x){return x.id===row.id;});if(idx!==-1)orders[idx]=rowToOrder(row);else orders.unshift(rowToOrder(row));renderOrders();updateStats();if(row.status!=='new')stopAlertBeep(row.id);}else if(evt==='DELETE'){orders=orders.filter(function(x){return x.id!==old.id;});stopAlertBeep(old.id);renderOrders();updateStats();}}
-async function acceptOrder(id){
-  var order=orders.find(function(o){return o.id===id;});
-  if(!order)return;
-  order.status='accepted';
-  stopAlertBeep(id);
-  renderOrders();updateStats();
-  if(sbClient){
-    try{await sbClient.from('orders').update({status:'accepted'}).eq('id',id);}
-    catch(e){console.warn('Accept failed',e);}
-  }
-}
-
-var _rejectOrderId=null,_rejectReason=null;
-function openRejectModal(id){
-  _rejectOrderId=id;_rejectReason=null;
-  document.querySelectorAll('.reject-reason-btn').forEach(function(b){b.classList.remove('selected');});
-  document.getElementById('rejection-note').value='';
-  document.getElementById('custom-reason-input').value='';
-  document.getElementById('custom-reason-input').style.display='none';
-  document.getElementById('reject-modal').classList.add('open');
-}
-function closeRejectModal(){document.getElementById('reject-modal').classList.remove('open');}
-function selectReason(btn,reason){
-  document.querySelectorAll('.reject-reason-btn').forEach(function(b){b.classList.remove('selected');});
-  btn.classList.add('selected');
-  _rejectReason=reason;
-  var customInput=document.getElementById('custom-reason-input');
-  if(reason==='__custom__'){
-    customInput.style.display='block';
-    customInput.focus();
-  } else {
-    customInput.style.display='none';
-  }
-}
-async function confirmReject(){
-  var customInput=document.getElementById('custom-reason-input');
-  var finalReason=_rejectReason;
-  if(_rejectReason==='__custom__'){
-    finalReason=customInput.value.trim();
-    if(!finalReason){customInput.style.borderColor='rgba(192,57,43,0.6)';customInput.focus();return;}
-  }
-  if(!finalReason){alert('Please select or enter a reason.');return;}
-  var note=document.getElementById('rejection-note').value.trim();
-  var fullReason=note?finalReason+': '+note:finalReason;
-  var order=orders.find(function(o){return o.id===_rejectOrderId;});
-  if(!order){closeRejectModal();return;}
-  order.status='rejected';
-  order.rejection_reason=fullReason;
-  closeRejectModal();
-  renderOrders();updateStats();
-  stopAlertBeep(_rejectOrderId);
-  showToast('service','Order Rejected — Room '+order.room,fullReason);
-  if(sbClient){
-    try{await sbClient.from('orders').update({status:'rejected',rejection_reason:fullReason}).eq('id',_rejectOrderId);}
-    catch(e){console.warn('Reject failed',e);}
-  }
-}
-
-async function advanceOrder(id,toStatus){
-  var order=orders.find(function(o){return o.id===id;});
-  if(!order)return;
-  order.status=toStatus;
-  renderOrders();updateStats();
-  if(sbClient){
-    try{await sbClient.from('orders').update({status:toStatus}).eq('id',id);}
-    catch(e){console.warn('Advance failed',e);}
-  }
-}
+function handleRealtimeEvent(payload){var evt=payload.eventType,row=payload.new||{},old=payload.old||{};if(evt==='INSERT'){var o=rowToOrder(row);if(!orders.find(function(x){return x.id===o.id;})){orders.unshift(o);renderOrders();updateStats();showToast('order','New Order — Room '+o.room,'₹'+o.total+' · '+o.items.length+' item'+(o.items.length!==1?'s':''));}}else if(evt==='UPDATE'){var idx=orders.findIndex(function(x){return x.id===row.id;});if(idx!==-1)orders[idx]=rowToOrder(row);else orders.unshift(rowToOrder(row));renderOrders();updateStats();}else if(evt==='DELETE'){orders=orders.filter(function(x){return x.id!==old.id;});renderOrders();updateStats();}}
+async function advanceOrder(id){var next={new:'preparing',preparing:'ready',ready:'delivered'};var order=orders.find(function(o){return o.id===id;});if(!order)return;order.status=next[order.status]||order.status;if(order.status==='delivered'){orders=orders.filter(function(o){return o.id!==id;});}renderOrders();updateStats();if(sbClient){try{var{error}=await sbClient.from('orders').update({status:order.status}).eq('id',id);if(error)console.warn('Supabase update:',error.message);}catch(e){console.warn('Supabase update failed:',e);}}}
 function openCfg(){document.getElementById('sql-code').textContent=SETUP_SQL;if(SUPABASE_URL)document.getElementById('cfg-url').value=SUPABASE_URL;if(SUPABASE_KEY)document.getElementById('cfg-key').value=SUPABASE_KEY;var btn=document.getElementById('cfg-connect-btn');btn.disabled=false;btn.textContent='Connect';document.getElementById('cfg-overlay').style.display='flex';}
 function closeCfg(){document.getElementById('cfg-overlay').style.display='none';}
 function cfgOverlayClick(e){if(e.target.id==='cfg-overlay')closeCfg();}
-function maybeShowCfgOnLoad(){
-  if(!SUPABASE_URL||!SUPABASE_KEY){
-    // Show demo orders when no Supabase connected
-    orders=_demoOrders.slice();
-    renderOrders();updateStats();
-    setTimeout(openCfg,600);
-  }else{setConnBadge('connecting','Connecting…');SUPABASE_URL=SUPABASE_URL.replace(/\/+$/,'');sbClient=window._hyattSb||supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storageKey:'hyatt-sb-auth'}});window._hyattSb=sbClient;document.getElementById('cfg-url').value=SUPABASE_URL;document.getElementById('cfg-key').value=SUPABASE_KEY;loadOrdersFromSupabase().then(function(){return loadServicesFromSupabase();}).then(function(){return loadCheckinsFromSupabase();}).then(function(){try{subscribeRealtime();}catch(e){}}).catch(function(e){console.warn('Init error:',e&&e.message||e);setConnBadge('disconnected','Offline');});}}
+function maybeShowCfgOnLoad(){if(!SUPABASE_URL||!SUPABASE_KEY){setTimeout(openCfg,600);}else{setConnBadge('connecting','Connecting…');SUPABASE_URL=SUPABASE_URL.replace(/\/+$/,'');sbClient=window._hyattSb||supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storageKey:'hyatt-sb-auth'}});window._hyattSb=sbClient;document.getElementById('cfg-url').value=SUPABASE_URL;document.getElementById('cfg-key').value=SUPABASE_KEY;loadOrdersFromSupabase().then(function(){return loadServicesFromSupabase();}).then(function(){try{subscribeRealtime();}catch(e){}}).catch(function(e){console.warn('Init error:',e&&e.message||e);setConnBadge('disconnected','Offline');});}}
 function updateClock(){var d=new Date(),el=document.getElementById('clock');if(el)el.textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');}
 setInterval(updateClock,1000);updateClock();
 function elapsed(ts){var m=Math.floor((Date.now()-ts)/60000);if(m<1)return'< 1m';if(m<60)return m+'m';return Math.floor(m/60)+'h '+(m%60)+'m';}
 function elapsedClass(ts){var m=Math.floor((Date.now()-ts)/60000);return m<15?'ok':m<25?'warn':'late';}
-function renderOrders(){
-  var grid=document.getElementById('orders-grid');
-  var active=orders.filter(function(o){return o.status!=='delivered'&&o.status!=='rejected'&&o.status!=='cancelled';});
-  var filtered=orders.filter(function(o){
-    if(orderFilter==='all') return o.status!=='delivered'&&o.status!=='rejected'&&o.status!=='cancelled';
-    if(orderFilter==='rejected') return o.status==='rejected'||o.status==='cancelled';
-    if(orderFilter==='delivered') return o.status==='delivered';
-    return o.status===orderFilter;
-  });
-  document.getElementById('orders-count').textContent=active.length+' active';
-  document.getElementById('orders-badge').textContent=active.length;
-  document.getElementById('stat-active').textContent=active.length;
-  if(!filtered.length){
-    grid.innerHTML='<div class="empty-state"><div class="empty-icon">✓</div><div style="color:var(--text-muted);font-size:15px;font-family:\'Cormorant Garamond\',serif">All clear</div><div style="font-size:12px;margin-top:4px;color:var(--text-dim)">No orders in this category</div></div>';
-    return;
-  }
-  var pills={
-    new:'<span class="status-pill pill-new"><span class="pill-dot"></span>New</span>',
-    accepted:'<span class="status-pill pill-accepted"><span class="pill-dot"></span>Accepted</span>',
-    preparing:'<span class="status-pill pill-preparing"><span class="pill-dot"></span>Preparing</span>',
-    ready:'<span class="status-pill pill-ready"><span class="pill-dot"></span>Ready</span>',
-    rejected:'<span class="status-pill pill-rejected"><span class="pill-dot"></span>Rejected</span>',
-    delivered:'<span class="status-pill pill-delivered"><span class="pill-dot"></span>Delivered</span>',
-    cancelled:'<span class="status-pill pill-delivered"><span class="pill-dot"></span>Cancelled</span>'
-  };
-  grid.innerHTML=filtered.map(function(o){
-    var ec=elapsedClass(o.placedAt);
-    var pill=pills[o.status]||'';
-    var lt=o.fromSupa?'<span style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:var(--green);margin-left:5px;opacity:0.8">● live</span>':'';
-    var actions='';
-    if(o.status==='new'){
-      actions='<button class="btn-status btn-accept" onclick="acceptOrder(\''+o.id+'\')">✓ Accept</button>'+
-              '<button class="btn-status btn-reject" onclick="openRejectModal(\''+o.id+'\')">✕ Reject</button>';
-    } else if(o.status==='accepted'){
-      actions='<button class="btn-status btn-preparing" onclick="advanceOrder(\''+o.id+'\',\'preparing\')">Start Preparing</button>';
-    } else if(o.status==='preparing'){
-      actions='<button class="btn-status btn-ready" onclick="advanceOrder(\''+o.id+'\',\'ready\')">Mark Ready</button>';
-    } else if(o.status==='ready'){
-      actions='<button class="btn-status btn-done" onclick="advanceOrder(\''+o.id+'\',\'delivered\')">Mark Delivered</button>';
-    }
-    var rejectionInfo = o.rejection_reason
-      ? '<div style="margin:8px 0;padding:8px 10px;background:rgba(192,57,43,0.08);border-radius:8px;font-size:12px;color:var(--red);">Reason: '+o.rejection_reason+'</div>'
-      : '';
-    return '<div class="order-card'+(o.status==='new'?' urgent':'')+'" id="card-'+o.id+'">'+
-      '<div class="order-head"><div>'+
-        '<div class="order-room">Room '+o.room+lt+'</div>'+
-        '<div class="order-id">'+o.id+' · '+o.guest+'</div>'+
-      '</div><div>'+
-        '<div style="display:flex;justify-content:flex-end;margin-bottom:4px">'+pill+'</div>'+
-        '<div class="order-time-ago">'+new Date(o.placedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true})+'</div>'+
-        '<div class="order-elapsed '+ec+'">'+elapsed(o.placedAt)+'</div>'+
-      '</div></div>'+
-      '<div class="order-items">'+o.items.map(function(i){
-        return '<div class="order-item-row"><div><span class="order-item-qty">×'+i.qty+'</span>'+i.name+'</div><div class="order-item-price">₹'+(i.qty*i.price)+'</div></div>';
-      }).join('')+'</div>'+
-      '<div class="order-total-row"><div class="order-total-label">Total</div><div class="order-total-amt">₹'+o.total+'</div></div>'+
-      rejectionInfo+
-      '<div class="order-actions" style="gap:8px;">'+actions+
-        '<button class="btn-call" onclick="callRoom(\''+o.room+'\')" title="Call room"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6z"/></svg></button>'+
-      '</div>'+
-    '</div>';
-  }).join('');
-}
+function renderOrders(){var grid=document.getElementById('orders-grid');var filtered=orders.filter(function(o){return orderFilter==='all'?o.status!=='delivered':o.status===orderFilter;});document.getElementById('orders-count').textContent=filtered.length+' active';document.getElementById('orders-badge').textContent=orders.filter(function(o){return o.status!=='delivered';}).length;document.getElementById('stat-active').textContent=orders.filter(function(o){return o.status!=='delivered';}).length;if(!filtered.length){grid.innerHTML='<div class="empty-state"><div class="empty-icon">✓</div><div style="color:var(--text-muted);font-size:15px;font-family:&quot;Cormorant Garamond&quot;,serif">All orders handled</div><div style="font-size:12px;margin-top:4px;color:var(--text-dim)">No active orders right now</div></div>';return;}grid.innerHTML=filtered.map(function(o){var ec=elapsedClass(o.placedAt);var pill={new:'<span class="status-pill pill-new"><span class="pill-dot"></span>New</span>',preparing:'<span class="status-pill pill-preparing"><span class="pill-dot"></span>Preparing</span>',ready:'<span class="status-pill pill-ready"><span class="pill-dot"></span>Ready</span>',delivered:'<span class="status-pill pill-delivered"><span class="pill-dot"></span>Delivered</span>'}[o.status]||'';;var nextBtn='';if(o.status==='new')nextBtn='<button class="btn-status btn-preparing" onclick="advanceOrder(\''+o.id+'\')" >Start Preparing</button>';else if(o.status==='preparing')nextBtn='<button class="btn-status btn-ready" onclick="advanceOrder(\''+o.id+'\')" >Mark Ready</button>';else if(o.status==='ready')nextBtn='<button class="btn-status btn-done" onclick="advanceOrder(\''+o.id+'\')" >Mark Delivered</button>';var lt=o.fromSupa?'<span style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:var(--green);margin-left:5px;opacity:0.8">● live</span>':'';return'<div class="order-card'+(o.status==='new'?' urgent':'')+'" id="card-'+o.id+'">'+'<div class="order-head"><div><div class="order-room">Room '+o.room+lt+'</div><div class="order-id">'+o.id+' · '+o.guest+'</div></div>'+'<div><div style="display:flex;justify-content:flex-end;margin-bottom:4px">'+pill+'</div><div class="order-time-ago">'+new Date(o.placedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true})+'</div><div class="order-elapsed '+ec+'">'+elapsed(o.placedAt)+'</div></div></div>'+'<div class="order-items">'+o.items.map(function(i){return'<div class="order-item-row"><div><span class="order-item-qty">×'+i.qty+'</span>'+i.name+'</div><div class="order-item-price">₹'+(i.qty*i.price)+'</div></div>';}).join('')+'</div>'+'<div class="order-total-row"><div class="order-total-label">Total</div><div class="order-total-amt">₹'+o.total+'</div></div>'+'<div class="order-actions">'+nextBtn+'<button class="btn-call" onclick="callRoom(\''+o.room+'\')" title="Call room"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6z"/></svg></button></div></div>';}).join('');}
 function filterOrders(f,el){orderFilter=f;document.querySelectorAll('#view-orders .filter-tab').forEach(function(t){t.classList.remove('active');});el.classList.add('active');renderOrders();}
 function renderServices(){var list=document.getElementById('svc-list');var filtered=services.filter(function(s){return svcFilter==='all'||s.status===svcFilter;});document.getElementById('svc-count').textContent=filtered.length+' requests';document.getElementById('service-badge').textContent=services.filter(function(s){return s.status!=='done';}).length;document.getElementById('stat-svc-pending').textContent=services.filter(function(s){return s.status!=='done';}).length;if(!filtered.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">✓</div><div style="color:var(--text-muted);font-size:15px;font-family:&quot;Cormorant Garamond&quot;,serif">No requests</div></div>';return;}var pills={received:'<span class="status-pill pill-received"><span class="pill-dot"></span>New</span>',assigned:'<span class="status-pill pill-assigned"><span class="pill-dot"></span>Assigned</span>',inprogress:'<span class="status-pill pill-inprogress"><span class="pill-dot"></span>In Progress</span>',done:'<span class="status-pill pill-done"><span class="pill-dot"></span>Done</span>'};list.innerHTML=filtered.map(function(s){var qtyStr=s.qty?' ×'+s.qty:'';var btns='';if(s.status==='received')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'assigned\')">Assign to Staff</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='assigned')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'inprogress\')" style="background:rgba(76,175,125,0.08);border-color:rgba(76,175,125,0.22);color:var(--green)">In Progress</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='inprogress')btns='<button class="svc-complete" style="width:100%" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Completed</button>';else btns='<span style="font-size:13px;color:var(--text-muted);padding:4px 0;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>Completed</span>';return'<div class="svc-card" id="svc-card-'+s.id+'"><div class="svc-head"><div class="svc-icon-box">'+s.icon+'</div><div><div class="svc-room">Room '+s.room+'</div><div class="svc-type">'+s.type+qtyStr+'</div>'+(s.note?'<div class="svc-note">"'+ s.note+'"</div>':'')+ '</div><div class="svc-meta">'+(pills[s.status]||'')+'<div class="svc-time" style="margin-top:6px">'+s.id+'</div><div class="svc-elapsed '+elapsedClass(s.placedAt)+'">'+elapsed(s.placedAt)+'</div></div></div><div class="svc-actions">'+btns+'<button class="btn-call" onclick="callRoom(\''+s.room+'\')" title="Call room" style="width:36px;height:36px;border-radius:10px;background:var(--surface2);border:1px solid var(--card-border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6z"/></svg></button></div></div>';}).join('');}
 async function advanceSvc(id,status){
@@ -3681,164 +3403,23 @@ async function advanceSvc(id,status){
   }
 }
 function filterSvc(f,el){svcFilter=f;document.querySelectorAll('#view-service .filter-tab').forEach(function(t){t.classList.remove('active');});el.classList.add('active');renderServices();}
-async function checkoutRoom(roomNum, e) {
-  e.stopPropagation();
-  if (!confirm('Check out ' + (STATIC_ROOMS[roomNum]&&STATIC_ROOMS[roomNum].guest||'guest') + ' from Room ' + roomNum + '?')) return;
-  // Update Supabase checkin record
-  if (sbClient) {
-    try {
-      await sbClient.from('checkins')
-        .update({ status: 'checked_out', checked_out_at: new Date().toISOString() })
-        .eq('room', roomNum).eq('status', 'active');
-    } catch(e) { console.warn('Checkout update failed', e); }
-  }
-  // Update local
-  if (STATIC_ROOMS[roomNum]) {
-    STATIC_ROOMS[roomNum].guest    = '—';
-    STATIC_ROOMS[roomNum].status   = 'vacant';
-    STATIC_ROOMS[roomNum].checkout = '—';
-  }
-  try { localStorage.setItem('hyatt_rooms_override', JSON.stringify(STATIC_ROOMS)); } catch(e) {}
-  renderRooms();
-}
-
-function roomGuestUrl(roomNum, guestName) {
-  var base = localStorage.getItem('hyatt_guest_url') ||
-    window.location.href.split('?')[0].replace('index.html','hyatt-guest-ui-final_2.html');
-  var clean = (!guestName || guestName === '—' || guestName === 'Vacant') ? 'Guest' : guestName;
-  return base + '?room=' + encodeURIComponent(roomNum) + '&guest=' + encodeURIComponent(clean);
-}
-function tileQrSrc(url) {
-  return 'https://chart.googleapis.com/chart?chs=80x80&cht=qr&chl=' + encodeURIComponent(url) + '&choe=UTF-8&chld=M|0';
-}
-function renderRooms(){
-  var data=(typeof buildRoomsData==='function')?buildRoomsData():[];
-  var grid=document.getElementById('rooms-grid');
-  if(!grid)return;
-  grid.innerHTML=data.map(function(r){
-    var dots='';
-    if(r.orders>0)dots+='<div class="room-dot order">'+r.orders+'🍽</div>';
-    if(r.services>0)dots+='<div class="room-dot service">'+r.services+'🛎</div>';
-    var isOccupied = r.status === 'occupied' || r.status === 'checkout';
-    // QR uses only room number — fixed per room
-    var fixedUrl = getGuestBaseUrl() + '?room=' + encodeURIComponent(r.num);
-    var qrSrc = 'https://chart.googleapis.com/chart?chs=72x72&cht=qr&chl=' + encodeURIComponent(fixedUrl) + '&choe=UTF-8&chld=M|0';
-    return '<div class="room-tile '+r.status+'" onclick="showRoomQR(\''+r.num+'\')">' +
-      '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
-        '<div class="room-number">'+r.num+'</div>' +
-        '<button onclick="editRoom(\''+r.num+'\',event)" style="background:none;border:none;color:var(--text-dim);font-size:13px;cursor:pointer;padding:0 2px;line-height:1;" title="Edit room">✎</button>' +
-      '</div>' +
-      '<div class="room-guest">'+(r.guest||'Vacant')+'</div>' +
-      // QR always shown — fixed per room, no guest name
-      '<div style="display:flex;justify-content:center;margin:6px 0 4px;">' +
-        '<div style="background:white;border-radius:6px;padding:3px;display:inline-block;position:relative;">' +
-          '<img src="'+qrSrc+'" width="66" height="66" style="display:block;border-radius:2px;" loading="lazy" alt="QR '+r.num+'">' +
-          '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;background:white;border-radius:3px;display:flex;align-items:center;justify-content:center;">' +
-            '<div style="width:10px;height:10px;background:#C9A96E;border-radius:2px;"></div>' +
-          '</div>' +
-        '</div>' +
-      '</div>' +
-      '<div class="room-status-row">' +
-        '<div class="room-checkout" style="font-size:10px;color:var(--text-dim)">'+r.checkout+'</div>' +
-        '<div class="room-actions-active">'+dots+'</div>' +
-      '</div>' +
-      (isOccupied ?
-        '<button onclick="checkoutRoom(\''+r.num+'\',event)" style="width:100%;margin-top:6px;background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.2);border-radius:8px;color:var(--red);font-size:11px;padding:5px;cursor:pointer;letter-spacing:0.04em;">Check Out</button>'
-      : '') +
-    '</div>';
-  }).join('');
-}
+function renderRooms(){var data=(typeof buildRoomsData==='function')?buildRoomsData():[];var grid=document.getElementById('rooms-grid');if(!grid)return;grid.innerHTML=data.map(function(r){var dots='';if(r.orders>0)dots+='<div class="room-dot order">'+r.orders+'🍽</div>';if(r.services>0)dots+='<div class="room-dot service">'+r.services+'🛎</div>';return'<div class="room-tile '+r.status+'" onclick="showRoomQR(\''+r.num+'\')">'+'<div class="room-number">'+r.num+'</div>'+'<div class="room-guest">'+(r.guest||'Vacant')+'</div>'+'<div class="room-status-row"><div class="room-checkout" style="font-size:10px;color:var(--text-dim)">'+r.checkout+'</div>'+'<div class="room-actions-active">'+dots+'</div></div></div>';}).join('');}
 function renderAnalytics(){var items=[{name:'Paneer Butter Masala',val:42,pct:84},{name:'Chicken Biryani',val:38,pct:76},{name:'Dal Tadka',val:31,pct:62},{name:'Veg Biryani',val:27,pct:54},{name:'Butter Chicken',val:24,pct:48},{name:'Cold Coffee',val:19,pct:38}];document.getElementById('top-items-chart').innerHTML=items.map(function(i){return'<div class="bar-row"><div class="bar-label">'+i.name+'</div><div class="bar-track"><div class="bar-fill" style="width:'+i.pct+'%"></div></div><div class="bar-val">'+i.val+'</div></div>';}).join('');document.getElementById('metrics-list').innerHTML=[{name:'Avg. Order Value',val:'₹301',cls:'amber'},{name:'Orders / Room / Day',val:'2.4',cls:''},{name:'Peak Hour',val:'8–9 PM',cls:'amber'},{name:'Repeat Orders',val:'68%',cls:'green'},{name:'Fastest Delivery',val:'11 min',cls:'green'},{name:'Slowest Delivery',val:'38 min',cls:''}].map(function(m){return'<div class="metric-row"><div class="metric-name">'+m.name+'</div><div class="metric-val '+m.cls+'">'+m.val+'</div></div>';}).join('');var svc=[{name:'Room Cleaning',val:24,pct:80,cls:''},{name:'Towels',val:18,pct:60,cls:'green'},{name:'Water',val:14,pct:47,cls:'blue'},{name:'Other',val:8,pct:27,cls:''}];document.getElementById('svc-breakdown-chart').innerHTML=svc.map(function(i){return'<div class="bar-row"><div class="bar-label">'+i.name+'</div><div class="bar-track"><div class="bar-fill '+i.cls+'" style="width:'+i.pct+'%"></div></div><div class="bar-val">'+i.val+'</div></div>';}).join('');var hours=[{name:'7–8 AM',val:3,pct:15},{name:'8–9 AM',val:9,pct:45},{name:'12–1 PM',val:14,pct:70},{name:'1–2 PM',val:11,pct:55},{name:'7–8 PM',val:18,pct:90},{name:'8–9 PM',val:20,pct:100},{name:'9–10 PM',val:16,pct:80},{name:'10–11 PM',val:8,pct:40}];document.getElementById('hourly-chart').innerHTML=hours.map(function(i){return'<div class="bar-row"><div class="bar-label">'+i.name+'</div><div class="bar-track"><div class="bar-fill blue" style="width:'+i.pct+'%"></div></div><div class="bar-val">'+i.val+'</div></div>';}).join('');}
 function updateStats(){var allActive=orders.filter(function(o){return o.status!=='delivered';});var n=allActive.length;document.getElementById('stat-active').textContent=n;document.getElementById('orders-badge').textContent=n;document.getElementById('orders-count').textContent=n+' active';var rev=orders.filter(function(o){return o.status==='delivered';}).reduce(function(s,o){return s+o.total;},0)+4820;document.getElementById('stat-revenue').textContent=rev.toLocaleString('en-IN');updateUrgencyStrip();}
 var orderCounter=4;
 var roomPool=['101','207','301','303','105'];
 var menuPool=[{name:'Butter Chicken',price:340},{name:'Egg Fried Rice',price:210},{name:'Masala Chai',price:60},{name:'Mango Lassi',price:120},{name:'Chicken Tikka',price:380},{name:'Fresh Lime Soda',price:90}];
-function simulateNewOrder(){var room=roomPool[Math.floor(Math.random()*roomPool.length)];var numItems=Math.floor(Math.random()*2)+1;var items=[],total=0;for(var i=0;i<numItems;i++){var m=menuPool[Math.floor(Math.random()*menuPool.length)];var qty=Math.floor(Math.random()*2)+1;items.push({name:m.name,qty:qty,price:m.price});total+=m.price*qty;}var id='ORD-'+String(orderCounter).padStart(3,'0');orderCounter++;var order={id:id,room:room,guest:'Guest',items:items,total:total,status:'new',placedAt:Date.now()};orders.unshift(order);renderOrders();updateStats();showToast('order','New Order — Room '+room,'₹'+total+' · '+items.length+' item'+(items.length>1?'s':''));startAlertBeep(id,'order');}
+function simulateNewOrder(){var room=roomPool[Math.floor(Math.random()*roomPool.length)];var numItems=Math.floor(Math.random()*2)+1;var items=[],total=0;for(var i=0;i<numItems;i++){var m=menuPool[Math.floor(Math.random()*menuPool.length)];var qty=Math.floor(Math.random()*2)+1;items.push({name:m.name,qty:qty,price:m.price});total+=m.price*qty;}var id='ORD-'+String(orderCounter).padStart(3,'0');orderCounter++;orders.unshift({id:id,room:room,guest:'Guest',items:items,total:total,status:'new',placedAt:Date.now()});renderOrders();updateStats();showToast('order','New Order — Room '+room,'₹'+total+' · '+items.length+' item'+(items.length>1?'s':''));}
 function showToast(type,title,msg){var container=document.getElementById('alert-container');var toast=document.createElement('div');toast.className='alert-toast';var ic=type==='order'?'var(--amber)':' var(--blue)';var svg=type==='order'?'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+ic+'" stroke-width="2" stroke-linecap="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>':' <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+ic+'" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>';var now=new Date();toast.innerHTML='<div class="toast-icon '+type+'">'+svg+'</div><div class="toast-body"><div class="toast-title">'+title+'</div><div class="toast-msg">'+msg+'</div><div class="toast-time">'+now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true})+'</div></div><button class="toast-close" onclick="this.parentElement.remove()">×</button>';container.appendChild(toast);setTimeout(function(){toast.classList.add('fade-out');setTimeout(function(){if(toast.parentElement)toast.remove();},300);},5000);}
 function animateBars(){document.querySelectorAll('.bar-fill').forEach(function(b){var w=b.style.width;b.style.width='0';setTimeout(function(){b.style.width=w;},50);});}
 var currentQRUrl='',currentQRRoom='';
-function showRoomQR(roomNum){
-  currentQRRoom=roomNum;
-  var hn = encodeURIComponent(localStorage.getItem('hyatt_hotel_name')||'');
-  var url=getGuestBaseUrl()+'?room='+encodeURIComponent(roomNum)+(hn?'&hotel='+hn:'');
-  currentQRUrl=url;
-  document.getElementById('qr-modal-sub').textContent='Room '+roomNum+' · Guest scans to check in';
-  document.getElementById('qr-url-text').textContent=url;
-  document.getElementById('qr-room-label').textContent=roomNum;
-  var hn=localStorage.getItem('hyatt_hotel_name')||'Hyatt Hotel';
-  var hnel=document.getElementById('qr-hotel-name');
-  if(hnel)hnel.textContent=hn.toUpperCase();
-  document.getElementById('qr-modal').classList.add('open');
-  drawQR(url,roomNum);
-}
-
-// Room tile long-press or double-tap to edit guest details
-function editRoom(roomNum, e){
-  e.stopPropagation();
-  var known=STATIC_ROOMS[roomNum]||{guest:'—',status:'vacant',checkout:'—'};
-  var newGuest=prompt('Guest name for Room '+roomNum+':', known.guest==='—'?'':known.guest);
-  if(newGuest===null)return;
-  var newStatus=prompt('Status (occupied/vacant/checkout/issue):', known.status);
-  if(newStatus===null)return;
-  var newCheckout=prompt('Checkout date (e.g. 22 Mar or Today):', known.checkout==='—'?'':known.checkout);
-  if(newCheckout===null)return;
-  STATIC_ROOMS[roomNum]={
-    guest:newGuest||'—',
-    status:newStatus||'vacant',
-    checkout:newCheckout||'—'
-  };
-  // Persist to localStorage
-  try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}
-  renderRooms();
-}
-function drawQR(url,roomNum){
-  document.getElementById('qr-room-label').textContent=roomNum;
-  var hn=(localStorage.getItem('hyatt_hotel_name')||'Hyatt Hotel').toUpperCase();
-  var hnel=document.getElementById('qr-hotel-name');
-  if(hnel)hnel.textContent=hn;
-
-  var imgEl=document.getElementById('qr-canvas');
-
-  function render(){
-    try{
-      var qr=qrcode(0,'M');
-      qr.addData(url);
-      qr.make();
-      var size=qr.getModuleCount();
-      var cell=Math.floor(200/size);
-      var w=cell*size;
-      var c=document.createElement('canvas');
-      c.width=w;c.height=w;
-      var ctx=c.getContext('2d');
-      ctx.fillStyle='#ffffff';ctx.fillRect(0,0,w,w);
-      for(var r=0;r<size;r++){
-        for(var col=0;col<size;col++){
-          ctx.fillStyle=qr.isDark(r,col)?'#000000':'#ffffff';
-          ctx.fillRect(col*cell,r*cell,cell,cell);
-        }
-      }
-      imgEl.src=c.toDataURL('image/png');
-    }catch(e){console.warn('QR render error',e);}
-  }
-
-  if(typeof qrcode!=='undefined'){render();}
-  else{setTimeout(render,500);}
-}
-function downloadQR(){
-  var el=document.getElementById('qr-canvas');
-  if(el.tagName==='CANVAS'){
-    var a=document.createElement('a');a.download='QR-Room-'+currentQRRoom+'.png';a.href=el.toDataURL('image/png');a.click();
-  } else {
-    // img element — fetch as blob to download
-    fetch(el.src).then(function(r){return r.blob();}).then(function(b){
-      var a=document.createElement('a');a.download='QR-Room-'+currentQRRoom+'.png';a.href=URL.createObjectURL(b);a.click();
-    }).catch(function(){window.open(el.src);});
-  }
-}
+function showRoomQR(roomNum){currentQRRoom=roomNum;var guestName='';var _rooms=(typeof buildRoomsData==='function')?buildRoomsData():[];for(var i=0;i<_rooms.length;i++){if(_rooms[i].num===roomNum){guestName=_rooms[i].guest||'';}};var baseUrl=window.location.href.split('?')[0];var token=(function(){try{return btoa('rm'+roomNum+Date.now()).replace(/[=+/]/g,'').slice(0,10);}catch(e){return'tok'+roomNum;}})();var params='room='+roomNum+'&guest='+encodeURIComponent(guestName)+'&token='+token;var url=baseUrl+'?'+params;currentQRUrl=url;document.getElementById('qr-modal-sub').textContent='Room '+roomNum+' · '+(guestName||'Guest portal');document.getElementById('qr-url-text').textContent=url;document.getElementById('qr-room-label').textContent='ROOM '+roomNum;document.getElementById('qr-modal').classList.add('open');drawQR(url,roomNum);}
+function drawQR(url,roomNum){var canvas=document.getElementById('qr-canvas'),ctx=canvas.getContext('2d'),size=200;canvas.width=size;canvas.height=size;var img=new Image();img.crossOrigin='anonymous';img.onload=function(){ctx.clearRect(0,0,size,size);ctx.drawImage(img,0,0,size,size);};img.onerror=function(){drawFallbackQR(ctx,size,roomNum,url);};img.src='https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl='+encodeURIComponent(url)+'&choe=UTF-8&chld=M|2';}
 function drawFallbackQR(ctx,size,roomNum){ctx.fillStyle='#fff';ctx.fillRect(0,0,size,size);ctx.strokeStyle='#1A1814';ctx.lineWidth=3;ctx.strokeRect(10,10,size-20,size-20);function corner(x,y){ctx.fillStyle='#1A1814';ctx.fillRect(x,y,40,40);ctx.fillStyle='#fff';ctx.fillRect(x+6,y+6,28,28);ctx.fillStyle='#1A1814';ctx.fillRect(x+12,y+12,16,16);}corner(18,18);corner(size-58,18);corner(18,size-58);ctx.fillStyle='#1A1814';ctx.font='bold 22px monospace';ctx.textAlign='center';ctx.fillText('Room '+roomNum,size/2,size/2-6);ctx.font='11px monospace';ctx.fillStyle='#8A8070';ctx.fillText(window.location.hostname||'yourhotel.com',size/2,size/2+14);ctx.fillStyle='#C9A96E';for(var i=0;i<6;i++)for(var j=0;j<3;j++){if(Math.random()>0.4)ctx.fillRect(68+i*11,size-55+j*11,7,7);}for(var i=0;i<3;i++)for(var j=0;j<6;j++){if(Math.random()>0.4)ctx.fillRect(size-55+i*11,68+j*11,7,7);}}
 function handleModalClick(e){if(e.target.id==='qr-modal')closeQRModal();}
 function closeQRModal(){document.getElementById('qr-modal').classList.remove('open');}
 function copyURL(){var url=currentQRUrl||document.getElementById('qr-url-text').textContent;if(navigator.clipboard)navigator.clipboard.writeText(url);else{var ta=document.createElement('textarea');ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);}var btn=document.getElementById('copy-btn');btn.textContent='✓ Copied!';setTimeout(function(){btn.textContent='Copy URL';},2000);}
+function downloadQR(){var c=document.getElementById('qr-canvas'),l=document.createElement('a');l.download='QR-Room-'+currentQRRoom+'.png';l.href=c.toDataURL('image/png');l.click();}
 function callRoom(room){showToast('service','Calling Room '+room,'Connecting to in-room phone…');}
 setInterval(function(){var av=document.querySelector('.view.active');if(av&&av.id==='view-orders'){if(sbClient)loadOrdersFromSupabase();else renderOrders();}if(av&&av.id==='view-service'){if(sbClient)loadServicesFromSupabase();else renderServices();}},30000);
 var currentDashTheme='auto';
@@ -4020,229 +3601,14 @@ window.rowToService=rowToService;
 window.handleSvcRealtimeEvent=handleSvcRealtimeEvent;
 window.advanceSvc=advanceSvc;
 window.advanceOrder=advanceOrder;
-window.acceptOrder=acceptOrder;
-window.openRejectModal=openRejectModal;
-window.closeRejectModal=closeRejectModal;
-window.selectReason=selectReason;
-window.confirmReject=confirmReject;
-window.stopAlertBeep=stopAlertBeep;
-window.playBeep=playBeep;
+window.filterSvc=filterSvc;
 window.renderRooms=renderRooms;
 window.renderAnalytics=renderAnalytics;
 window.updateStats=updateStats;
 window.simulateNewOrder=simulateNewOrder;
-// ── ALERT SOUND SYSTEM (Web Audio API — no files needed)
-var _audioCtx=null;
-var _beepIntervals={};  // orderId → intervalId
-
-function getAudioCtx(){
-  if(!_audioCtx){
-    try{ _audioCtx=new(window.AudioContext||window.webkitAudioContext)(); }catch(e){}
-  }
-  return _audioCtx;
-}
-
-function playBeep(type){
-  var ctx=getAudioCtx();
-  if(!ctx)return;
-  if(ctx.state==='suspended'){ctx.resume();}
-  try{
-    if(type==='order'){
-      // Pleasant 3-tone chime C5-E5-G5
-      [523,659,784].forEach(function(freq,i){
-        var osc=ctx.createOscillator();
-        var gain=ctx.createGain();
-        osc.connect(gain);gain.connect(ctx.destination);
-        osc.type='sine';
-        osc.frequency.value=freq;
-        gain.gain.setValueAtTime(0,ctx.currentTime+i*0.16);
-        gain.gain.linearRampToValueAtTime(0.3,ctx.currentTime+i*0.16+0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+i*0.16+0.35);
-        osc.start(ctx.currentTime+i*0.16);
-        osc.stop(ctx.currentTime+i*0.16+0.4);
-      });
-    } else {
-      // Single soft ding for service requests
-      var osc=ctx.createOscillator();
-      var gain=ctx.createGain();
-      osc.connect(gain);gain.connect(ctx.destination);
-      osc.type='sine';osc.frequency.value=660;
-      gain.gain.setValueAtTime(0,ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.2,ctx.currentTime+0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.4);
-      osc.start(ctx.currentTime);osc.stop(ctx.currentTime+0.45);
-    }
-  }catch(e){}
-}
-
-function startAlertBeep(orderId, type){
-  if(_beepIntervals[orderId])return; // already beeping
-  playBeep(type); // immediate first beep
-  _beepIntervals[orderId]=setInterval(function(){
-    // Only keep beeping if order is still 'new'
-    var order=orders.find(function(o){return o.id===orderId;});
-    if(!order||order.status!=='new'){
-      stopAlertBeep(orderId);
-      return;
-    }
-    playBeep(type);
-  },3000);
-}
-
-function stopAlertBeep(orderId){
-  if(_beepIntervals[orderId]){
-    clearInterval(_beepIntervals[orderId]);
-    delete _beepIntervals[orderId];
-  }
-}
-
-function stopAllBeeps(){
-  Object.keys(_beepIntervals).forEach(stopAlertBeep);
-}
-
-// ── SOUND UNLOCK BANNER
-// iOS requires one user interaction to unlock audio.
-// Show a banner at top of screen on first load.
-var _soundUnlocked = localStorage.getItem('hyatt_sound_unlocked') === '1';
-
-function unlockSound(){
-  try{
-    var ctx = getAudioCtx();
-    if(ctx && ctx.state==='suspended') ctx.resume();
-    // Play a silent buffer to fully unlock
-    var buf = ctx.createBuffer(1,1,22050);
-    var src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.connect(ctx.destination);
-    src.start(0);
-  }catch(e){}
-  _soundUnlocked = true;
-  localStorage.setItem('hyatt_sound_unlocked','1');
-  var banner = document.getElementById('sound-banner');
-  if(banner) banner.remove();
-  // Play a test chime so staff knows it worked
-  setTimeout(function(){ playBeep('order'); }, 100);
-}
-
-function showSoundBanner(){
-  if(_soundUnlocked) return;
-  if(document.getElementById('sound-banner')) return;
-  var banner = document.createElement('div');
-  banner.id = 'sound-banner';
-  banner.style.cssText =
-    'position:fixed;top:0;left:0;right:0;z-index:9999;'+
-    'background:#C9A96E;color:#0D0D0D;'+
-    'display:flex;align-items:center;justify-content:space-between;'+
-    'padding:10px 16px;font-family:DM Sans,sans-serif;font-size:13px;font-weight:500;'+
-    'cursor:pointer;';
-  banner.innerHTML =
-    '<div style="display:flex;align-items:center;gap:8px;">'+
-      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>'+
-      'Tap to enable order alert sounds'+
-    '</div>'+
-    '<span style="font-size:18px;line-height:1;">×</span>';
-  banner.onclick = unlockSound;
-  document.body.appendChild(banner);
-}
-
-// Show banner after page loads
-window.addEventListener('load', function(){
-  setTimeout(showSoundBanner, 1000);
-});
-
-window.unlockSound = unlockSound;
-
 window.showToast=showToast;
 window.animateBars=animateBars;
 window.showRoomQR=showRoomQR;
-window.editRoom=editRoom;
-window.checkoutRoom=checkoutRoom;
-
-function downloadQR(){
-  var imgEl=document.getElementById('qr-canvas');
-  if(!imgEl.src||imgEl.src===''){alert('QR not ready yet');return;}
-  var a=document.createElement('a');
-  a.download='QR-Room-'+currentQRRoom+'.png';
-  a.href=imgEl.src;
-  a.click();
-}
-function getGuestBaseUrl(){
-  // Saved custom URL takes priority
-  var saved=localStorage.getItem('hyatt_guest_url');
-  if(saved&&saved.indexOf('http')===0)return saved;
-  // Use current location if on a real domain
-  var loc=window.location.href;
-  if(loc.indexOf('http')===0&&loc.indexOf('srcdoc')===-1){
-    return loc.split('?')[0].replace('index.html','hyatt-guest-ui-final_2.html');
-  }
-  // Hardcoded fallback for GitHub Pages
-  return 'https://shakti151622.github.io/HOTEL-PROJECT-2/hyatt-guest-ui-final_2.html';
-}
-
-function buildQRHtml(rooms){
-  var base = getGuestBaseUrl();
-  var hotelName = localStorage.getItem('hyatt_hotel_name') || 'Hyatt Hotel';
-  var cards = rooms.map(function(r){
-    var url = base + '?room=' + encodeURIComponent(r.num);
-    var qrSrc = 'https://chart.googleapis.com/chart?chs=220x220&cht=qr&chl=' + encodeURIComponent(url) + '&choe=UTF-8&chld=H|1';
-    return '<div class="qr-card">' +
-      '<div class="hotel-name">'+hotelName.toUpperCase()+'</div>' +
-      '<div class="qr-wrap">' +
-        '<img src="'+qrSrc+'" width="220" height="220">' +
-        '<div class="logo-overlay"><div class="logo-inner"></div></div>' +
-      '</div>' +
-      '<div class="room-num">Room '+r.num+'</div>' +
-      '<div class="scan-txt">Scan to order · Room service</div>' +
-      '<div class="gold-bar"></div>' +
-    '</div>';
-  }).join('');
-
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+hotelName+' · Room QR Codes</title>' +
-    '<style>' +
-    'body{font-family:Georgia,serif;background:#f0ebe3;padding:20px;margin:0;}' +
-    '.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:20px;max-width:1200px;margin:0 auto;}' +
-    'h1{text-align:center;font-size:18px;letter-spacing:0.15em;color:#8A7050;margin-bottom:20px;font-weight:400;}' +
-    '.qr-card{background:#F5EFE6;border-radius:16px;padding:18px 16px 14px;display:flex;flex-direction:column;align-items:center;box-shadow:0 2px 12px rgba(0,0,0,0.08);page-break-inside:avoid;break-inside:avoid;}' +
-    '.hotel-name{font-size:10px;letter-spacing:0.2em;color:#A09070;text-transform:uppercase;margin-bottom:10px;}' +
-    '.qr-wrap{position:relative;display:inline-block;}' +
-    '.qr-wrap img{display:block;border-radius:6px;}' +
-    '.logo-overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:38px;height:38px;background:white;border-radius:8px;display:flex;align-items:center;justify-content:center;}' +
-    '.logo-inner{width:26px;height:26px;background:#C9A96E;border-radius:6px;}' +
-    '.room-num{font-size:26px;color:#1A1814;margin-top:12px;letter-spacing:0.06em;}' +
-    '.scan-txt{font-size:9px;color:#C0B090;letter-spacing:0.12em;text-transform:uppercase;margin-top:4px;}' +
-    '.gold-bar{width:40px;height:2px;background:#C9A96E;border-radius:1px;margin-top:10px;opacity:0.7;}' +
-    '@media print{body{background:white;padding:0;}.qr-card{box-shadow:none;border:1px solid #ddd;}}' +
-    '</style></head><body>' +
-    '<h1>'+hotelName.toUpperCase()+' · ROOM QR CODES</h1>' +
-    '<div class="grid">'+cards+'</div>' +
-    '<script>window.onload=function(){window.print();}<\/script>' +
-    '</body></html>';
-}
-
-function downloadAllQR(){
-  var data = (typeof buildRoomsData==='function') ? buildRoomsData() : [];
-  if(!data.length){alert('No rooms configured.');return;}
-  var html = buildQRHtml(data);
-  var blob = new Blob([html], {type:'text/html'});
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'Hyatt-All-Room-QR-Codes.html';
-  a.click();
-}
-
-function downloadSingleQR(){
-  var data = (typeof buildRoomsData==='function') ? buildRoomsData() : [];
-  var room = data.find(function(r){return r.num===currentQRRoom;});
-  if(!room){alert('Room not found.');return;}
-  var html = buildQRHtml([room]);
-  var blob = new Blob([html], {type:'text/html'});
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'QR-Room-'+currentQRRoom+'.html';
-  a.click();
-}
-window.downloadAllQR=downloadAllQR;
-window.downloadSingleQR=downloadSingleQR;
 window.drawQR=drawQR;
 window.drawFallbackQR=drawFallbackQR;
 window.handleModalClick=handleModalClick;
@@ -4275,7 +3641,8 @@ var floorConfig = JSON.parse(localStorage.getItem('hyatt_floors') || 'null') || 
   {name:'Floor 3', prefix:'3', start:1, count:4},
 ];
 
-// Static room data
+// Static room data — real guest names + real checkout dates
+// Keyed by room number so the grid is always consistent
 var STATIC_ROOMS = {
   '101':{guest:'Arjun Mehta',  status:'occupied', checkout:'20 Mar'},
   '102':{guest:'Priya Sharma', status:'occupied', checkout:'21 Mar'},
@@ -4299,29 +3666,18 @@ var STATIC_ROOMS = {
   '304':{guest:'—',            status:'checkout', checkout:'Today'},
 };
 
-// Load saved overrides AFTER STATIC_ROOMS is defined
-try{
-  var _saved=localStorage.getItem('hyatt_rooms_override');
-  if(_saved){
-    var _ov=JSON.parse(_saved);
-    Object.keys(_ov).forEach(function(k){ STATIC_ROOMS[k]=_ov[k]; });
-  }
-}catch(e){}
-
 function buildRoomsData() {
   var rooms = [];
   floorConfig.forEach(function(floor) {
     for (var i = 0; i < floor.count; i++) {
       var num = floor.prefix + String(floor.start + i).padStart(2,'0');
       var known = STATIC_ROOMS[num];
-      // All rooms — known or new — use same structure
-      rooms.push({
-        num:      num,
-        guest:    known ? known.guest    : '—',
-        status:   known ? known.status   : 'vacant',
-        checkout: known ? known.checkout : '—',
-        orders:0, services:0
-      });
+      if (known) {
+        rooms.push({num:num, guest:known.guest, status:known.status, checkout:known.checkout, orders:0, services:0});
+      } else {
+        // New room added via config — default to vacant
+        rooms.push({num:num, guest:'—', status:'vacant', checkout:'—', orders:0, services:0});
+      }
     }
   });
   return rooms;
@@ -4506,26 +3862,6 @@ updateUrgencyStrip();
   if(u) localStorage.setItem('hyatt_sb_url', u.replace(/\/+$/,'').trim());
   if(k) localStorage.setItem('hyatt_sb_key', k.trim());
 })();
-// ── HOTEL NAME
-function saveHotelName(val){
-  val = val.trim() || 'Hyatt Hotel';
-  localStorage.setItem('hyatt_hotel_name', val);
-  applyHotelName(val);
-}
-function applyHotelName(name){
-  // Update all places showing hotel name
-  document.querySelectorAll('.hotel-name-text').forEach(function(el){el.textContent=name;});
-  var inp = document.getElementById('hotel-name-input');
-  if(inp) inp.value = name;
-  // Update page title
-  document.title = name + ' · Staff Dashboard';
-}
-(function(){
-  var saved = localStorage.getItem('hyatt_hotel_name') || 'Hyatt Hotel';
-  applyHotelName(saved);
-})();
-window.saveHotelName = saveHotelName;
-
 maybeShowCfgOnLoad();
 })();
 </script>
