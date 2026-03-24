@@ -3958,16 +3958,70 @@ async function advanceOrder(id,toStatus){
 function openCfg(){document.getElementById('sql-code').textContent=SETUP_SQL;if(SUPABASE_URL)document.getElementById('cfg-url').value=SUPABASE_URL;if(SUPABASE_KEY)document.getElementById('cfg-key').value=SUPABASE_KEY;var btn=document.getElementById('cfg-connect-btn');btn.disabled=false;btn.textContent='Connect';document.getElementById('cfg-overlay').style.display='flex';}
 function closeCfg(){document.getElementById('cfg-overlay').style.display='none';}
 function cfgOverlayClick(e){if(e.target.id==='cfg-overlay')closeCfg();}
-function maybeShowCfgOnLoad(){
+function maybeShowCfgOnLoad(){ autoConnect(); }
+
+var _autoConnectTimer=null, _connHealthTimer=null;
+
+function autoConnect(){
   setConnBadge('connecting','Connecting…');
-  SUPABASE_URL=SUPABASE_URL.replace(/\/+$/,'');
-  realtimeInited = false;
-  sbClient=window._hyattSb||supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storageKey:'hyatt-sb-auth'}});
-  window._hyattSb=sbClient;
+  SUPABASE_URL=_SB_URL; SUPABASE_KEY=_SB_KEY;
+  localStorage.setItem('hyatt_sb_url',SUPABASE_URL);
+  localStorage.setItem('hyatt_sb_key',SUPABASE_KEY);
+  realtimeInited=false;
+  try{
+    sbClient=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storageKey:'hyatt-sb-auth',persistSession:false}});
+    window._hyattSb=sbClient;
+  }catch(e){ console.warn('Supabase init error:',e); scheduleReconnect(); return; }
   var u=document.getElementById('cfg-url');if(u)u.value=SUPABASE_URL;
   var k=document.getElementById('cfg-key');if(k)k.value=SUPABASE_KEY;
-  loadOrdersFromSupabase().then(function(){return loadServicesFromSupabase();}).then(function(){return loadCheckinsFromSupabase();}).then(function(){try{subscribeRealtime();}catch(e){}}).catch(function(e){console.warn('Init error:',e&&e.message||e);setConnBadge('disconnected','Offline');});
+  loadOrdersFromSupabase()
+    .then(function(){return loadServicesFromSupabase();})
+    .then(function(){return loadCheckinsFromSupabase();})
+    .then(function(){
+      try{subscribeRealtime();}catch(e){console.warn('Realtime init:',e);}
+      startConnHealthCheck();
+    })
+    .catch(function(e){
+      console.warn('Init error:',e&&e.message||e);
+      setConnBadge('disconnected','Offline');
+      scheduleReconnect();
+    });
 }
+
+function scheduleReconnect(){
+  if(_autoConnectTimer)return;
+  _autoConnectTimer=setTimeout(function(){
+    _autoConnectTimer=null;
+    autoConnect();
+  },5000);
+}
+
+function startConnHealthCheck(){
+  if(_connHealthTimer)clearInterval(_connHealthTimer);
+  _connHealthTimer=setInterval(function(){
+    if(!sbClient){scheduleReconnect();return;}
+    sbClient.from('orders').select('id').limit(1)
+      .then(function(res){
+        if(res&&res.error){
+          setConnBadge('disconnected','Reconnecting…');
+          realtimeInited=false; scheduleReconnect();
+        } else {
+          setConnBadge('connected','Live');
+          if(!realtimeInited){try{subscribeRealtime();}catch(e){}}
+        }
+      })
+      .catch(function(){setConnBadge('disconnected','Reconnecting…');scheduleReconnect();});
+  },30000);
+}
+
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible'){
+    if(!sbClient||!realtimeInited){autoConnect();}
+    else{loadOrdersFromSupabase().catch(function(){});loadServicesFromSupabase().catch(function(){});}
+  }
+});
+
+window.addEventListener('online',function(){autoConnect();});
 function updateClock(){var d=new Date(),el=document.getElementById('clock');if(el)el.textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');}
 setInterval(updateClock,1000);updateClock();
 function elapsed(ts){var m=Math.floor((Date.now()-ts)/60000);if(m<1)return'< 1m';if(m<60)return m+'m';return Math.floor(m/60)+'h '+(m%60)+'m';}
@@ -4310,9 +4364,9 @@ function showUndoToast(label, id, type) {
 async function acceptOrder(id) {
   id = String(id);
   var order = orders.find(function(o){ return String(o.id)===id; });
-  if (!order) { console.warn('acceptOrder: order not found for id', id, 'orders:', orders.map(function(o){return o.id;})); return; }
+  if (!order) return;
   var now = new Date().toISOString();
-  // Update local state FIRST — UI responds immediately regardless of network
+  // Update local state FIRST — instant UI response regardless of network
   pushUndo(id, order.status, {});
   order.status = 'accepted';
   order.accepted_at = now;
@@ -4320,7 +4374,7 @@ async function acceptOrder(id) {
   if (typeof renderTasks==='function') renderTasks(); else renderOrders();
   updateStats();
   showUndoToast('Order accepted — Room '+order.room, id, 'order');
-  // Sync to Supabase in background — never block the UI
+  // Sync to Supabase in background
   if (sbClient) {
     try {
       var res = await sbClient.from('orders').update({status:'accepted',accepted_at:now}).eq('id',id);
@@ -4615,7 +4669,8 @@ window.copyURL=copyURL;
 window.downloadQR=downloadQR;
 window.downloadSingleQR=function(){var c=document.getElementById('qr-canvas');if(!c)return;try{var a=document.createElement('a');a.download='QR-Room-'+(currentQRRoom||'unknown')+'.png';a.href=c.toDataURL('image/png');a.click();}catch(e){console.warn('QR download:',e);}};
 window.checkoutRoom=function(roomNum,event){if(event)event.stopPropagation();if(!confirm('Check out Room '+roomNum+'?'))return;if(STATIC_ROOMS&&STATIC_ROOMS[roomNum]){STATIC_ROOMS[roomNum].guest='—';STATIC_ROOMS[roomNum].status='vacant';STATIC_ROOMS[roomNum].checkout='—';delete STATIC_ROOMS[roomNum].checkinId;try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}}if(sbClient&&STATIC_ROOMS&&STATIC_ROOMS[roomNum]&&STATIC_ROOMS[roomNum].checkinId){sbClient.from('checkins').update({status:'checked_out',checked_out_at:new Date().toISOString()}).eq('id',STATIC_ROOMS[roomNum].checkinId).then(function(){});}if(typeof window.renderRooms==='function')window.renderRooms();showToast('service','Checkout · Room '+roomNum,'Guest checked out');};
-window.editRoom=function(roomNum,event){if(event)event.stopPropagation();var name=prompt('Guest name for Room '+roomNum+' (leave blank to mark vacant):');if(name===null)return;if(!STATIC_ROOMS)return;if(!STATIC_ROOMS[roomNum])STATIC_ROOMS[roomNum]={};if(name.trim()){STATIC_ROOMS[roomNum].guest=name.trim();STATIC_ROOMS[roomNum].status='occupied';}else{STATIC_ROOMS[roomNum].guest='—';STATIC_ROOMS[roomNum].status='vacant';}try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}if(typeof window.renderRooms==='function')window.renderRooms();};
+window.editRoom=function(roomNum,event){if(event)event.stopPropagation();var name=prompt('Guest name for Room '+roomNum+' (leave blank for vacant):');if(name===null)return;if(!STATIC_ROOMS)return;if(!STATIC_ROOMS[roomNum])STATIC_ROOMS[roomNum]={};if(name.trim()){STATIC_ROOMS[roomNum].guest=name.trim();STATIC_ROOMS[roomNum].status='occupied';}else{STATIC_ROOMS[roomNum].guest='—';STATIC_ROOMS[roomNum].status='vacant';}try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}if(typeof window.renderRooms==='function')window.renderRooms();};
+window.autoConnect=autoConnect;
 window.callRoom=callRoom;
 window.switchView=switchView;
 window.animateBars=animateBars;
