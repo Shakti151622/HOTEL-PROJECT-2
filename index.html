@@ -4311,12 +4311,7 @@ async function acceptOrder(id) {
   var order = orders.find(function(o){ return o.id===id; });
   if (!order) return;
   var now = new Date().toISOString();
-  if (sbClient) {
-    try {
-      var res = await sbClient.from('orders').update({status:'accepted',accepted_at:now}).eq('id',id);
-      if (res.error) { console.warn('Accept write failed:', res.error.message); return; }
-    } catch(e) { console.warn('Accept write error:', e); return; }
-  }
+  // Update local state FIRST (same pattern as confirmReject)
   pushUndo(id, order.status, {});
   order.status = 'accepted';
   order.accepted_at = now;
@@ -4324,6 +4319,13 @@ async function acceptOrder(id) {
   if (typeof renderTasks==='function') renderTasks(); else renderOrders();
   updateStats();
   showUndoToast('Order accepted — Room '+order.room, id, 'order');
+  // Then sync to Supabase in background
+  if (sbClient) {
+    try {
+      var res = await sbClient.from('orders').update({status:'accepted',accepted_at:now}).eq('id',id);
+      if (res.error) { console.warn('Accept write failed:', res.error.message); }
+    } catch(e) { console.warn('Accept write error:', e); }
+  }
 }
 window.acceptOrder = acceptOrder;
 
@@ -4620,9 +4622,7 @@ window.checkoutRoom=function(roomNum,event){
   if(event)event.stopPropagation();
   if(!confirm('Check out Room '+roomNum+'?'))return;
   if(STATIC_ROOMS&&STATIC_ROOMS[roomNum]){
-    STATIC_ROOMS[roomNum].guest='—';
-    STATIC_ROOMS[roomNum].status='vacant';
-    STATIC_ROOMS[roomNum].checkout='—';
+    STATIC_ROOMS[roomNum].guest='—';STATIC_ROOMS[roomNum].status='vacant';STATIC_ROOMS[roomNum].checkout='—';
     delete STATIC_ROOMS[roomNum].checkinId;
     try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}
   }
@@ -4638,13 +4638,8 @@ window.editRoom=function(roomNum,event){
   if(name===null)return;
   if(!STATIC_ROOMS)return;
   if(!STATIC_ROOMS[roomNum])STATIC_ROOMS[roomNum]={};
-  if(name.trim()){
-    STATIC_ROOMS[roomNum].guest=name.trim();
-    STATIC_ROOMS[roomNum].status='occupied';
-  } else {
-    STATIC_ROOMS[roomNum].guest='—';
-    STATIC_ROOMS[roomNum].status='vacant';
-  }
+  if(name.trim()){STATIC_ROOMS[roomNum].guest=name.trim();STATIC_ROOMS[roomNum].status='occupied';}
+  else{STATIC_ROOMS[roomNum].guest='—';STATIC_ROOMS[roomNum].status='vacant';}
   try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}
   if(typeof window.renderRooms==='function')window.renderRooms();
 };
