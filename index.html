@@ -3958,11 +3958,13 @@ async function advanceOrder(id,toStatus){
 function openCfg(){document.getElementById('sql-code').textContent=SETUP_SQL;if(SUPABASE_URL)document.getElementById('cfg-url').value=SUPABASE_URL;if(SUPABASE_KEY)document.getElementById('cfg-key').value=SUPABASE_KEY;var btn=document.getElementById('cfg-connect-btn');btn.disabled=false;btn.textContent='Connect';document.getElementById('cfg-overlay').style.display='flex';}
 function closeCfg(){document.getElementById('cfg-overlay').style.display='none';}
 function cfgOverlayClick(e){if(e.target.id==='cfg-overlay')closeCfg();}
-function maybeShowCfgOnLoad(){ autoConnect(); }
-
 var _autoConnectTimer=null, _connHealthTimer=null;
 
 function autoConnect(){
+  // Wait for Supabase SDK if not ready yet
+  if(typeof supabase==='undefined'||typeof supabase.createClient!=='function'){
+    setTimeout(autoConnect, 100); return;
+  }
   setConnBadge('connecting','Connecting…');
   SUPABASE_URL=_SB_URL; SUPABASE_KEY=_SB_KEY;
   localStorage.setItem('hyatt_sb_url',SUPABASE_URL);
@@ -3971,14 +3973,14 @@ function autoConnect(){
   try{
     sbClient=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storageKey:'hyatt-sb-auth',persistSession:false}});
     window._hyattSb=sbClient;
-  }catch(e){ console.warn('Supabase init error:',e); scheduleReconnect(); return; }
+  }catch(e){ console.warn('Supabase init:',e); scheduleReconnect(); return; }
   var u=document.getElementById('cfg-url');if(u)u.value=SUPABASE_URL;
   var k=document.getElementById('cfg-key');if(k)k.value=SUPABASE_KEY;
   loadOrdersFromSupabase()
     .then(function(){return loadServicesFromSupabase();})
     .then(function(){return loadCheckinsFromSupabase();})
     .then(function(){
-      try{subscribeRealtime();}catch(e){console.warn('Realtime init:',e);}
+      try{subscribeRealtime();}catch(e){}
       startConnHealthCheck();
     })
     .catch(function(e){
@@ -3988,12 +3990,12 @@ function autoConnect(){
     });
 }
 
+function maybeShowCfgOnLoad(){ autoConnect(); }
+window.autoConnect=autoConnect;
+
 function scheduleReconnect(){
   if(_autoConnectTimer)return;
-  _autoConnectTimer=setTimeout(function(){
-    _autoConnectTimer=null;
-    autoConnect();
-  },5000);
+  _autoConnectTimer=setTimeout(function(){ _autoConnectTimer=null; autoConnect(); },5000);
 }
 
 function startConnHealthCheck(){
@@ -4009,19 +4011,19 @@ function startConnHealthCheck(){
           setConnBadge('connected','Live');
           if(!realtimeInited){try{subscribeRealtime();}catch(e){}}
         }
-      })
-      .catch(function(){setConnBadge('disconnected','Reconnecting…');scheduleReconnect();});
+      }).catch(function(){ setConnBadge('disconnected','Reconnecting…'); scheduleReconnect(); });
   },30000);
 }
 
+// Reconnect when tab becomes visible again (phone wake / tab switch)
 document.addEventListener('visibilitychange',function(){
   if(document.visibilityState==='visible'){
-    if(!sbClient||!realtimeInited){autoConnect();}
-    else{loadOrdersFromSupabase().catch(function(){});loadServicesFromSupabase().catch(function(){});}
+    if(!sbClient||!realtimeInited) autoConnect();
+    else{ loadOrdersFromSupabase().catch(function(){}); loadServicesFromSupabase().catch(function(){}); }
   }
 });
-
-window.addEventListener('online',function(){autoConnect();});
+// Reconnect when network comes back
+window.addEventListener('online',function(){ autoConnect(); });
 function updateClock(){var d=new Date(),el=document.getElementById('clock');if(el)el.textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');}
 setInterval(updateClock,1000);updateClock();
 function elapsed(ts){var m=Math.floor((Date.now()-ts)/60000);if(m<1)return'< 1m';if(m<60)return m+'m';return Math.floor(m/60)+'h '+(m%60)+'m';}
@@ -4366,7 +4368,7 @@ async function acceptOrder(id) {
   var order = orders.find(function(o){ return String(o.id)===id; });
   if (!order) return;
   var now = new Date().toISOString();
-  // Update local state FIRST — instant UI response regardless of network
+  // Local update FIRST — instant UI
   pushUndo(id, order.status, {});
   order.status = 'accepted';
   order.accepted_at = now;
@@ -4374,7 +4376,7 @@ async function acceptOrder(id) {
   if (typeof renderTasks==='function') renderTasks(); else renderOrders();
   updateStats();
   showUndoToast('Order accepted — Room '+order.room, id, 'order');
-  // Sync to Supabase in background
+  // Supabase sync in background
   if (sbClient) {
     try {
       var res = await sbClient.from('orders').update({status:'accepted',accepted_at:now}).eq('id',id);
@@ -4667,10 +4669,9 @@ window.handleModalClick=handleModalClick;
 window.closeQRModal=closeQRModal;
 window.copyURL=copyURL;
 window.downloadQR=downloadQR;
-window.downloadSingleQR=function(){var c=document.getElementById('qr-canvas');if(!c)return;try{var a=document.createElement('a');a.download='QR-Room-'+(currentQRRoom||'unknown')+'.png';a.href=c.toDataURL('image/png');a.click();}catch(e){console.warn('QR download:',e);}};
-window.checkoutRoom=function(roomNum,event){if(event)event.stopPropagation();if(!confirm('Check out Room '+roomNum+'?'))return;if(STATIC_ROOMS&&STATIC_ROOMS[roomNum]){STATIC_ROOMS[roomNum].guest='—';STATIC_ROOMS[roomNum].status='vacant';STATIC_ROOMS[roomNum].checkout='—';delete STATIC_ROOMS[roomNum].checkinId;try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}}if(sbClient&&STATIC_ROOMS&&STATIC_ROOMS[roomNum]&&STATIC_ROOMS[roomNum].checkinId){sbClient.from('checkins').update({status:'checked_out',checked_out_at:new Date().toISOString()}).eq('id',STATIC_ROOMS[roomNum].checkinId).then(function(){});}if(typeof window.renderRooms==='function')window.renderRooms();showToast('service','Checkout · Room '+roomNum,'Guest checked out');};
-window.editRoom=function(roomNum,event){if(event)event.stopPropagation();var name=prompt('Guest name for Room '+roomNum+' (leave blank for vacant):');if(name===null)return;if(!STATIC_ROOMS)return;if(!STATIC_ROOMS[roomNum])STATIC_ROOMS[roomNum]={};if(name.trim()){STATIC_ROOMS[roomNum].guest=name.trim();STATIC_ROOMS[roomNum].status='occupied';}else{STATIC_ROOMS[roomNum].guest='—';STATIC_ROOMS[roomNum].status='vacant';}try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}if(typeof window.renderRooms==='function')window.renderRooms();};
-window.autoConnect=autoConnect;
+window.downloadSingleQR=function(){var c=document.getElementById('qr-canvas');if(!c)return;try{var a=document.createElement('a');a.download='QR-Room-'+(typeof currentQRRoom!=='undefined'?currentQRRoom:'room')+'.png';a.href=c.toDataURL('image/png');a.click();}catch(e){}};
+window.checkoutRoom=function(roomNum,event){if(event)event.stopPropagation();if(!confirm('Check out Room '+roomNum+'?'))return;if(typeof STATIC_ROOMS!=='undefined'&&STATIC_ROOMS[roomNum]){STATIC_ROOMS[roomNum].guest='—';STATIC_ROOMS[roomNum].status='vacant';STATIC_ROOMS[roomNum].checkout='—';delete STATIC_ROOMS[roomNum].checkinId;try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}}if(sbClient&&typeof STATIC_ROOMS!=='undefined'&&STATIC_ROOMS[roomNum]&&STATIC_ROOMS[roomNum].checkinId){sbClient.from('checkins').update({status:'checked_out',checked_out_at:new Date().toISOString()}).eq('id',STATIC_ROOMS[roomNum].checkinId).then(function(){});}if(typeof window.renderRooms==='function')window.renderRooms();if(typeof showToast==='function')showToast('service','Checkout · Room '+roomNum,'Guest checked out');};
+window.editRoom=function(roomNum,event){if(event)event.stopPropagation();var name=prompt('Guest name for Room '+roomNum+' (leave blank for vacant):');if(name===null)return;if(typeof STATIC_ROOMS==='undefined')return;if(!STATIC_ROOMS[roomNum])STATIC_ROOMS[roomNum]={};if(name.trim()){STATIC_ROOMS[roomNum].guest=name.trim();STATIC_ROOMS[roomNum].status='occupied';}else{STATIC_ROOMS[roomNum].guest='—';STATIC_ROOMS[roomNum].status='vacant';}try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}if(typeof window.renderRooms==='function')window.renderRooms();};
 window.callRoom=callRoom;
 window.switchView=switchView;
 window.animateBars=animateBars;
@@ -5428,11 +5429,11 @@ updateUrgencyStrip();
   if(u) localStorage.setItem('hyatt_sb_url', u.replace(/\/+$/,'').trim());
   if(k) localStorage.setItem('hyatt_sb_key', k.trim());
 })();
-// Defer connection until DOM is fully loaded
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', maybeShowCfgOnLoad);
+// Connect on window load — guarantees Supabase CDN script is ready
+if (document.readyState === 'complete') {
+  autoConnect();
 } else {
-  maybeShowCfgOnLoad(); // DOM already ready
+  window.addEventListener('load', function(){ autoConnect(); });
 }
 
 })();
