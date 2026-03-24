@@ -4308,10 +4308,11 @@ function showUndoToast(label, id, type) {
 
 // ── ACCEPT ORDER
 async function acceptOrder(id) {
-  var order = orders.find(function(o){ return o.id===id; });
-  if (!order) return;
+  id = String(id);
+  var order = orders.find(function(o){ return String(o.id)===id; });
+  if (!order) { console.warn('acceptOrder: order not found for id', id, 'orders:', orders.map(function(o){return o.id;})); return; }
   var now = new Date().toISOString();
-  // Update local state FIRST (same pattern as confirmReject)
+  // Update local state FIRST — UI responds immediately regardless of network
   pushUndo(id, order.status, {});
   order.status = 'accepted';
   order.accepted_at = now;
@@ -4319,12 +4320,12 @@ async function acceptOrder(id) {
   if (typeof renderTasks==='function') renderTasks(); else renderOrders();
   updateStats();
   showUndoToast('Order accepted — Room '+order.room, id, 'order');
-  // Then sync to Supabase in background
+  // Sync to Supabase in background — never block the UI
   if (sbClient) {
     try {
       var res = await sbClient.from('orders').update({status:'accepted',accepted_at:now}).eq('id',id);
-      if (res.error) { console.warn('Accept write failed:', res.error.message); }
-    } catch(e) { console.warn('Accept write error:', e); }
+      if (res && res.error) console.warn('Accept sync failed:', res.error.message);
+    } catch(e) { console.warn('Accept sync error:', e); }
   }
 }
 window.acceptOrder = acceptOrder;
@@ -4612,37 +4613,9 @@ window.handleModalClick=handleModalClick;
 window.closeQRModal=closeQRModal;
 window.copyURL=copyURL;
 window.downloadQR=downloadQR;
-window.downloadSingleQR=function(){
-  var c=document.getElementById('qr-canvas');
-  if(!c)return;
-  try{var a=document.createElement('a');a.download='QR-Room-'+(currentQRRoom||'unknown')+'.png';a.href=c.toDataURL('image/png');a.click();}
-  catch(e){console.warn('QR download:',e);}
-};
-window.checkoutRoom=function(roomNum,event){
-  if(event)event.stopPropagation();
-  if(!confirm('Check out Room '+roomNum+'?'))return;
-  if(STATIC_ROOMS&&STATIC_ROOMS[roomNum]){
-    STATIC_ROOMS[roomNum].guest='—';STATIC_ROOMS[roomNum].status='vacant';STATIC_ROOMS[roomNum].checkout='—';
-    delete STATIC_ROOMS[roomNum].checkinId;
-    try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}
-  }
-  if(sbClient&&STATIC_ROOMS&&STATIC_ROOMS[roomNum]&&STATIC_ROOMS[roomNum].checkinId){
-    sbClient.from('checkins').update({status:'checked_out',checked_out_at:new Date().toISOString()}).eq('id',STATIC_ROOMS[roomNum].checkinId).then(function(){});
-  }
-  if(typeof window.renderRooms==='function')window.renderRooms();
-  showToast('service','Checkout · Room '+roomNum,'Guest checked out');
-};
-window.editRoom=function(roomNum,event){
-  if(event)event.stopPropagation();
-  var name=prompt('Guest name for Room '+roomNum+' (leave blank to mark vacant):');
-  if(name===null)return;
-  if(!STATIC_ROOMS)return;
-  if(!STATIC_ROOMS[roomNum])STATIC_ROOMS[roomNum]={};
-  if(name.trim()){STATIC_ROOMS[roomNum].guest=name.trim();STATIC_ROOMS[roomNum].status='occupied';}
-  else{STATIC_ROOMS[roomNum].guest='—';STATIC_ROOMS[roomNum].status='vacant';}
-  try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}
-  if(typeof window.renderRooms==='function')window.renderRooms();
-};
+window.downloadSingleQR=function(){var c=document.getElementById('qr-canvas');if(!c)return;try{var a=document.createElement('a');a.download='QR-Room-'+(currentQRRoom||'unknown')+'.png';a.href=c.toDataURL('image/png');a.click();}catch(e){console.warn('QR download:',e);}};
+window.checkoutRoom=function(roomNum,event){if(event)event.stopPropagation();if(!confirm('Check out Room '+roomNum+'?'))return;if(STATIC_ROOMS&&STATIC_ROOMS[roomNum]){STATIC_ROOMS[roomNum].guest='—';STATIC_ROOMS[roomNum].status='vacant';STATIC_ROOMS[roomNum].checkout='—';delete STATIC_ROOMS[roomNum].checkinId;try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}}if(sbClient&&STATIC_ROOMS&&STATIC_ROOMS[roomNum]&&STATIC_ROOMS[roomNum].checkinId){sbClient.from('checkins').update({status:'checked_out',checked_out_at:new Date().toISOString()}).eq('id',STATIC_ROOMS[roomNum].checkinId).then(function(){});}if(typeof window.renderRooms==='function')window.renderRooms();showToast('service','Checkout · Room '+roomNum,'Guest checked out');};
+window.editRoom=function(roomNum,event){if(event)event.stopPropagation();var name=prompt('Guest name for Room '+roomNum+' (leave blank to mark vacant):');if(name===null)return;if(!STATIC_ROOMS)return;if(!STATIC_ROOMS[roomNum])STATIC_ROOMS[roomNum]={};if(name.trim()){STATIC_ROOMS[roomNum].guest=name.trim();STATIC_ROOMS[roomNum].status='occupied';}else{STATIC_ROOMS[roomNum].guest='—';STATIC_ROOMS[roomNum].status='vacant';}try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}if(typeof window.renderRooms==='function')window.renderRooms();};
 window.callRoom=callRoom;
 window.switchView=switchView;
 window.animateBars=animateBars;
