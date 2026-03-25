@@ -9,7 +9,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <title>Hyatt Hotel</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
 <!-- ══ ROUTER — runs before anything else ══ -->
 <script>
@@ -3093,19 +3095,22 @@ function showGuestNotif(title, msg, type, onClick) {
   setTimeout(function() { if (banner.parentElement) banner.remove(); }, 8000);
 }
 (function(){
+  // Firebase guest init — reuse or init the shared Firebase app
   try {
-    // Prefer reusing existing client (avoids multiple GoTrue instances)
-    if (window._hyattSb) { guestSb = window._hyattSb; return; }
-    // Try localStorage (works when staff + guest same origin)
-    var lsUrl = (localStorage.getItem('hyatt_sb_url')||'').replace(/\/+$/,'');
-    var lsKey = (localStorage.getItem('hyatt_sb_key')||'').trim();
-    var url = lsUrl || (typeof SUPA_URL !== 'undefined' ? SUPA_URL : '');
-    var key = lsKey || (typeof SUPA_ANON_KEY !== 'undefined' ? SUPA_ANON_KEY : '');
-    if (url && key && window.supabase && window.supabase.createClient) {
-      guestSb = window.supabase.createClient(url, key, {auth:{storageKey:'hyatt-sb-auth'}});
-      window._hyattSb = guestSb;
+    if (!firebase || !firebase.firestore) return;
+    var fbConfig = {
+      apiKey:            "AIzaSyAb1G6UATyCR0l_8kDyO3VpRgMwDJ5l7UI",
+      authDomain:        "roocan-16ea0.firebaseapp.com",
+      projectId:         "roocan-16ea0",
+      storageBucket:     "roocan-16ea0.firebasestorage.app",
+      messagingSenderId: "521412270728",
+      appId:             "1:521412270728:web:c2564cf45855e2a6961d3d"
+    };
+    if (!firebase.apps || !firebase.apps.length) {
+      firebase.initializeApp(fbConfig);
     }
-  } catch(e) { console.warn('Guest SB init:', e); }
+    guestSb = firebase.firestore(); // guestSb is now the Firestore db instance
+  } catch(e) { console.warn('Guest Firebase init:', e); }
 })();
 
 // ── Supabase-aware placeOrder (overwrites the local-only version above)
@@ -3142,10 +3147,10 @@ async function placeOrder(isMerge) {
 
   // Write to Supabase
   if (guestSb) {
-    const roomNum = window.ROOM_NUM || document.querySelector('.room-number') && document.querySelector('.room-number').textContent || '203';
-    const guestName = window.GUEST_NAME || document.querySelector('.guest-name') && document.querySelector('.guest-name').textContent || 'Guest';
+    const roomNum = window.ROOM_NUM || '203';
+    const guestName = window.GUEST_NAME || 'Guest';
     try {
-      await guestSb.from('orders').insert({
+      await guestSb.collection('orders').doc(orderId).set({
         id:        orderId,
         room:      roomNum,
         guest:     guestName,
@@ -3157,7 +3162,7 @@ async function placeOrder(isMerge) {
       // Subscribe to status changes for this order
       subscribeGuestOrderUpdates(orderId, order);
     } catch(err) {
-      console.warn('Guest Supabase insert failed:', err.message);
+      console.warn('Guest Firebase insert failed:', err.message || err);
     }
   } else {
     // Fallback: simulate status progression locally
@@ -3204,7 +3209,7 @@ async function submitService() {
     const roomNum   = window.ROOM_NUM || '203';
     const guestName = window.GUEST_NAME || 'Guest';
     try {
-      await guestSb.from('service_requests').insert({
+      await guestSb.collection('service_requests').doc(reqId).set({
         id:         reqId,
         room:       roomNum,
         guest:      guestName,
@@ -3218,7 +3223,7 @@ async function submitService() {
       // Subscribe to status updates for this request
       subscribeGuestServiceUpdates(reqId, req);
     } catch(err) {
-      console.warn('Guest service insert failed:', err.message);
+      console.warn('Guest Firebase service insert failed:', err.message || err);
       // Local fallback simulation
       setTimeout(() => { req.status = 'assigned';   if (document.getElementById('screen-services').classList.contains('active')) renderServices(); updateServicesBadge(); }, 6000);
       setTimeout(() => { req.status = 'inprogress'; if (document.getElementById('screen-services').classList.contains('active')) renderServices(); updateServicesBadge(); }, 12000);
@@ -3245,62 +3250,34 @@ function subscribeGuestOrderUpdates(orderId, localOrder) {
   var prevStatus = localOrder ? localOrder.status : 'new';
 
   guestRtChannels[orderId] = guestSb
-    .channel('guest-order-' + orderId)
-    .on('postgres_changes', {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'orders',
-      filter: 'id=eq.' + orderId
-    }, function(payload) {
-      var newStatus = payload.new && payload.new.status;
+    .collection('orders').doc(orderId)
+    .onSnapshot(function(doc) {
+      if (!doc.exists) return;
+      var newStatus = doc.data().status;
       if (!newStatus || newStatus === prevStatus) return;
       prevStatus = newStatus;
 
-      // Update local order object
       var found = orderHistory.find(function(o) { return o.id === orderId; });
       if (found) {
         found.status = newStatus;
-        // Store acceptedAt timestamp so ETA bar can calculate elapsed time
         if (newStatus === 'accepted') found.acceptedAt = Date.now();
         if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
         updateOrdersBadge();
       }
 
-      // ── Guest notifications per status change ──
       if (newStatus === 'accepted') {
-        showGuestNotif(
-          'Order Accepted! ✅',
-          'Your order is confirmed — kitchen is getting started.',
-          'accepted',
-          function() { if (typeof go === 'function') go('orders'); }
-        );
+        showGuestNotif('Order Accepted! ✅','Your order is confirmed — kitchen is getting started.','accepted',function(){ if(typeof go==='function')go('orders'); });
       } else if (newStatus === 'preparing') {
-        showGuestNotif(
-          'Kitchen is Preparing Your Order 🍳',
-          'Sit back and relax — your food is being prepared.',
-          'preparing',
-          function() { if (typeof go === 'function') go('orders'); }
-        );
+        showGuestNotif('Kitchen is Preparing Your Order 🍳','Sit back and relax — your food is being prepared.','preparing',function(){ if(typeof go==='function')go('orders'); });
       } else if (newStatus === 'ready') {
-        showGuestNotif(
-          'Your Order is Ready! 🛎',
-          'Your food will be delivered to your room shortly.',
-          'ready',
-          function() { if (typeof go === 'function') go('orders'); }
-        );
+        showGuestNotif('Your Order is Ready! 🛎','Your food will be delivered to your room shortly.','ready',function(){ if(typeof go==='function')go('orders'); });
       } else if (newStatus === 'delivered') {
-        showGuestNotif(
-          'Delivered! Enjoy your meal 🏁',
-          'Hope you enjoy it. Tap to view your order.',
-          'delivered',
-          function() { if (typeof go === 'function') go('orders'); }
-        );
-        // Clean up this channel — order is done
-        try { guestSb.removeChannel(guestRtChannels[orderId]); } catch(e) {}
+        showGuestNotif('Delivered! Enjoy your meal 🏁','Hope you enjoy it. Tap to view your order.','delivered',function(){ if(typeof go==='function')go('orders'); });
+        // Unsubscribe — order done
+        try { guestRtChannels[orderId](); } catch(e) {}
         delete guestRtChannels[orderId];
       }
-    })
-    .subscribe();
+    }, function(err){ console.warn('Guest order snapshot error:', err); });
 }
 
 // ── Subscribe to real-time service request status changes for the guest
@@ -3309,21 +3286,16 @@ function subscribeGuestServiceUpdates(reqId, localReq) {
   var prevSvcStatus = localReq ? localReq.status : 'received';
 
   guestSb
-    .channel('guest-svc-' + reqId)
-    .on('postgres_changes', {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'service_requests',
-      filter: 'id=eq.' + reqId
-    }, function(payload) {
-      var newStatus = payload.new && payload.new.status;
+    .collection('service_requests').doc(reqId)
+    .onSnapshot(function(doc) {
+      if (!doc.exists) return;
+      var newStatus = doc.data().status;
       if (!newStatus || newStatus === prevSvcStatus) return;
       prevSvcStatus = newStatus;
       localReq.status = newStatus;
       if (document.getElementById('screen-services').classList.contains('active')) renderServices();
       updateServicesBadge();
 
-      // ── Guest notifications for service status changes ──
       var svcName = localReq.type || 'Your request';
       if (newStatus === 'assigned') {
         showGuestNotif(
@@ -3347,8 +3319,7 @@ function subscribeGuestServiceUpdates(reqId, localReq) {
           function() { if (typeof go === 'function') go('services'); }
         );
       }
-    })
-    .subscribe();
+    });
 }
 
 // BroadcastChannel already initialized above with dynamic ROOM_ID
@@ -3456,12 +3427,12 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
       </button>
     </div>
     <!-- Supabase -->
-    <div class="settings-row" onclick="closeCfgAndOpen()" style="cursor:pointer;">
+    <div class="settings-row" onclick="if(window.autoConnect)window.autoConnect();" style="cursor:pointer;" title="Tap to reconnect">
       <div class="settings-label">
         <div class="settings-label-title">Database</div>
         <div class="settings-label-sub">Connect to Supabase for live orders</div>
       </div>
-      <button class="conn-badge disconnected" id="conn-badge" style="pointer-events:none;"><span class="conn-dot"></span><span id="conn-label">Offline</span></button>
+      <button class="conn-badge connecting" id="conn-badge" style="pointer-events:none;"><span class="conn-dot"></span><span id="conn-label">Connecting…</span></button>
     </div>
     <!-- Manage Rooms -->
     <div class="settings-row" onclick="openRoomConfig()" style="cursor:pointer;">
@@ -3801,62 +3772,35 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
 if (window.APP_MODE === 'guest') return;
 
 // ── Permanent Supabase credentials (auto-connects on every load) ──
-var SUPABASE_URL='https://webvlxcypqhcwzbcpths.supabase.co';
-var SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw';
-localStorage.setItem('hyatt_sb_url',SUPABASE_URL);
-localStorage.setItem('hyatt_sb_key',SUPABASE_KEY);
-var sbClient=null,realtimeChan=null;
-var SETUP_SQL=`-- Run once in Supabase SQL Editor
+// ── Firebase Configuration (replaces Supabase) ──
+var FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyAb1G6UATyCR0l_8kDyO3VpRgMwDJ5l7UI",
+  authDomain:        "roocan-16ea0.firebaseapp.com",
+  projectId:         "roocan-16ea0",
+  storageBucket:     "roocan-16ea0.firebasestorage.app",
+  messagingSenderId: "521412270728",
+  appId:             "1:521412270728:web:c2564cf45855e2a6961d3d",
+  measurementId:     "G-51CCCEPL97"
+};
+var _fbApp = null, _db = null, sbClient = null;
+var _orderUnsub = null, _svcUnsub = null, _chkUnsub = null;
+var realtimeChan = null; // kept for compat
 
--- Orders table (food orders from guests)
-create table if not exists orders (
-  id          text primary key,
-  room        text        not null,
-  guest       text        not null default 'Guest',
-  items       jsonb       not null default '[]',
-  total       integer     not null default 0,
-  status      text        not null default 'new',
-  rejection_reason text,
-  placed_at   timestamptz not null default now()
-);
-alter table orders enable row level security;
-create policy "guests can insert orders" on orders for insert with check (true);
-create policy "staff can select orders" on orders for select using (true);
-create policy "staff can update orders" on orders for update using (true);
-alter publication supabase_realtime add table orders;
-
--- Service requests table (housekeeping requests from guests)
-create table if not exists service_requests (
-  id          text primary key,
-  room        text        not null,
-  guest       text        not null default 'Guest',
-  type        text        not null,
-  icon        text        not null default 'bell',
-  qty         integer,
-  note        text,
-  status      text        not null default 'received',
-  placed_at   timestamptz not null default now()
-);
-alter table service_requests enable row level security;
-create policy "guests can insert svc" on service_requests for insert with check (true);
-create policy "staff can select svc" on service_requests for select using (true);
-create policy "staff can update svc" on service_requests for update using (true);
-alter publication supabase_realtime add table service_requests;
-
--- Check-ins table (guest check-in/checkout via QR scan)
-create table if not exists checkins (
-  id             text primary key,
-  room           text        not null,
-  guest_name     text        not null,
-  checked_in_at  timestamptz not null default now(),
-  checked_out_at timestamptz,
-  status         text        not null default 'active'
-);
-alter table checkins enable row level security;
-create policy "guests can insert checkins" on checkins for insert with check (true);
-create policy "staff can select checkins" on checkins for select using (true);
-create policy "staff can update checkins" on checkins for update using (true);
-alter publication supabase_realtime add table checkins;`;
+function getDb() {
+  if (_db) return _db;
+  if (!_fbApp) {
+    if (!firebase.apps || !firebase.apps.length) {
+      _fbApp = firebase.initializeApp(FIREBASE_CONFIG);
+    } else {
+      _fbApp = firebase.apps[0];
+    }
+  }
+  _db = firebase.firestore();
+  // Use Firestore long-polling for better compatibility (no WebSocket issues)
+  _db.settings({ experimentalForceLongPolling: false });
+  return _db;
+}
+var SETUP_SQL = '-- Firebase does not need SQL setup. Collections are created automatically.';
 
 // ROOMS_DATA replaced by buildRoomsData()
 
@@ -3872,66 +3816,97 @@ var services=[
 ];
 function rowToOrder(row){return{id:row.id,room:String(row.room),guest:row.guest||'Guest',items:Array.isArray(row.items)?row.items:[],total:row.total||0,status:row.status||'new',rejection_reason:row.rejection_reason||null,placedAt:row.placed_at?new Date(row.placed_at).getTime():Date.now(),fromSupa:true};}
 function setConnBadge(state,label){var b=document.getElementById('conn-badge'),l=document.getElementById('conn-label');if(!b)return;b.className='conn-badge '+state;l.textContent=label;}
-async function connectSupabase(){var url=(document.getElementById('cfg-url').value||'').trim().replace(/\/+$/,''),key=(document.getElementById('cfg-key').value||'').trim();if(!url||!key){alert('Please enter both the Project URL and Anon Key.');return;}var btn=document.getElementById('cfg-connect-btn');btn.disabled=true;btn.textContent='Connecting…';try{sbClient=window._hyattSb||supabase.createClient(url,key,{auth:{storageKey:'hyatt-sb-auth'}});window._hyattSb=sbClient;var{data,error}=await sbClient.from('orders').select('id').limit(1);if(error)throw error;localStorage.setItem('hyatt_sb_url',url);localStorage.setItem('hyatt_sb_key',key);SUPABASE_URL=url;SUPABASE_KEY=key;closeCfg();setConnBadge('connecting','Syncing…');await loadOrdersFromSupabase();await loadServicesFromSupabase();await loadCheckinsFromSupabase();try{subscribeRealtime();}catch(e){console.warn('Realtime init:',e&&e.message||e);}}catch(err){btn.disabled=false;btn.textContent='Connect';var msg=err.message||String(err);if(msg.includes('relation')||msg.includes('does not exist')||msg.includes('42P01')){document.getElementById('sql-panel').classList.add('visible');document.getElementById('sql-code').textContent=SETUP_SQL;alert('Table "orders" not found.\n\nRun the SQL shown in the panel, then try again.');}else{alert('Connection failed: '+msg);}}}
+async function connectSupabase(){
+  // Firebase: manual connect not needed — autoConnect handles it
+  // This is kept so the modal "Connect" button still works as a retry
+  autoConnect();
+  closeCfg();
+}
 async function loadOrdersFromSupabase(){
-  if(!sbClient)return;
-  try{
-    var since=new Date(Date.now()-24*60*60*1000).toISOString();
-    var res=await sbClient.from('orders').select('*')
-      .not('status','eq','delivered')
-      .not('status','eq','rejected')
-      .not('status','eq','cancelled')
-      .gte('placed_at',since)
-      .order('placed_at',{ascending:false})
-      .limit(200);
-    var hasErr=false;try{if(res&&res.error)hasErr=true;}catch(e){}
-    if(hasErr){try{console.warn('Orders fetch:',String(res.error&&res.error.message||'error'));}catch(e){}setConnBadge('disconnected','Error');return;}
-    // Smart merge: keep local status if ahead of DB (write in-flight)
-    var _sRank={'new':0,'accepted':1,'preparing':2,'ready':3,'delivered':4,'rejected':5,'cancelled':5};
-    var fetched=(res.data||[]).map(rowToOrder);
+  var db = getDb();
+  if (!db) { setConnBadge('disconnected','Error'); return; }
+  try {
+    var yesterday = new Date(Date.now() - 24*60*60*1000);
+    var snap = await db.collection('orders')
+      .where('placed_at', '>=', yesterday.toISOString())
+      .where('status', 'not-in', ['delivered','rejected','cancelled'])
+      .orderBy('placed_at','desc')
+      .limit(200)
+      .get();
+    var _sRank = {new:0,accepted:1,preparing:2,ready:3,delivered:4,rejected:5,cancelled:5};
+    var fetched = snap.docs.map(function(doc){
+      var d = doc.data(); d.id = doc.id; return rowToOrder(d);
+    });
     fetched.forEach(function(dbO){
-      var loc=orders.find(function(o){return o.id===dbO.id;});
-      if(loc&&(_sRank[loc.status]||0)>(_sRank[dbO.status]||0)){
-        dbO.status=loc.status; dbO.accepted_at=loc.accepted_at;
+      var loc = orders.find(function(o){ return o.id===dbO.id; });
+      if(loc && (_sRank[loc.status]||0) > (_sRank[dbO.status]||0)){
+        dbO.status = loc.status; dbO.accepted_at = loc.accepted_at;
       }
     });
-    orders=fetched;
-    renderOrders();updateStats();setConnBadge('connected','Live');
-  }catch(err){
-    console.warn('Orders load exception:',err&&err.message||String(err));
+    orders = fetched;
+    renderOrders(); updateStats(); setConnBadge('connected','Live');
+  } catch(err){
+    console.warn('Orders load error:', err && err.message || err);
     setConnBadge('disconnected','Error');
   }
 }
+
 var realtimeInited = false;
 function subscribeRealtime(){
-  if(!sbClient) return;
-  if(realtimeInited) return; // prevent duplicate channels
+  var db = getDb();
+  if (!db) return;
+  if (realtimeInited) return;
   realtimeInited = true;
 
-  if(realtimeChan){try{sbClient.removeChannel(realtimeChan);}catch(e){} realtimeChan=null;}
-  if(window._svcChan){try{sbClient.removeChannel(window._svcChan);}catch(e){} window._svcChan=null;}
-  if(window._chkChan){try{sbClient.removeChannel(window._chkChan);}catch(e){} window._chkChan=null;}
+  // Unsubscribe previous listeners
+  if (_orderUnsub) { try { _orderUnsub(); } catch(e){} _orderUnsub = null; }
+  if (_svcUnsub)   { try { _svcUnsub();   } catch(e){} _svcUnsub   = null; }
+  if (_chkUnsub)   { try { _chkUnsub();   } catch(e){} _chkUnsub   = null; }
 
-  realtimeChan=sbClient.channel('orders-realtime')
-    .on('postgres_changes',{event:'*',schema:'public',table:'orders'},handleRealtimeEvent)
-    .subscribe(function(status){
-      if(status==='SUBSCRIBED'){ setConnBadge('connected','Live'); }
-      else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
-        setConnBadge('connecting','Reconnecting…');
-        realtimeInited = false;
-        setTimeout(function(){ if(sbClient) subscribeRealtime(); }, 2000);
-      }
+  var yesterday = new Date(Date.now() - 24*60*60*1000).toISOString();
+
+  // ── Orders realtime ──
+  _orderUnsub = db.collection('orders')
+    .where('placed_at','>=',yesterday)
+    .where('status','not-in',['delivered','rejected','cancelled'])
+    .onSnapshot(function(snapshot){
+      setConnBadge('connected','Live');
+      snapshot.docChanges().forEach(function(change){
+        var d = change.doc.data(); d.id = change.doc.id;
+        var payload = { eventType: change.type==='added'?'INSERT':change.type==='modified'?'UPDATE':'DELETE', new: d, old: d };
+        if (change.type === 'removed') payload.eventType = 'DELETE';
+        handleRealtimeEvent(payload);
+      });
+    }, function(err){
+      console.warn('Orders snapshot error:', err);
+      setConnBadge('connecting','Reconnecting…');
+      realtimeInited = false;
+      setTimeout(function(){ subscribeRealtime(); }, 3000);
     });
 
-  window._svcChan=sbClient.channel('svc-realtime')
-    .on('postgres_changes',{event:'*',schema:'public',table:'service_requests'},handleSvcRealtimeEvent)
-    .subscribe();
+  // ── Services realtime ──
+  _svcUnsub = db.collection('service_requests')
+    .where('status','not-in',['done'])
+    .onSnapshot(function(snapshot){
+      snapshot.docChanges().forEach(function(change){
+        var d = change.doc.data(); d.id = change.doc.id;
+        var payload = { eventType: change.type==='added'?'INSERT':change.type==='modified'?'UPDATE':'DELETE', new: d, old: d };
+        if (change.type === 'removed') payload.eventType = 'DELETE';
+        handleSvcRealtimeEvent(payload);
+      });
+    }, function(err){ console.warn('Services snapshot error:', err); });
 
-  window._chkChan=sbClient.channel('chk-realtime')
-    .on('postgres_changes',{event:'*',schema:'public',table:'checkins'},handleCheckinEvent)
-    .subscribe();
+  // ── Checkins realtime ──
+  _chkUnsub = db.collection('checkins')
+    .where('status','==','active')
+    .onSnapshot(function(snapshot){
+      snapshot.docChanges().forEach(function(change){
+        var d = change.doc.data(); d.id = change.doc.id;
+        var evtType = change.type==='added'?'INSERT':change.type==='modified'?'UPDATE':'DELETE';
+        handleCheckinEvent({ eventType: evtType, new: d, old: d });
+      });
+    }, function(err){ console.warn('Checkins snapshot error:', err); });
 }
-
 
 function handleCheckinEvent(payload){
   var evt=payload.eventType, row=payload.new||{};
@@ -3994,32 +3969,36 @@ function handleSvcRealtimeEvent(payload){
   }
 }
 
-async function loadServicesFromSupabase(){  if(!sbClient)return;
-  try{
-    var res=await sbClient.from('service_requests').select('*').not('status','eq','done').order('placed_at',{ascending:false}).limit(200);
-    if(res.error){console.warn('Services fetch:',res.error.message||res.error.code);return;}
-    if(res.data&&res.data.length>0&&typeof rowToService==='function')services=res.data.map(rowToService);
-    renderServices();updateUrgencyStrip();
-  }catch(err){console.warn('Services load exception:',err&&err.message||String(err));}
+async function loadServicesFromSupabase(){
+  var db = getDb(); if (!db) return;
+  try {
+    var snap = await db.collection('service_requests')
+      .where('status','not-in',['done'])
+      .orderBy('placed_at','desc').limit(200).get();
+    if (!snap.empty) {
+      services = snap.docs.map(function(doc){ var d=doc.data(); d.id=doc.id; return rowToService(d); });
+    }
+    renderServices(); updateUrgencyStrip();
+  } catch(err){ console.warn('Services load error:', err&&err.message||err); }
 }
 async function loadCheckinsFromSupabase(){
-  if(!sbClient)return;
-  try{
-    var res=await sbClient.from('checkins').select('*').eq('status','active');
-    if(res.error){console.warn('Checkins fetch:',res.error.message);return;}
-    if(res.data){
-      res.data.forEach(function(row){
-        var room=String(row.room);
-        if(!STATIC_ROOMS[room])STATIC_ROOMS[room]={};
-        STATIC_ROOMS[room].guest=row.guest_name;
-        STATIC_ROOMS[room].status='occupied';
-        STATIC_ROOMS[room].checkinId=row.id;
-        STATIC_ROOMS[room].checkout=new Date(row.checked_in_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'});
-      });
-      try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}
-      renderRooms();
-    }
-  }catch(err){console.warn('Checkins load exception:',err&&err.message||String(err));}
+  var db = getDb(); if (!db) return;
+  try {
+    var snap = await db.collection('checkins').where('status','==','active').get();
+    snap.docs.forEach(function(doc){
+      var row = doc.data(); row.id = doc.id;
+      var room = String(row.room);
+      if(!STATIC_ROOMS[room]) STATIC_ROOMS[room]={};
+      STATIC_ROOMS[room].guest     = row.guest_name;
+      STATIC_ROOMS[room].status    = 'occupied';
+      STATIC_ROOMS[room].checkinId = doc.id;
+      STATIC_ROOMS[room].checkout  = row.checked_in_at
+        ? new Date(row.checked_in_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'})
+        : '—';
+    });
+    try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}
+    renderRooms();
+  } catch(err){ console.warn('Checkins load error:', err&&err.message||err); }
 }
 function handleRealtimeEvent(payload){
   var evt=payload.eventType,row=payload.new||{},old=payload.old||{};
@@ -4091,10 +4070,8 @@ async function confirmReject(){
   renderOrders();updateStats();
   stopAlertBeep(_rejectOrderId);
   showToast('service','Order Rejected — Room '+order.room,fullReason);
-  if(sbClient){
-    try{await sbClient.from('orders').update({status:'rejected',rejection_reason:fullReason}).eq('id',_rejectOrderId);}
-    catch(e){console.warn('Reject failed',e);}
-  }
+  var db=getDb();
+  if(db){ db.collection('orders').doc(String(_rejectOrderId)).update({status:'rejected',rejection_reason:fullReason}).catch(function(e){console.warn('Reject error:',e);}); }
 }
 
 // Legacy advanceOrder — superseded by advanceOrderWithUndo below (kept for safety)
@@ -4103,49 +4080,42 @@ async function _legacyAdvanceOrder(id,toStatus){
   if(!order)return;
   order.status=toStatus;
   renderOrders();updateStats();
-  if(sbClient){
-    try{await sbClient.from('orders').update({status:toStatus}).eq('id',id);}
-    catch(e){console.warn('Advance failed',e);}
-  }
+  var db=getDb();
+  if(db){ db.collection('orders').doc(String(id)).update({status:toStatus}).catch(function(e){console.warn('Advance error:',e);}); }
 }
 function openCfg(){document.getElementById('sql-code').textContent=SETUP_SQL;if(SUPABASE_URL)document.getElementById('cfg-url').value=SUPABASE_URL;if(SUPABASE_KEY)document.getElementById('cfg-key').value=SUPABASE_KEY;var btn=document.getElementById('cfg-connect-btn');btn.disabled=false;btn.textContent='Connect';document.getElementById('cfg-overlay').style.display='flex';}
 function closeCfg(){document.getElementById('cfg-overlay').style.display='none';}
 function cfgOverlayClick(e){if(e.target.id==='cfg-overlay')closeCfg();}
 var _autoConnectTimer=null, _connHealthTimer=null;
 
-var _sdkWaitCount = 0;
 function autoConnect(){
-  // Retry until Supabase SDK is available (CDN may still be loading on GitHub Pages)
-  if(typeof supabase==='undefined'||typeof supabase.createClient!=='function'){
-    _sdkWaitCount++;
-    if(_sdkWaitCount < 100){ setTimeout(autoConnect, 200); }
-    else { console.warn('Supabase SDK never loaded — check CDN script tag'); setConnBadge('disconnected','SDK Error'); }
+  // Firebase doesn't need SDK wait — it's always ready after script load
+  if (typeof firebase === 'undefined' || typeof firebase.firestore === 'undefined') {
+    setTimeout(autoConnect, 200); return;
+  }
+  setConnBadge('connecting','Connecting…');
+  try {
+    getDb(); // initialises _fbApp and _db
+    sbClient = true; // flag that we're "connected" (Firebase has no sbClient concept)
+  } catch(e) {
+    console.warn('Firebase init error:', e);
+    setConnBadge('disconnected','Tap to retry');
+    var b = document.getElementById('conn-badge');
+    if (b) { b.style.pointerEvents='auto'; b.onclick = function(){ autoConnect(); }; }
     return;
   }
-  _sdkWaitCount = 0;
-  setConnBadge('connecting','Connecting…');
-  localStorage.setItem('hyatt_sb_url', SUPABASE_URL);
-  localStorage.setItem('hyatt_sb_key', SUPABASE_KEY);
-  realtimeInited = false;
-  // Always create a fresh staff client with persistSession:false
-  try{
-    sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-      auth:{ storageKey:'hyatt-sb-staff-auth', persistSession:false }
-    });
-    window._hyattSb = sbClient;
-  }catch(e){ console.warn('Supabase init error:',e); scheduleReconnect(); return; }
-  var u=document.getElementById('cfg-url'); if(u) u.value=SUPABASE_URL;
-  var k=document.getElementById('cfg-key'); if(k) k.value=SUPABASE_KEY;
   loadOrdersFromSupabase()
     .then(function(){ return loadServicesFromSupabase(); })
     .then(function(){ return loadCheckinsFromSupabase(); })
     .then(function(){
-      try{ subscribeRealtime(); }catch(e){ console.warn('Realtime init:',e); }
+      try { subscribeRealtime(); } catch(e){ console.warn('Realtime init:', e); }
       startConnHealthCheck();
     })
     .catch(function(e){
-      console.warn('Supabase init error:',e&&e.message||e);
-      setConnBadge('disconnected','Offline');
+      console.warn('Firebase connect error:', e && e.message || e);
+      setConnBadge('disconnected','Tap to retry');
+      var b = document.getElementById('conn-badge');
+      if (b) { b.style.pointerEvents='auto'; b.onclick = function(){ autoConnect(); }; }
       scheduleReconnect();
     });
 }
@@ -4159,20 +4129,16 @@ function scheduleReconnect(){
 }
 
 function startConnHealthCheck(){
-  if(_connHealthTimer)clearInterval(_connHealthTimer);
-  _connHealthTimer=setInterval(function(){
-    if(!sbClient){scheduleReconnect();return;}
-    sbClient.from('orders').select('id').limit(1)
-      .then(function(res){
-        if(res&&res.error){
-          setConnBadge('disconnected','Reconnecting…');
-          realtimeInited=false; scheduleReconnect();
-        } else {
-          setConnBadge('connected','Live');
-          if(!realtimeInited){try{subscribeRealtime();}catch(e){}}
-        }
-      }).catch(function(){ setConnBadge('disconnected','Reconnecting…'); scheduleReconnect(); });
-  },30000);
+  if(_connHealthTimer) clearInterval(_connHealthTimer);
+  _connHealthTimer = setInterval(function(){
+    if (!_db) { scheduleReconnect(); return; }
+    // Firebase: just check if listeners are active
+    if (!realtimeInited) {
+      try { subscribeRealtime(); } catch(e){}
+    } else {
+      setConnBadge('connected','Live');
+    }
+  }, 30000);
 }
 
 // Reconnect when tab becomes visible again (phone wake / tab switch)
@@ -4473,14 +4439,14 @@ function undoAction(id, type) {
     }
     if (typeof renderTasks==='function') renderTasks(); else renderOrders();
     updateStats();
-    if (sbClient) sbClient.from('orders').update({status:snap.prevStatus}).eq('id',id);
+    var db=getDb(); if(db) db.collection('orders').doc(String(id)).update({status:snap.prevStatus}).catch(function(e){console.warn('Undo order error:',e);});
   } else if (type === 'svc') {
     for (var i=0; i<services.length; i++) {
       if (services[i].id===id) { services[i].status = snap.prevStatus; break; }
     }
     if (typeof renderTasks==='function') renderTasks();
     renderServices(); updateUrgencyStrip();
-    if (sbClient) sbClient.from('service_requests').update({status:snap.prevStatus}).eq('id',id);
+    var db=getDb(); if(db) db.collection('service_requests').doc(String(id)).update({status:snap.prevStatus}).catch(function(e){console.warn('Undo svc error:',e);});
   }
   showToast('service','↩ Undone','Action reversed');
 }
@@ -4536,12 +4502,11 @@ async function acceptOrder(id) {
   if (typeof renderTasks==='function') renderTasks(); else renderOrders();
   updateStats();
   showUndoToast('Order accepted — Room '+order.room, id, 'order');
-  // Supabase sync in background
-  if (sbClient) {
-    try {
-      var res = await sbClient.from('orders').update({status:'accepted',accepted_at:now}).eq('id',id);
-      if (res && res.error) console.warn('Accept sync failed:', res.error.message);
-    } catch(e) { console.warn('Accept sync error:', e); }
+  // Firebase sync in background
+  var db = getDb();
+  if (db) {
+    db.collection('orders').doc(String(id)).update({status:'accepted', accepted_at:now})
+      .catch(function(e){ console.warn('Accept Firebase sync error:', e); });
   }
 }
 window.acceptOrder = acceptOrder;
@@ -4572,15 +4537,15 @@ async function advanceOrderWithUndo(id, toStatus) {
   }[newStatus] || 'Order updated';
   showUndoToast(label, id, 'order');
 
-  // ── BACKGROUND SYNC to Supabase (non-blocking) ──
-  if (sbClient) {
+  // ── BACKGROUND SYNC to Firebase (non-blocking) ──
+  var db = getDb();
+  if (db) {
     var updateData = {status: newStatus};
     if(newStatus==='accepted')  updateData.accepted_at  = new Date().toISOString();
     if(newStatus==='ready')     updateData.ready_at     = new Date().toISOString();
     if(newStatus==='delivered') updateData.delivered_at = new Date().toISOString();
-    sbClient.from('orders').update(updateData).eq('id', id).then(function(r){
-      if(r && r.error) console.warn('Supabase sync failed:', r.error.message);
-    }).catch(function(e){ console.warn('Supabase sync error:', e); });
+    db.collection('orders').doc(String(id)).update(updateData)
+      .catch(function(e){ console.warn('Firebase sync error:', e); });
   }
 }
 window.advanceOrder = advanceOrderWithUndo;
@@ -4594,11 +4559,11 @@ async function advanceSvcWithUndo(id, status) {
   for (var i=0; i<services.length; i++) { if(services[i].id===id){ services[i].status=status; break; } }
   if (typeof renderTasks==='function') renderTasks();
   renderServices(); updateUrgencyStrip(); updateStats();
-  // Background sync to Supabase
-  if (sbClient) {
-    sbClient.from('service_requests').update({status:status}).eq('id',id)
-      .then(function(r){ if(r&&r.error) console.warn('Svc sync failed:', r.error.message); })
-      .catch(function(e){ console.warn('Svc sync error:', e); });
+  // Background sync to Firebase
+  var db = getDb();
+  if (db) {
+    db.collection('service_requests').doc(String(id)).update({status:status})
+      .catch(function(e){ console.warn('Svc Firebase sync error:', e); });
   }
   var label = {
     assigned:   'Assigned — Room '+(svc?svc.room:''),
@@ -4683,7 +4648,7 @@ function confirmReject() {
   if (typeof renderTasks==='function') renderTasks(); else renderOrders();
   updateStats();
   showUndoToast('Order rejected — '+reason, id, 'order');
-  if (sbClient) sbClient.from('orders').update({status:'rejected',rejection_reason:reason}).eq('id',id).then(function(r){if(r&&r.error)console.warn('Reject write:',r.error.message);});
+  var db=getDb(); if(db) db.collection('orders').doc(String(id)).update({status:'rejected',rejection_reason:reason}).catch(function(e){console.warn('Reject error:',e);});
 }
 window.confirmReject = confirmReject;
 window.filterSvc=filterSvc;
@@ -4853,7 +4818,7 @@ window.closeQRModal=closeQRModal;
 window.copyURL=copyURL;
 window.downloadQR=downloadQR;
 window.downloadSingleQR=function(){var c=document.getElementById('qr-canvas');if(!c)return;try{var a=document.createElement('a');a.download='QR-Room-'+(typeof currentQRRoom!=='undefined'?currentQRRoom:'room')+'.png';a.href=c.toDataURL('image/png');a.click();}catch(e){}};
-window.checkoutRoom=function(roomNum,event){if(event)event.stopPropagation();if(!confirm('Check out Room '+roomNum+'?'))return;if(typeof STATIC_ROOMS!=='undefined'&&STATIC_ROOMS[roomNum]){STATIC_ROOMS[roomNum].guest='—';STATIC_ROOMS[roomNum].status='vacant';STATIC_ROOMS[roomNum].checkout='—';delete STATIC_ROOMS[roomNum].checkinId;try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}}if(sbClient&&typeof STATIC_ROOMS!=='undefined'&&STATIC_ROOMS[roomNum]&&STATIC_ROOMS[roomNum].checkinId){sbClient.from('checkins').update({status:'checked_out',checked_out_at:new Date().toISOString()}).eq('id',STATIC_ROOMS[roomNum].checkinId).then(function(){});}if(typeof window.renderRooms==='function')window.renderRooms();if(typeof showToast==='function')showToast('service','Checkout · Room '+roomNum,'Guest checked out');};
+window.checkoutRoom=function(roomNum,event){if(event)event.stopPropagation();if(!confirm('Check out Room '+roomNum+'?'))return;if(typeof STATIC_ROOMS!=='undefined'&&STATIC_ROOMS[roomNum]){STATIC_ROOMS[roomNum].guest='—';STATIC_ROOMS[roomNum].status='vacant';STATIC_ROOMS[roomNum].checkout='—';delete STATIC_ROOMS[roomNum].checkinId;try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}}var _cdb=getDb();if(_cdb&&typeof STATIC_ROOMS!=='undefined'&&STATIC_ROOMS[roomNum]&&STATIC_ROOMS[roomNum].checkinId){_cdb.collection('checkins').doc(String(STATIC_ROOMS[roomNum].checkinId)).update({status:'checked_out',checked_out_at:new Date().toISOString()}).catch(function(e){console.warn('Checkout error:',e);});}if(typeof window.renderRooms==='function')window.renderRooms();if(typeof showToast==='function')showToast('service','Checkout · Room '+roomNum,'Guest checked out');};
 window.editRoom=function(roomNum,event){if(event)event.stopPropagation();var name=prompt('Guest name for Room '+roomNum+' (leave blank for vacant):');if(name===null)return;if(typeof STATIC_ROOMS==='undefined')return;if(!STATIC_ROOMS[roomNum])STATIC_ROOMS[roomNum]={};if(name.trim()){STATIC_ROOMS[roomNum].guest=name.trim();STATIC_ROOMS[roomNum].status='occupied';}else{STATIC_ROOMS[roomNum].guest='—';STATIC_ROOMS[roomNum].status='vacant';}try{localStorage.setItem('hyatt_rooms_override',JSON.stringify(STATIC_ROOMS));}catch(e){}if(typeof window.renderRooms==='function')window.renderRooms();};
 window.callRoom=callRoom;
 window.switchView=switchView;
@@ -5636,6 +5601,17 @@ if (document.readyState === 'complete') {
   } else {
     window.addEventListener('load', function() { setTimeout(_tryAutoConnect, 300); });
   }
+  // If still offline after 10 seconds, show a visible warning banner
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      if (window.APP_MODE === 'guest') return;
+      var badge = document.getElementById('conn-badge');
+      if (badge && badge.classList.contains('connecting')) {
+        // Still connecting after 10s - try one more time
+        if (typeof window.autoConnect === 'function') window.autoConnect();
+      }
+    }, 10000);
+  });
 })();
 </script>
 
@@ -5646,29 +5622,8 @@ if (document.readyState === 'complete') {
     document.getElementById('staff-root').style.display = 'none';
     var r = window.ROOM_NUM || '203';
     var g = window.GUEST_NAME || 'Guest';
-    // Validate token against Supabase if available
-    var token = window.ROOM_TOKEN;
-    if (token && window._sbClient) {
-      window._sbClient.from('sessions')
-        .select('id,guest_name,active,checkout_date')
-        .eq('token', token)
-        .eq('active', true)
-        .single()
-        .then(function(res) {
-          if (res.error || !res.data) {
-            // Token invalid/expired - show expired screen
-            var screen = document.getElementById('screen-entry');
-            if (screen) {
-              screen.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:32px;text-align:center;">' +
-                '<div style="font-size:48px;margin-bottom:20px;">\uD83D\uDD12</div>' +
-                '<div style="font-family:\'Cormorant Garamond\',serif;font-size:28px;color:var(--text);margin-bottom:12px;">Session Expired</div>' +
-                '<div style="font-size:15px;color:var(--text-muted);line-height:1.6;">Your room portal has expired.<br>Please contact reception for a new QR code.</div>' +
-                '<div style="margin-top:32px;padding:14px 24px;background:rgba(201,169,110,0.1);border:1px solid rgba(201,169,110,0.3);border-radius:12px;font-size:14px;color:var(--gold);">\uD83D\uDCDE Call Reception: 0</div>' +
-                '</div>';
-            }
-          }
-        });
-    }
+    // Token validation not used in Firebase version — QR links are room-based
+    var token = window.ROOM_TOKEN; // kept for future use
     // Patch all room text
     var rn = document.querySelector('.room-number'); if(rn) rn.textContent = r;
     var gn = document.querySelector('.guest-name');  if(gn) gn.textContent = g;
