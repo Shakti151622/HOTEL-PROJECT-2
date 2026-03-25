@@ -4049,22 +4049,7 @@ function handleRealtimeEvent(payload){
     stopAlertBeep(old.id);renderOrders();updateStats();
   }
 }
-async function acceptOrder(id){
-  var order=orders.find(function(o){return o.id===id;});
-  if(!order)return;
-  // Optimistic: update UI immediately
-  order.status='accepted';
-  order.acceptedAt=Date.now();
-  stopAlertBeep(id);
-  renderOrders();updateStats();
-  // Background sync
-  if(sbClient){
-    var now=new Date().toISOString();
-    sbClient.from('orders').update({status:'accepted',accepted_at:now}).eq('id',id)
-      .then(function(r){if(r&&r.error)console.warn('Accept sync failed:',r.error.message);})
-      .catch(function(e){console.warn('Accept sync error:',e);});
-  }
-}
+// acceptOrder defined below with undo support
 
 var _rejectOrderId=null,_rejectReason=null;
 function openRejectModal(id){
@@ -4142,17 +4127,13 @@ function autoConnect(){
   localStorage.setItem('hyatt_sb_url', SUPABASE_URL);
   localStorage.setItem('hyatt_sb_key', SUPABASE_KEY);
   realtimeInited = false;
-  // Reuse existing client if already created (avoids duplicate GoTrue instances)
-  if(!sbClient || !window._hyattSb){
-    try{
-      sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-        auth:{ storageKey:'hyatt-sb-auth', persistSession:false }
-      });
-      window._hyattSb = sbClient;
-    }catch(e){ console.warn('Supabase init error:',e); scheduleReconnect(); return; }
-  } else {
-    sbClient = window._hyattSb;
-  }
+  // Always create a fresh staff client with persistSession:false
+  try{
+    sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth:{ storageKey:'hyatt-sb-staff-auth', persistSession:false }
+    });
+    window._hyattSb = sbClient;
+  }catch(e){ console.warn('Supabase init error:',e); scheduleReconnect(); return; }
   var u=document.getElementById('cfg-url'); if(u) u.value=SUPABASE_URL;
   var k=document.getElementById('cfg-key'); if(k) k.value=SUPABASE_KEY;
   loadOrdersFromSupabase()
@@ -4609,17 +4590,16 @@ async function advanceSvcWithUndo(id, status) {
   var svc = services.find(function(s){ return s.id===id; });
   var prevStatus = svc ? svc.status : 'received';
   pushUndo(id, prevStatus, {});
-  // Write to Supabase FIRST
-  if (sbClient) {
-    try {
-      var r = await sbClient.from('service_requests').update({status:status}).eq('id',id);
-      if(r.error){ console.warn('Svc write failed:', r.error.message); return; }
-    } catch(e){ console.warn('Svc write error:', e); return; }
-  }
-  // Write confirmed — update local
+  // ── OPTIMISTIC: update UI instantly ──
   for (var i=0; i<services.length; i++) { if(services[i].id===id){ services[i].status=status; break; } }
   if (typeof renderTasks==='function') renderTasks();
   renderServices(); updateUrgencyStrip(); updateStats();
+  // Background sync to Supabase
+  if (sbClient) {
+    sbClient.from('service_requests').update({status:status}).eq('id',id)
+      .then(function(r){ if(r&&r.error) console.warn('Svc sync failed:', r.error.message); })
+      .catch(function(e){ console.warn('Svc sync error:', e); });
+  }
   var label = {
     assigned:   'Assigned — Room '+(svc?svc.room:''),
     inprogress: 'En Route — Room '+(svc?svc.room:''),
@@ -5634,11 +5614,28 @@ updateUrgencyStrip();
 })();
 // Connect on window load — guarantees Supabase CDN script is ready
 if (document.readyState === 'complete') {
-  autoConnect();
+  setTimeout(autoConnect, 0); // defer to next tick so IIFE fully completes
 } else {
   window.addEventListener('load', function(){ autoConnect(); });
 }
 
+})();
+</script>
+<script>
+// ── Backup autoConnect trigger — runs outside IIFE after all scripts parsed ──
+// This guarantees Supabase CDN is available even on slow CDN loads (GitHub Pages)
+(function() {
+  function _tryAutoConnect() {
+    if (window.APP_MODE === 'guest') return;
+    if (typeof window.autoConnect === 'function') {
+      window.autoConnect();
+    }
+  }
+  if (document.readyState === 'complete') {
+    setTimeout(_tryAutoConnect, 500);
+  } else {
+    window.addEventListener('load', function() { setTimeout(_tryAutoConnect, 300); });
+  }
 })();
 </script>
 
