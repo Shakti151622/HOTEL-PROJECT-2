@@ -8,7 +8,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Shakti Hotels</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
 (function(){
   var p={};
@@ -1717,14 +1719,14 @@ function renderOrders() {
   const active = orderHistory.filter(o => o.status !== 'delivered' && o.status !== 'rejected' && o.status !== 'cancelled');
   const past   = orderHistory.filter(o => o.status === 'delivered' || o.status === 'rejected' || o.status === 'cancelled');
 
-  const statusLabel = { new: 'Waiting', accepted: 'Accepted', preparing: 'Preparing', ready: 'Preparing', delivered: 'Delivered', rejected: 'Not accepted', cancelled: 'Cancelled' };
-  const statusClass = { new: 'status-preparing', accepted: 'status-active', preparing: 'status-preparing', ready: 'status-active', delivered: 'status-delivered', rejected: 'status-delivered', cancelled: 'status-delivered' };
+  const statusLabel = { new: 'Order Placed', accepted: 'Accepted ✓', preparing: 'Preparing 🍳', ready: 'Ready! 🛎', delivered: 'Delivered ✓', rejected: 'Declined ❌', cancelled: 'Cancelled' };
+  const statusClass = { new: 'status-new', accepted: 'status-accepted', preparing: 'status-preparing', ready: 'status-active', delivered: 'status-delivered', rejected: 'status-rejected', cancelled: 'status-delivered' };
 
-  const stepsDef = ['Placed', 'Accepted', 'Preparing', 'Delivered'];
+  const stepsDef = ['Placed', 'Accepted', 'Preparing', 'Ready', 'Delivered'];
   function stepIndex(status) {
-    return { new:0, accepted:1, preparing:2, ready:2, delivered:3, rejected:-1 }[status] ?? 0;
+    return { new:0, accepted:1, preparing:2, ready:3, delivered:4, rejected:-1 }[status] ?? 0;
   }
-  const barPctMap = { new:8, accepted:33, preparing:66, ready:75, delivered:100 };
+  const barPctMap = { new:5, accepted:25, preparing:50, ready:80, delivered:100 };
   function getEtaHtml(o) {
     if(o.status==='delivered'||o.status==='rejected'||o.status==='cancelled') return '';
     if(o.status==='new') return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Waiting for kitchen…</div>';
@@ -1748,9 +1750,10 @@ function renderOrders() {
       : isCancelled
       ? '<div style="font-size:12px;color:var(--text-muted);padding:4px 0;">Order cancelled</div>'
       : stepsDef.map((s, i) => {
-          const cls = i < si ? 'done' : i === si ? 'active' : '';
+          const cls = i <= si ? (i < si ? 'done' : 'active') : '';
+          const showTick = i <= si; // tick on current AND all past steps
           return `<div class="tracker-step ${cls}">
-            <div class="tracker-dot">${cls==='done'?checkSvgGreen:''}</div>
+            <div class="tracker-dot">${showTick ? checkSvgGreen : ''}</div>
             <div class="tracker-step-name">${s}</div>
           </div>`;
         }).join('');
@@ -1935,7 +1938,7 @@ window.confirmModify = async function(orderId) {
   showGuestToast('Items added to your order!', 'green');
   var s = await waitForSupa();
   if (s) {
-    try { await s.from('orders').update({ items: items, total: newTotal }).eq('id', orderId); }
+    try { var db = await waitForDb(); if(db) await db.collection('orders').doc(String(orderId)).update({ items: items, total: newTotal }); }
     catch(e) { console.warn('Modify update failed', e); }
   }
 };
@@ -2014,30 +2017,39 @@ function submitService() {
   document.getElementById('submit-bar').style.display = 'none';
   document.getElementById('service-success').style.display = 'flex';
 
-  // Write to Supabase + subscribe to live status updates
-  var svcData = JSON.stringify({id:reqId, room:String(window.ROOM_NUM||'000'), guest:String(window.GUEST_NAME||'Guest'), type:selectedService, icon:req.icon, qty:qty, note:note||null, status:'received', placed_at:now.toISOString()});
-  var xhrSvc = new XMLHttpRequest();
-  xhrSvc.open('POST', 'https://webvlxcypqhcwzbcpths.supabase.co/rest/v1/service_requests', true);
-  xhrSvc.setRequestHeader('Content-Type','application/json');
-  xhrSvc.setRequestHeader('apikey','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw');
-  xhrSvc.setRequestHeader('Authorization','Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw');
-  xhrSvc.setRequestHeader('Prefer','return=minimal');
-  xhrSvc.onload = function(){
-    if(xhrSvc.status>=200&&xhrSvc.status<300){
-      waitForSupa().then(function(s){
-        if(!s)return;
-        s.channel('svc-'+reqId).on('postgres_changes',{event:'UPDATE',schema:'public',table:'service_requests',filter:'id=eq.'+reqId},function(payload){
-          var r=serviceHistory.find(function(x){return x.id===reqId;});
-          if(!r)return;
-          r.status=payload.new.status;
-          updateServicesBadge();
-          if(document.getElementById('screen-services').classList.contains('active'))renderServices();
-          var t={assigned:'✓ Request assigned to staff',inprogress:'🚶 Staff is on the way…',done:'✓ Request completed!'};
-          if(t[payload.new.status])showGuestToast(t[payload.new.status], payload.new.status==='done' ? 'green' : 'green');
-        }).subscribe();
-      });
-    }
-  };
+  // Write to Firebase + subscribe to live status updates
+  waitForDb().then(function(db) {
+    if (!db) { console.warn('Firebase not ready for service request'); return; }
+    var svcData = {
+      id: reqId,
+      room: String(window.ROOM_NUM || '000'),
+      guest: String(window.GUEST_NAME || 'Guest'),
+      type: selectedService,
+      icon: req.icon,
+      qty: qty,
+      note: note || null,
+      status: 'received',
+      placed_at: now.toISOString()
+    };
+    db.collection('service_requests').doc(reqId).set(svcData)
+      .then(function() {
+        // Subscribe to live status updates
+        db.collection('service_requests').doc(reqId).onSnapshot(function(doc) {
+          if (!doc.exists) return;
+          var newStatus = doc.data().status;
+          var r = serviceHistory.find(function(x){ return x.id === reqId; });
+          if (r && r.status !== newStatus) {
+            r.status = newStatus;
+            updateServicesBadge();
+            if (document.getElementById('screen-services').classList.contains('active')) renderServices();
+            var t = { assigned:'✓ Request assigned to staff', inprogress:'🚶 Staff is on the way…', done:'✓ Request completed!' };
+            if (t[newStatus]) showGuestToast(t[newStatus], 'green');
+          }
+        });
+      })
+      .catch(function(e) { console.error('Service insert failed:', e); });
+  });
+  // dummy to maintain structure
   xhrSvc.onerror=function(){console.warn('Service XHR error');};
   xhrSvc.send(svcData);
 }
@@ -2474,36 +2486,49 @@ function initTheme() {
 initTheme();
 
 // ══════════════════════════════════════════
-// ── SUPABASE
+// ── FIREBASE DATABASE
 // ══════════════════════════════════════════
-const SUPA_URL      = 'https://webvlxcypqhcwzbcpths.supabase.co';
-const SUPA_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw';
-let supa = null;
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyAb1G6UATyCR0l_8kDyO3VpRgMwDJ5l7UI",
+  authDomain:        "roocan-16ea0.firebaseapp.com",
+  projectId:         "roocan-16ea0",
+  storageBucket:     "roocan-16ea0.firebasestorage.app",
+  messagingSenderId: "521412270728",
+  appId:             "1:521412270728:web:c2564cf45855e2a6961d3d"
+};
+let _fbDb = null;
 
-function initSupa(){
+function initFirebase() {
   try {
-    if(window.supabase && window.supabase.createClient){
-      supa = window.supabase.createClient(SUPA_URL, SUPA_ANON_KEY);
+    if (typeof firebase === 'undefined' || !firebase.firestore) {
+      setTimeout(initFirebase, 150); return;
     }
-  } catch(e) { console.warn('Supabase init failed', e); }
+    if (!firebase.apps || !firebase.apps.length) {
+      firebase.initializeApp(FIREBASE_CONFIG);
+    }
+    _fbDb = firebase.firestore();
+    console.log('Guest Firebase ready');
+  } catch(e) { console.warn('Firebase init failed:', e); }
 }
 
-// Try immediately (sync load), then again on DOMContentLoaded and load
-initSupa();
-document.addEventListener('DOMContentLoaded', function(){ if(!supa) initSupa(); });
-window.addEventListener('load', function(){ if(!supa) initSupa(); });
+initFirebase();
+document.addEventListener('DOMContentLoaded', function(){ if(!_fbDb) initFirebase(); });
+window.addEventListener('load', function(){ if(!_fbDb) initFirebase(); });
 
-// Returns a promise that resolves when supa is ready (max 5s wait)
-function waitForSupa(){
-  return new Promise(function(resolve){
-    if(supa){ resolve(supa); return; }
-    var tries=0;
-    var iv=setInterval(function(){
-      if(supa){ clearInterval(iv); resolve(supa); return; }
-      if(++tries>50){ clearInterval(iv); resolve(null); } // give up after 5s
-    },100);
+// Returns a promise that resolves when Firebase db is ready (max 5s wait)
+function waitForDb() {
+  return new Promise(function(resolve) {
+    if (_fbDb) { resolve(_fbDb); return; }
+    var tries = 0;
+    var iv = setInterval(function() {
+      if (_fbDb) { clearInterval(iv); resolve(_fbDb); return; }
+      if (++tries > 50) { clearInterval(iv); resolve(null); }
+    }, 100);
   });
 }
+
+// Kept for any legacy references
+function waitForSupa() { return waitForDb(); }
 
 // ══════════════════════════════════════════
 // ── ENTRY SCREEN
@@ -2533,11 +2558,10 @@ function startOrdering() {
   go('home');
 }
 
-// ── OVERRIDE placeOrder TO INSERT TO SUPABASE + SUBSCRIBE TO STATUS UPDATES
+// ── OVERRIDE placeOrder TO INSERT TO FIREBASE + SUBSCRIBE TO STATUS UPDATES
 const _origPlaceOrder = placeOrder;
 placeOrder = async function(isMerge) {
   // Capture cart BEFORE _origPlaceOrder runs (it clears cart)
-  // Use JSON round-trip to guarantee clean serializable plain objects
   var cartSnapshot;
   try {
     cartSnapshot = JSON.parse(JSON.stringify(
@@ -2560,8 +2584,9 @@ placeOrder = async function(isMerge) {
   _origPlaceOrder(isMerge);
   window._pendingOrderId = null;
 
-  const supaReady = await waitForSupa();
-  if (!supaReady) { console.warn('Supabase not available'); return; }
+  const db = await waitForDb();
+  if (!db) { console.warn('Firebase not available — order saved locally only'); return; }
+
   try {
     const insertData = {
       id: orderId,
@@ -2573,49 +2598,42 @@ placeOrder = async function(isMerge) {
       placed_at: new Date().toISOString()
     };
 
-    // Use XMLHttpRequest — Safari iOS compatible, no DataCloneError
-    await new Promise(function(resolve, reject) {
-      var xhr = new XMLHttpRequest();
-      xhr.open('POST', SUPA_URL + '/rest/v1/orders', true);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      xhr.setRequestHeader('apikey', SUPA_ANON_KEY);
-      xhr.setRequestHeader('Authorization', 'Bearer ' + SUPA_ANON_KEY);
-      xhr.setRequestHeader('Prefer', 'return=minimal');
-      xhr.onload = function() {
-        if (xhr.status >= 200 && xhr.status < 300) { resolve(); }
-        else { reject(new Error('HTTP ' + xhr.status + ': ' + xhr.responseText)); }
-      };
-      xhr.onerror = function() { reject(new Error('Network error')); };
-      xhr.send(JSON.stringify(insertData));
-    });
+    // Write to Firestore
+    await db.collection('orders').doc(orderId).set(insertData);
 
-    // Subscribe to status updates for this order
-    supaReady.channel('order-status-' + orderId)
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'orders',
-        filter: 'id=eq.' + orderId
-      }, function(payload) {
-        var row = payload.new;
-        var order = orderHistory.find(function(o){ return o.id === orderId; });
-        if (!order) return;
+    // Subscribe to live status updates for this order
+    var prevStatus = 'new';
+    db.collection('orders').doc(orderId).onSnapshot(function(doc) {
+      if (!doc.exists) return;
+      var row = doc.data();
+      if (row.status === prevStatus) return;
+      prevStatus = row.status;
+
+      var order = orderHistory.find(function(o){ return o.id === orderId; });
+      if (order) {
         order.status = row.status;
         order.rejection_reason = row.rejection_reason || null;
         if (row.status === 'accepted') order.acceptedAt = Date.now();
         updateOrdersBadge();
         if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
-        if (row.status === 'accepted') {
-          showGuestToast('✓ Order accepted! You can modify/cancel within 5 mins.', 'green');
-        } else if (row.status === 'rejected') {
-          var reason = row.rejection_reason || 'Please contact reception';
-          showGuestToast('Order not accepted: ' + reason, 'red');
-        } else if (row.status === 'delivered') {
-          showGuestToast('Your order has been delivered!', 'green');
-          broadcastActivity('idle');
-        }
-      })
-      .subscribe();
+      }
 
-  } catch(e) { console.error('Order insert failed:', e && e.message || e, e && e.stack || ''); }
+      if (row.status === 'accepted') {
+        showGuestToast('✓ Order accepted! Kitchen is getting started.', 'green');
+      } else if (row.status === 'preparing') {
+        showGuestToast('🍳 Your food is being prepared!', 'green');
+      } else if (row.status === 'ready') {
+        showGuestToast('🛎 Your order is ready! Delivering now.', 'green');
+      } else if (row.status === 'rejected') {
+        var reason = row.rejection_reason || 'Please contact reception';
+        showGuestToast('Order not accepted: ' + reason, 'red');
+      } else if (row.status === 'delivered') {
+        showGuestToast('✓ Your order has been delivered! Enjoy!', 'green');
+        broadcastActivity('idle');
+      }
+    });
+
+  } catch(e) { console.error('Firebase order insert failed:', e && e.message || e); }
 };
 
 function showGuestToast(msg, color) {
