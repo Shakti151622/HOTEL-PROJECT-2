@@ -947,6 +947,12 @@ html[data-mode="guest"] #guest-root { display: block !important; }
     color: var(--gold);
     border: 1px solid rgba(201,169,110,0.3);
   }
+  /* status-rejected: red pill */
+  .status-rejected {
+    background: rgba(192,57,43,0.1);
+    color: var(--red);
+    border: 1px solid rgba(192,57,43,0.25);
+  }
   .order-card-items {
     padding: 12px 18px;
   }
@@ -2504,10 +2510,10 @@ function renderOrders() {
   }
 
   const active = orderHistory.filter(o => o.status !== 'delivered');
-  const past   = orderHistory.filter(o => o.status === 'delivered');
+  const past   = orderHistory.filter(o => o.status === 'delivered' || o.status === 'rejected');
 
-  const statusLabel = { new: 'Order Placed', accepted: 'Accepted', preparing: 'Preparing', ready: 'Ready!', delivered: 'Delivered' };
-  const statusClass = { new: 'status-new', accepted: 'status-accepted', preparing: 'status-preparing', ready: 'status-active', delivered: 'status-delivered' };
+  const statusLabel = { new: 'Order Placed', accepted: 'Accepted', preparing: 'Preparing', ready: 'Ready!', delivered: 'Delivered', rejected: 'Declined ❌' };
+  const statusClass = { new: 'status-new', accepted: 'status-accepted', preparing: 'status-preparing', ready: 'status-active', delivered: 'status-delivered', rejected: 'status-rejected' };
 
   // 5-step tracker: Placed → Accepted → Preparing → Ready → Delivered
   const stepsDef = ['Placed', 'Accepted', 'Preparing', 'Ready', 'Delivered'];
@@ -2519,8 +2525,10 @@ function renderOrders() {
   function renderCard(o) {
     const si = stepIndex(o.status);
     const steps = stepsDef.map((s, i) => {
-      const cls = i < si ? 'done' : i === si ? 'active' : '';
-      const checkSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polyline points="20 6 9 17 4 12"/></svg>`;
+      // done = past step (tick), active = current step (tick), '' = future (empty dot)
+      const cls = i <= si ? (i < si ? 'done' : 'active') : '';
+      const showTick = i <= si; // show tick for current AND all past steps
+      const checkSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:${showTick ? 'block' : 'none'}"><polyline points="20 6 9 17 4 12"/></svg>`;
       return `<div class="tracker-step ${cls}">
         <div class="tracker-dot">${checkSvg}</div>
         <div class="tracker-step-name">${s}</div>
@@ -2562,7 +2570,14 @@ function renderOrders() {
             <div class="order-item-price">₹${i.qty * i.price}</div>
           </div>`).join('')}
       </div>
-      ${o.status !== 'delivered' ? `
+      ${o.status === 'rejected' ? `
+      <div style="padding:12px 18px;display:flex;align-items:center;gap:10px;background:rgba(192,57,43,0.06);border-top:1px solid rgba(192,57,43,0.15);">
+        <span style="font-size:20px;">❌</span>
+        <div>
+          <div style="font-size:13px;color:var(--red);font-weight:500;">Order Declined</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${o.rejection_reason || 'Please contact reception for details.'}</div>
+        </div>
+      </div>` : o.status !== 'delivered' ? `
       <div class="order-tracker">
         <div class="tracker-label">Order Status</div>
         <div class="tracker-steps">${steps}</div>
@@ -3051,10 +3066,12 @@ function showGuestNotif(title, msg, type, onClick) {
   banner.id = 'guest-notif-banner';
   var bg   = type === 'ready'     ? 'var(--green)'  :
              type === 'accepted'  ? 'var(--gold)'   :
-             type === 'delivered' ? '#555'           : 'var(--gold)';
+             type === 'delivered' ? '#555'           :
+             type === 'rejected'  ? 'var(--red)'    : 'var(--gold)';
   var icon = type === 'ready'     ? '🛎'  :
              type === 'accepted'  ? '✅'  :
-             type === 'delivered' ? '🏁'  : '🔔';
+             type === 'delivered' ? '🏁'  :
+             type === 'rejected'  ? '❌'  : '🔔';
   banner.style.cssText = [
     'position:fixed','top:0','left:0','right:0','z-index:9999',
     'background:'+bg,'color:#0D0D0D',
@@ -3094,10 +3111,12 @@ function showGuestNotif(title, msg, type, onClick) {
   // Auto-dismiss after 8 seconds
   setTimeout(function() { if (banner.parentElement) banner.remove(); }, 8000);
 }
-(function(){
-  // Firebase guest init — reuse or init the shared Firebase app
+(function initGuestFirebase(){
+  // Firebase guest init with retry — SDK may still be loading
   try {
-    if (!firebase || !firebase.firestore) return;
+    if (typeof firebase === 'undefined' || !firebase.firestore) {
+      setTimeout(initGuestFirebase, 150); return;
+    }
     var fbConfig = {
       apiKey:            "AIzaSyAb1G6UATyCR0l_8kDyO3VpRgMwDJ5l7UI",
       authDomain:        "roocan-16ea0.firebaseapp.com",
@@ -3109,8 +3128,10 @@ function showGuestNotif(title, msg, type, onClick) {
     if (!firebase.apps || !firebase.apps.length) {
       firebase.initializeApp(fbConfig);
     }
-    guestSb = firebase.firestore(); // guestSb is now the Firestore db instance
-  } catch(e) { console.warn('Guest Firebase init:', e); }
+    guestSb = firebase.firestore();
+    window._guestDbReady = true;
+    console.log('Guest Firebase ready');
+  } catch(e) { console.warn('Guest Firebase init error:', e); }
 })();
 
 // ── Supabase-aware placeOrder (overwrites the local-only version above)
@@ -3140,14 +3161,21 @@ async function placeOrder(isMerge) {
   broadcastOrder(order);
   broadcastActivity('ordered');
   updateOrdersBadge();
+  renderOrders();       // pre-render tracker immediately so it's ready when guest taps "My Orders"
+  updateOrdersBadge();  // refresh badge count
   document.getElementById('cart-body').style.display = 'none';
   document.getElementById('order-success').classList.add('visible');
   cart = {};
   updateCartBtn();
 
-  // Write to Supabase
-  if (guestSb) {
-    const roomNum = window.ROOM_NUM || '203';
+  // Write to Firebase — with retry if SDK not ready yet
+  async function _doFirebaseInsert(retries) {
+    if (!guestSb) {
+      if (retries > 0) { setTimeout(function(){ _doFirebaseInsert(retries-1); }, 300); }
+      else { console.warn('Firebase not ready after retries — order saved locally only'); }
+      return;
+    }
+    const roomNum   = window.ROOM_NUM || '203';
     const guestName = window.GUEST_NAME || 'Guest';
     try {
       await guestSb.collection('orders').doc(orderId).set({
@@ -3159,17 +3187,13 @@ async function placeOrder(isMerge) {
         status:    'new',
         placed_at: now.toISOString()
       });
-      // Subscribe to status changes for this order
+      // Subscribe to live status changes for this order
       subscribeGuestOrderUpdates(orderId, order);
     } catch(err) {
       console.warn('Guest Firebase insert failed:', err.message || err);
     }
-  } else {
-    // Fallback: simulate status progression locally
-    setTimeout(() => { order.status = 'preparing'; if (document.getElementById('screen-orders').classList.contains('active')) renderOrders(); updateOrdersBadge(); }, 5000);
-    setTimeout(() => { order.status = 'ready';     if (document.getElementById('screen-orders').classList.contains('active')) renderOrders(); updateOrdersBadge(); }, 15000);
-    setTimeout(() => { order.status = 'delivered'; if (document.getElementById('screen-orders').classList.contains('active')) renderOrders(); updateOrdersBadge(); broadcastActivity('idle'); }, 30000);
   }
+  _doFirebaseInsert(10); // retry up to 10 times (3 seconds total)
 }
 
 // ── Supabase-aware submitService (overwrites local-only version above)
@@ -3243,7 +3267,7 @@ function subscribeGuestOrderUpdates(orderId, localOrder) {
   if (!guestSb) return;
   // Remove existing channel for THIS order only (not all orders)
   if (guestRtChannels[orderId]) {
-    try { guestSb.removeChannel(guestRtChannels[orderId]); } catch(e) {}
+    try { guestRtChannels[orderId](); } catch(e) {} // Firebase: call the unsubscribe fn
     delete guestRtChannels[orderId];
   }
 
@@ -3273,10 +3297,15 @@ function subscribeGuestOrderUpdates(orderId, localOrder) {
         showGuestNotif('Your Order is Ready! 🛎','Your food will be delivered to your room shortly.','ready',function(){ if(typeof go==='function')go('orders'); });
       } else if (newStatus === 'delivered') {
         showGuestNotif('Delivered! Enjoy your meal 🏁','Hope you enjoy it. Tap to view your order.','delivered',function(){ if(typeof go==='function')go('orders'); });
-        // Unsubscribe — order done
         try { guestRtChannels[orderId](); } catch(e) {}
         delete guestRtChannels[orderId];
+      } else if (newStatus === 'rejected') {
+        var reason = doc.data().rejection_reason || 'Please contact reception.';
+        showGuestNotif('Order Declined ❌', reason, 'rejected', function(){ if(typeof go==='function')go('orders'); });
       }
+      // Always re-render orders screen if open
+      if (document.getElementById('screen-orders') && document.getElementById('screen-orders').classList.contains('active')) renderOrders();
+      updateOrdersBadge();
     }, function(err){ console.warn('Guest order snapshot error:', err); });
 }
 
