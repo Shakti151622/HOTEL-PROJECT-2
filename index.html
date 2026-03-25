@@ -4052,12 +4052,17 @@ function handleRealtimeEvent(payload){
 async function acceptOrder(id){
   var order=orders.find(function(o){return o.id===id;});
   if(!order)return;
+  // Optimistic: update UI immediately
   order.status='accepted';
+  order.acceptedAt=Date.now();
   stopAlertBeep(id);
   renderOrders();updateStats();
+  // Background sync
   if(sbClient){
-    try{await sbClient.from('orders').update({status:'accepted'}).eq('id',id);}
-    catch(e){console.warn('Accept failed',e);}
+    var now=new Date().toISOString();
+    sbClient.from('orders').update({status:'accepted',accepted_at:now}).eq('id',id)
+      .then(function(r){if(r&&r.error)console.warn('Accept sync failed:',r.error.message);})
+      .catch(function(e){console.warn('Accept sync error:',e);});
   }
 }
 
@@ -4107,7 +4112,8 @@ async function confirmReject(){
   }
 }
 
-async function advanceOrder(id,toStatus){
+// Legacy advanceOrder — superseded by advanceOrderWithUndo below (kept for safety)
+async function _legacyAdvanceOrder(id,toStatus){
   var order=orders.find(function(o){return o.id===id;});
   if(!order)return;
   order.status=toStatus;
@@ -4122,31 +4128,42 @@ function closeCfg(){document.getElementById('cfg-overlay').style.display='none';
 function cfgOverlayClick(e){if(e.target.id==='cfg-overlay')closeCfg();}
 var _autoConnectTimer=null, _connHealthTimer=null;
 
+var _sdkWaitCount = 0;
 function autoConnect(){
-  // Wait for Supabase SDK if not ready yet
+  // Retry until Supabase SDK is available (CDN may still be loading on GitHub Pages)
   if(typeof supabase==='undefined'||typeof supabase.createClient!=='function'){
-    setTimeout(autoConnect, 100); return;
+    _sdkWaitCount++;
+    if(_sdkWaitCount < 100){ setTimeout(autoConnect, 200); }
+    else { console.warn('Supabase SDK never loaded — check CDN script tag'); setConnBadge('disconnected','SDK Error'); }
+    return;
   }
+  _sdkWaitCount = 0;
   setConnBadge('connecting','Connecting…');
-  // Credentials already hardcoded — no _SB_URL/_SB_KEY needed
-  localStorage.setItem('hyatt_sb_url',SUPABASE_URL);
-  localStorage.setItem('hyatt_sb_key',SUPABASE_KEY);
-  realtimeInited=false;
-  try{
-    sbClient=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storageKey:'hyatt-sb-auth',persistSession:false}});
-    window._hyattSb=sbClient;
-  }catch(e){ console.warn('Supabase init:',e); scheduleReconnect(); return; }
-  var u=document.getElementById('cfg-url');if(u)u.value=SUPABASE_URL;
-  var k=document.getElementById('cfg-key');if(k)k.value=SUPABASE_KEY;
+  localStorage.setItem('hyatt_sb_url', SUPABASE_URL);
+  localStorage.setItem('hyatt_sb_key', SUPABASE_KEY);
+  realtimeInited = false;
+  // Reuse existing client if already created (avoids duplicate GoTrue instances)
+  if(!sbClient || !window._hyattSb){
+    try{
+      sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth:{ storageKey:'hyatt-sb-auth', persistSession:false }
+      });
+      window._hyattSb = sbClient;
+    }catch(e){ console.warn('Supabase init error:',e); scheduleReconnect(); return; }
+  } else {
+    sbClient = window._hyattSb;
+  }
+  var u=document.getElementById('cfg-url'); if(u) u.value=SUPABASE_URL;
+  var k=document.getElementById('cfg-key'); if(k) k.value=SUPABASE_KEY;
   loadOrdersFromSupabase()
-    .then(function(){return loadServicesFromSupabase();})
-    .then(function(){return loadCheckinsFromSupabase();})
+    .then(function(){ return loadServicesFromSupabase(); })
+    .then(function(){ return loadCheckinsFromSupabase(); })
     .then(function(){
-      try{subscribeRealtime();}catch(e){}
+      try{ subscribeRealtime(); }catch(e){ console.warn('Realtime init:',e); }
       startConnHealthCheck();
     })
     .catch(function(e){
-      console.warn('Init error:',e&&e.message||e);
+      console.warn('Supabase init error:',e&&e.message||e);
       setConnBadge('disconnected','Offline');
       scheduleReconnect();
     });
@@ -4554,30 +4571,36 @@ async function advanceOrderWithUndo(id, toStatus) {
   var order = orders.find(function(o){ return o.id===id; });
   if (!order) return;
   var prevStatus = order.status;
-  pushUndo(id, prevStatus, { accepted_at: order.accepted_at, orderData: JSON.parse(JSON.stringify(order)) });
   var newStatus = toStatus || next[order.status] || order.status;
-  // Write to Supabase FIRST
-  if (sbClient) {
-    try {
-      var updateData = {status: newStatus};
-      if(newStatus==='accepted')  updateData.accepted_at  = new Date().toISOString();
-      if(newStatus==='ready')     updateData.ready_at     = new Date().toISOString();
-      if(newStatus==='delivered') updateData.delivered_at = new Date().toISOString();
-      var r = await sbClient.from('orders').update(updateData).eq('id',id);
-      if(r.error){ console.warn('Supabase advance failed:', r.error.message); return; }
-    } catch(e){ console.warn('Advance write error:', e); return; }
-  }
-  // Write confirmed — update local
+  if (newStatus === prevStatus) return; // already there
+
+  pushUndo(id, prevStatus, { accepted_at: order.accepted_at, orderData: JSON.parse(JSON.stringify(order)) });
+
+  // ── OPTIMISTIC UPDATE: change UI immediately so button feels instant ──
   order.status = newStatus;
-  if (order.status === 'delivered') { orders = orders.filter(function(o){ return o.id!==id; }); }
+  if (newStatus === 'accepted') order.acceptedAt = Date.now();
+  stopAlertBeep(id);
+  if (newStatus === 'delivered') { orders = orders.filter(function(o){ return o.id!==id; }); }
   if (typeof renderTasks==='function') renderTasks(); else renderOrders();
   updateStats();
   var label = {
+    accepted:  'Accepted — Room '+order.room,
     preparing: 'Preparing — Room '+order.room,
     ready:     'Ready — Room '+order.room,
     delivered: 'Delivered — Room '+order.room
   }[newStatus] || 'Order updated';
   showUndoToast(label, id, 'order');
+
+  // ── BACKGROUND SYNC to Supabase (non-blocking) ──
+  if (sbClient) {
+    var updateData = {status: newStatus};
+    if(newStatus==='accepted')  updateData.accepted_at  = new Date().toISOString();
+    if(newStatus==='ready')     updateData.ready_at     = new Date().toISOString();
+    if(newStatus==='delivered') updateData.delivered_at = new Date().toISOString();
+    sbClient.from('orders').update(updateData).eq('id', id).then(function(r){
+      if(r && r.error) console.warn('Supabase sync failed:', r.error.message);
+    }).catch(function(e){ console.warn('Supabase sync error:', e); });
+  }
 }
 window.advanceOrder = advanceOrderWithUndo;
 
