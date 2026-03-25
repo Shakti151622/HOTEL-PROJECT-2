@@ -3459,7 +3459,7 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
     <div class="settings-row" onclick="if(window.autoConnect)window.autoConnect();" style="cursor:pointer;" title="Tap to reconnect">
       <div class="settings-label">
         <div class="settings-label-title">Database</div>
-        <div class="settings-label-sub">Connect to Supabase for live orders</div>
+        <div class="settings-label-sub">Firebase database — live orders</div>
       </div>
       <button class="conn-badge connecting" id="conn-badge" style="pointer-events:none;"><span class="conn-dot"></span><span id="conn-label">Connecting…</span></button>
     </div>
@@ -3517,7 +3517,7 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
     </button>
     <button onclick="openCfg()" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:none;background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-      Supabase DB
+      Firebase DB
     </button>
     <button onclick="toggleTheme()" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:none;background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
       <span style="font-size:14px;">🌙</span> Toggle Theme
@@ -3718,17 +3718,17 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
 <!-- SUPABASE CONFIG MODAL -->
 <div id="cfg-overlay" class="cfg-overlay" style="display:none" onclick="cfgOverlayClick(event)">
   <div class="cfg-box">
-    <div class="cfg-title">Connect to Supabase</div>
-    <div class="cfg-sub">Link the dashboard to your Supabase project to receive guest orders in real-time. Your credentials are stored locally in this browser only.</div>
+    <div class="cfg-title">Firebase Database</div>
+    <div class="cfg-sub">Connected to Firebase Firestore. Tap the button below to reconnect if needed.</div>
     <div class="sql-panel" id="sql-panel"><div class="sql-panel-title">Required table — run once in Supabase SQL Editor</div><div class="sql-code" id="sql-code"></div></div>
-    <label class="cfg-label">Supabase Project URL</label>
+    <label class="cfg-label">Firebase Project ID</label>
     <input class="cfg-input" id="cfg-url" type="url" placeholder="https://xxxxxxxxxxxx.supabase.co" autocomplete="off" spellcheck="false"/>
     <label class="cfg-label">Anon / Public Key</label>
     <input class="cfg-input" id="cfg-key" type="text" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…" autocomplete="off" spellcheck="false"/>
-    <div class="cfg-hint">Find these in your project → <strong>Settings → API</strong>. Use the <em>anon</em> (public) key — never the service role key.<br><a href="https://supabase.com/dashboard" target="_blank" rel="noopener">Open Supabase Dashboard ↗</a></div>
+    <div class="cfg-hint">Firebase auto-connects on every load. Tap Reconnect if the badge shows offline.<br><a href="https://console.firebase.google.com/project/roocan-16ea0/firestore" target="_blank" rel="noopener">Open Firebase Console ↗</a></div>
     <div class="cfg-actions">
       <button class="cfg-skip" onclick="closeCfg()">Use Demo Data</button>
-      <button class="cfg-connect" id="cfg-connect-btn" onclick="connectSupabase()">Connect</button>
+      <button class="cfg-connect" id="cfg-connect-btn" onclick="connectSupabase()">Reconnect</button>
     </div>
   </div>
 </div>
@@ -3855,16 +3855,19 @@ async function loadOrdersFromSupabase(){
   var db = getDb();
   if (!db) { setConnBadge('disconnected','Error'); return; }
   try {
-    var yesterday = new Date(Date.now() - 24*60*60*1000);
+    // Simple query — no composite index needed
+    var yesterday = new Date(Date.now() - 24*60*60*1000).toISOString();
     var snap = await db.collection('orders')
-      .where('placed_at', '>=', yesterday.toISOString())
-      .where('status', 'not-in', ['delivered','rejected','cancelled'])
+      .where('placed_at', '>=', yesterday)
       .orderBy('placed_at','desc')
-      .limit(200)
+      .limit(300)
       .get();
     var _sRank = {new:0,accepted:1,preparing:2,ready:3,delivered:4,rejected:5,cancelled:5};
     var fetched = snap.docs.map(function(doc){
       var d = doc.data(); d.id = doc.id; return rowToOrder(d);
+    // Filter out completed orders client-side (avoids not-in index requirement)
+    }).filter(function(o){
+      return o.status !== 'delivered' && o.status !== 'cancelled';
     });
     fetched.forEach(function(dbO){
       var loc = orders.find(function(o){ return o.id===dbO.id; });
@@ -3895,9 +3898,9 @@ function subscribeRealtime(){
   var yesterday = new Date(Date.now() - 24*60*60*1000).toISOString();
 
   // ── Orders realtime ──
+  // Simple single-field query — no composite index needed
   _orderUnsub = db.collection('orders')
     .where('placed_at','>=',yesterday)
-    .where('status','not-in',['delivered','rejected','cancelled'])
     .onSnapshot(function(snapshot){
       setConnBadge('connected','Live');
       snapshot.docChanges().forEach(function(change){
@@ -3914,8 +3917,10 @@ function subscribeRealtime(){
     });
 
   // ── Services realtime ──
+  // Listen to all service_requests and filter client-side
   _svcUnsub = db.collection('service_requests')
-    .where('status','not-in',['done'])
+    .orderBy('placed_at','desc')
+    .limit(200)
     .onSnapshot(function(snapshot){
       snapshot.docChanges().forEach(function(change){
         var d = change.doc.data(); d.id = change.doc.id;
@@ -4002,10 +4007,12 @@ async function loadServicesFromSupabase(){
   var db = getDb(); if (!db) return;
   try {
     var snap = await db.collection('service_requests')
-      .where('status','not-in',['done'])
       .orderBy('placed_at','desc').limit(200).get();
     if (!snap.empty) {
-      services = snap.docs.map(function(doc){ var d=doc.data(); d.id=doc.id; return rowToService(d); });
+      services = snap.docs.map(function(doc){
+        var d=doc.data(); d.id=doc.id; return rowToService(d);
+      // Filter done client-side — avoids composite index
+      }).filter(function(s){ return s.status !== 'done'; });
     }
     renderServices(); updateUrgencyStrip();
   } catch(err){ console.warn('Services load error:', err&&err.message||err); }
@@ -4117,17 +4124,26 @@ function closeCfg(){document.getElementById('cfg-overlay').style.display='none';
 function cfgOverlayClick(e){if(e.target.id==='cfg-overlay')closeCfg();}
 var _autoConnectTimer=null, _connHealthTimer=null;
 
+var _autoConnecting = false;
 function autoConnect(){
+  // Prevent duplicate simultaneous connect attempts
+  if (_autoConnecting) return;
   // Firebase doesn't need SDK wait — it's always ready after script load
   if (typeof firebase === 'undefined' || typeof firebase.firestore === 'undefined') {
     setTimeout(autoConnect, 200); return;
   }
+  // Already connected — just ensure realtime is subscribed
+  if (_db && realtimeInited) {
+    setConnBadge('connected','Live'); return;
+  }
+  _autoConnecting = true;
   setConnBadge('connecting','Connecting…');
   try {
     getDb(); // initialises _fbApp and _db
-    sbClient = true; // flag that we're "connected" (Firebase has no sbClient concept)
+    sbClient = true; // flag for compat checks
   } catch(e) {
     console.warn('Firebase init error:', e);
+    _autoConnecting = false;
     setConnBadge('disconnected','Tap to retry');
     var b = document.getElementById('conn-badge');
     if (b) { b.style.pointerEvents='auto'; b.onclick = function(){ autoConnect(); }; }
@@ -4139,9 +4155,11 @@ function autoConnect(){
     .then(function(){
       try { subscribeRealtime(); } catch(e){ console.warn('Realtime init:', e); }
       startConnHealthCheck();
+      _autoConnecting = false;
     })
     .catch(function(e){
       console.warn('Firebase connect error:', e && e.message || e);
+      _autoConnecting = false;
       setConnBadge('disconnected','Tap to retry');
       var b = document.getElementById('conn-badge');
       if (b) { b.style.pointerEvents='auto'; b.onclick = function(){ autoConnect(); }; }
