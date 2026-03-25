@@ -2681,14 +2681,15 @@ function renderServices() {
 
   const svcStepsDef  = ['Received', 'Assigned', 'In Progress', 'Done'];
   const svcStepIndex = { received: 0, assigned: 1, inprogress: 2, done: 3 };
-  const svcStatusLabel = { received: 'Received', assigned: 'Assigned', inprogress: 'In Progress', done: 'Done' };
-  const svcStatusClass = { received: 'status-preparing', assigned: 'status-preparing', inprogress: 'status-active', done: 'status-delivered' };
+  const svcStatusLabel = { received: 'Received', assigned: 'Assigned', inprogress: 'In Progress', done: 'Done ✓' };
+  const svcStatusClass = { received: 'status-new', assigned: 'status-accepted', inprogress: 'status-preparing', done: 'status-delivered' };
 
   function renderSvcCard(r) {
-    const si = svcStepIndex[r.status];
+    const si = svcStepIndex[r.status] !== undefined ? svcStepIndex[r.status] : 0;
     const steps = svcStepsDef.map((s, i) => {
-      const cls = i < si ? 'done' : i === si ? 'active' : '';
-      const checkSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polyline points="20 6 9 17 4 12"/></svg>`;
+      const cls = i <= si ? (i < si ? 'done' : 'active') : '';
+      const showTick = i <= si; // tick on current AND all past steps
+      const checkSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:${showTick ? 'block' : 'none'}"><polyline points="20 6 9 17 4 12"/></svg>`;
       return `<div class="tracker-step ${cls}">
         <div class="tracker-dot">${checkSvg}</div>
         <div class="tracker-step-name">${s}</div>
@@ -3843,7 +3844,19 @@ var services=[
   {id:'REQ-001',room:'102',guest:'Priya Sharma',type:'Towels',icon:'🧻',qty:3,note:'',status:'received',placedAt:Date.now()-8*60000},
   {id:'REQ-002',room:'107',guest:'Rahul Gupta',type:'Room Cleaning',icon:'🧹',qty:null,note:'Please clean before 3pm',status:'assigned',assignee:'Housekeeping',placedAt:Date.now()-22*60000},
 ];
-function rowToOrder(row){return{id:row.id,room:String(row.room),guest:row.guest||'Guest',items:Array.isArray(row.items)?row.items:[],total:row.total||0,status:row.status||'new',rejection_reason:row.rejection_reason||null,placedAt:row.placed_at?new Date(row.placed_at).getTime():Date.now(),fromSupa:true};}
+function rowToOrder(row){
+  // Handle both Firestore Timestamp objects and ISO strings
+  var placedAt = Date.now();
+  if (row.placed_at) {
+    if (typeof row.placed_at === 'string') placedAt = new Date(row.placed_at).getTime();
+    else if (row.placed_at.toDate) placedAt = row.placed_at.toDate().getTime();
+    else if (row.placed_at.seconds) placedAt = row.placed_at.seconds * 1000;
+  }
+  return {id:row.id, room:String(row.room), guest:row.guest||'Guest',
+    items:Array.isArray(row.items)?row.items:[], total:row.total||0,
+    status:row.status||'new', rejection_reason:row.rejection_reason||null,
+    placedAt:placedAt, fromSupa:true};
+}
 function setConnBadge(state,label){var b=document.getElementById('conn-badge'),l=document.getElementById('conn-label');if(!b)return;b.className='conn-badge '+state;l.textContent=label;}
 async function connectSupabase(){
   // Firebase: manual connect not needed — autoConnect handles it
@@ -3858,8 +3871,6 @@ async function loadOrdersFromSupabase(){
     // Simple query — no composite index needed
     var yesterday = new Date(Date.now() - 24*60*60*1000).toISOString();
     var snap = await db.collection('orders')
-      .where('placed_at', '>=', yesterday)
-      .orderBy('placed_at','desc')
       .limit(300)
       .get();
     var _sRank = {new:0,accepted:1,preparing:2,ready:3,delivered:4,rejected:5,cancelled:5};
@@ -3895,20 +3906,32 @@ function subscribeRealtime(){
   if (_svcUnsub)   { try { _svcUnsub();   } catch(e){} _svcUnsub   = null; }
   if (_chkUnsub)   { try { _chkUnsub();   } catch(e){} _chkUnsub   = null; }
 
-  var yesterday = new Date(Date.now() - 24*60*60*1000).toISOString();
-
   // ── Orders realtime ──
-  // Simple single-field query — no composite index needed
+  var _ordersInitialLoad = true; // skip alerts for existing docs on first snapshot
   _orderUnsub = db.collection('orders')
-    .where('placed_at','>=',yesterday)
     .onSnapshot(function(snapshot){
       setConnBadge('connected','Live');
       snapshot.docChanges().forEach(function(change){
         var d = change.doc.data(); d.id = change.doc.id;
-        var payload = { eventType: change.type==='added'?'INSERT':change.type==='modified'?'UPDATE':'DELETE', new: d, old: d };
-        if (change.type === 'removed') payload.eventType = 'DELETE';
+        // During initial load, 'added' = existing doc — just sync, no alert/beep
+        if (_ordersInitialLoad && change.type === 'added') {
+          var o = rowToOrder(d);
+          if (!orders.find(function(x){ return x.id===o.id; })) {
+            orders.unshift(o);
+          }
+          return;
+        }
+        var payload = {
+          eventType: change.type==='added' ? 'INSERT' : change.type==='modified' ? 'UPDATE' : 'DELETE',
+          new: d, old: d
+        };
         handleRealtimeEvent(payload);
       });
+      // After processing first batch, mark initial load done
+      if (_ordersInitialLoad) {
+        _ordersInitialLoad = false;
+        renderOrders(); updateStats();
+      }
     }, function(err){
       console.warn('Orders snapshot error:', err);
       setConnBadge('connecting','Reconnecting…');
@@ -3917,17 +3940,24 @@ function subscribeRealtime(){
     });
 
   // ── Services realtime ──
-  // Listen to all service_requests and filter client-side
+  var _svcsInitialLoad = true;
   _svcUnsub = db.collection('service_requests')
-    .orderBy('placed_at','desc')
-    .limit(200)
     .onSnapshot(function(snapshot){
       snapshot.docChanges().forEach(function(change){
         var d = change.doc.data(); d.id = change.doc.id;
-        var payload = { eventType: change.type==='added'?'INSERT':change.type==='modified'?'UPDATE':'DELETE', new: d, old: d };
-        if (change.type === 'removed') payload.eventType = 'DELETE';
+        // During initial load just sync silently
+        if (_svcsInitialLoad && change.type === 'added') {
+          var s = rowToService(d);
+          if (!services.find(function(x){ return x.id===s.id; })) services.unshift(s);
+          return;
+        }
+        var payload = {
+          eventType: change.type==='added' ? 'INSERT' : change.type==='modified' ? 'UPDATE' : 'DELETE',
+          new: d, old: d
+        };
         handleSvcRealtimeEvent(payload);
       });
+      if (_svcsInitialLoad) { _svcsInitialLoad = false; renderServices(); updateUrgencyStrip(); }
     }, function(err){ console.warn('Services snapshot error:', err); });
 
   // ── Checkins realtime ──
@@ -3970,7 +4000,16 @@ function handleCheckinEvent(payload){
 }
 
 function rowToService(row){
-  return{id:row.id,room:String(row.room),guest:row.guest||'Guest',type:row.type,icon:row.icon||'🔔',qty:row.qty||null,note:row.note||'',status:row.status||'received',placedAt:row.placed_at?new Date(row.placed_at).getTime():Date.now(),fromSupa:true};
+  var placedAt = Date.now();
+  if (row.placed_at) {
+    if (typeof row.placed_at === 'string') placedAt = new Date(row.placed_at).getTime();
+    else if (row.placed_at.toDate) placedAt = row.placed_at.toDate().getTime();
+    else if (row.placed_at.seconds) placedAt = row.placed_at.seconds * 1000;
+  }
+  return {id:row.id, room:String(row.room), guest:row.guest||'Guest',
+    type:row.type, icon:row.icon||'🔔', qty:row.qty||null,
+    note:row.note||'', status:row.status||'received',
+    placedAt:placedAt, fromSupa:true};
 }
 
 function handleSvcRealtimeEvent(payload){
@@ -4006,8 +4045,7 @@ function handleSvcRealtimeEvent(payload){
 async function loadServicesFromSupabase(){
   var db = getDb(); if (!db) return;
   try {
-    var snap = await db.collection('service_requests')
-      .orderBy('placed_at','desc').limit(200).get();
+    var snap = await db.collection('service_requests').limit(200).get();
     if (!snap.empty) {
       services = snap.docs.map(function(doc){
         var d=doc.data(); d.id=doc.id; return rowToService(d);
