@@ -932,6 +932,19 @@ html[data-mode="guest"] #guest-root { display: block !important; }
     border: 1px solid rgba(201,169,110,0.25);
     animation: pulse-badge 2s infinite;
   }
+  /* status-new: pulsing red pill — order just placed, awaiting acceptance */
+  .status-new {
+    background: rgba(192,57,43,0.1);
+    color: var(--red);
+    border: 1px solid rgba(192,57,43,0.25);
+    animation: pulse-badge 2s infinite;
+  }
+  /* status-accepted: gold pill — kitchen confirmed */
+  .status-accepted {
+    background: rgba(201,169,110,0.12);
+    color: var(--gold);
+    border: 1px solid rgba(201,169,110,0.3);
+  }
   .order-card-items {
     padding: 12px 18px;
   }
@@ -2491,12 +2504,13 @@ function renderOrders() {
   const active = orderHistory.filter(o => o.status !== 'delivered');
   const past   = orderHistory.filter(o => o.status === 'delivered');
 
-  const statusLabel = { preparing: 'Preparing', ready: 'Ready', delivered: 'Delivered' };
-  const statusClass = { preparing: 'status-preparing', ready: 'status-active', delivered: 'status-delivered' };
+  const statusLabel = { new: 'Order Placed', accepted: 'Accepted', preparing: 'Preparing', ready: 'Ready!', delivered: 'Delivered' };
+  const statusClass = { new: 'status-new', accepted: 'status-accepted', preparing: 'status-preparing', ready: 'status-active', delivered: 'status-delivered' };
 
-  const stepsDef = ['Confirmed', 'Preparing', 'Ready', 'Delivered'];
+  // 5-step tracker: Placed → Accepted → Preparing → Ready → Delivered
+  const stepsDef = ['Placed', 'Accepted', 'Preparing', 'Ready', 'Delivered'];
   function stepIndex(status) {
-    var idx = { preparing: 1, ready: 2, delivered: 3 }[status];
+    var idx = { new: 0, accepted: 1, preparing: 2, ready: 3, delivered: 4 }[status];
     return idx !== undefined ? idx : 0;
   }
 
@@ -2511,13 +2525,33 @@ function renderOrders() {
       </div>`;
     }).join('');
 
+    // ETA progress bar: shown while preparing (green fill) or ready (full green)
+    const etaMinutes = o.eta || 25;
+    const elapsedMs  = o.acceptedAt ? (Date.now() - o.acceptedAt) : 0;
+    const elapsedMin = Math.min(elapsedMs / 60000, etaMinutes);
+    const pct        = o.status === 'preparing' ? Math.min(Math.round((elapsedMin / etaMinutes) * 85) + 5, 90) : (o.status === 'ready' ? 100 : 0);
+    const etaBlock   = o.status === 'preparing' ? `
+      <div class="eta-row" style="padding:10px 18px 4px;">
+        <span style="font-size:12px;color:var(--text-muted);">Est. ready in</span>
+        <span style="font-size:12px;color:var(--gold);font-weight:600;">${Math.max(1, etaMinutes - Math.round(elapsedMin))} min</span>
+        <div class="eta-bar-wrap" style="margin:0 10px;">
+          <div class="eta-bar-fill" style="width:${pct}%;background:var(--green);transition:width 1s linear;"></div>
+        </div>
+      </div>` : (o.status === 'ready' ? `
+      <div style="padding:10px 18px 4px;display:flex;align-items:center;gap:8px;">
+        <div class="eta-bar-wrap" style="margin:0;flex:1;">
+          <div class="eta-bar-fill" style="width:100%;background:var(--green);"></div>
+        </div>
+        <span style="font-size:12px;color:var(--green);font-weight:600;">Ready! 🛎</span>
+      </div>` : '');
+
     return `<div class="order-card">
       <div class="order-card-head">
         <div class="order-card-meta">
           <div class="order-card-id">${o.id} · ${o.date}${o.fromPeer ? ' <span class="order-device-tag">Roommate</span>' : ''}${o.isMerge ? ' <span class="order-device-tag">Merged</span>' : ''}</div>
           <div class="order-card-time">${o.time}</div>
         </div>
-        <div class="order-status-pill ${statusClass[o.status]}">${statusLabel[o.status]}</div>
+        <div class="order-status-pill ${statusClass[o.status] || ''}">${statusLabel[o.status] || o.status}</div>
       </div>
       <div class="order-card-items">
         ${o.items.map(i => `
@@ -2530,7 +2564,8 @@ function renderOrders() {
       <div class="order-tracker">
         <div class="tracker-label">Order Status</div>
         <div class="tracker-steps">${steps}</div>
-      </div>` : ''}
+      </div>
+      ${etaBlock}` : ''}
       <div class="order-card-footer">
         <div class="order-total-label">Total Paid</div>
         <div class="order-total-amt">₹${o.total}</div>
@@ -3002,6 +3037,61 @@ function initTheme() {
 // or create fresh client using the hardcoded project credentials
 var guestSb = null;
 var guestRt = null;
+var guestRtChannels = {};  // Fix: track one realtime channel per order
+
+// ── Guest notification banner (shows on top of guest UI for status changes)
+function showGuestNotif(title, msg, type, onClick) {
+  // Remove any existing notif
+  var old = document.getElementById('guest-notif-banner');
+  if (old) old.remove();
+
+  var banner = document.createElement('div');
+  banner.id = 'guest-notif-banner';
+  var bg   = type === 'ready'     ? 'var(--green)'  :
+             type === 'accepted'  ? 'var(--gold)'   :
+             type === 'delivered' ? '#555'           : 'var(--gold)';
+  var icon = type === 'ready'     ? '🛎'  :
+             type === 'accepted'  ? '✅'  :
+             type === 'delivered' ? '🏁'  : '🔔';
+  banner.style.cssText = [
+    'position:fixed','top:0','left:0','right:0','z-index:9999',
+    'background:'+bg,'color:#0D0D0D',
+    'display:flex','align-items:center','justify-content:space-between',
+    'padding:14px 18px','font-family:DM Sans,sans-serif',
+    'font-size:14px','font-weight:600','cursor:pointer',
+    'box-shadow:0 4px 24px rgba(0,0,0,0.3)',
+    'animation:toastIn 0.3s cubic-bezier(0.34,1.4,0.64,1)'
+  ].join(';');
+  banner.innerHTML = '<div style="display:flex;align-items:center;gap:10px;">'
+    + '<span style="font-size:20px;">'+icon+'</span>'
+    + '<div><div>'+title+'</div><div style="font-size:12px;font-weight:400;opacity:0.8;">'+msg+'</div></div>'
+    + '</div>'
+    + '<span style="font-size:20px;opacity:0.6;">×</span>';
+  banner.querySelector('span:last-child').onclick = function(e) {
+    e.stopPropagation(); banner.remove();
+  };
+  if (onClick) banner.addEventListener('click', function() { onClick(); banner.remove(); });
+  document.body.appendChild(banner);
+
+  // Play a soft chime for the guest
+  try {
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var freqs = type === 'ready' ? [784, 1047] : [659, 880];
+    freqs.forEach(function(freq, i) {
+      var osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine'; osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, ctx.currentTime + i*0.18);
+      gain.gain.linearRampToValueAtTime(0.25, ctx.currentTime + i*0.18 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i*0.18 + 0.5);
+      osc.start(ctx.currentTime + i*0.18);
+      osc.stop(ctx.currentTime + i*0.18 + 0.55);
+    });
+  } catch(e) {}
+
+  // Auto-dismiss after 8 seconds
+  setTimeout(function() { if (banner.parentElement) banner.remove(); }, 8000);
+}
 (function(){
   try {
     // Prefer reusing existing client (avoids multiple GoTrue instances)
@@ -3143,11 +3233,18 @@ async function submitService() {
 }
 
 // ── Subscribe to real-time order status changes for the guest
+// Fix: use a per-order channel map so multiple orders all get live updates
 function subscribeGuestOrderUpdates(orderId, localOrder) {
   if (!guestSb) return;
-  if (guestRt) { try { guestSb.removeChannel(guestRt); } catch(e){} }
+  // Remove existing channel for THIS order only (not all orders)
+  if (guestRtChannels[orderId]) {
+    try { guestSb.removeChannel(guestRtChannels[orderId]); } catch(e) {}
+    delete guestRtChannels[orderId];
+  }
 
-  guestRt = guestSb
+  var prevStatus = localOrder ? localOrder.status : 'new';
+
+  guestRtChannels[orderId] = guestSb
     .channel('guest-order-' + orderId)
     .on('postgres_changes', {
       event: 'UPDATE',
@@ -3156,13 +3253,51 @@ function subscribeGuestOrderUpdates(orderId, localOrder) {
       filter: 'id=eq.' + orderId
     }, function(payload) {
       var newStatus = payload.new && payload.new.status;
-      if (!newStatus) return;
+      if (!newStatus || newStatus === prevStatus) return;
+      prevStatus = newStatus;
+
       // Update local order object
       var found = orderHistory.find(function(o) { return o.id === orderId; });
       if (found) {
         found.status = newStatus;
+        // Store acceptedAt timestamp so ETA bar can calculate elapsed time
+        if (newStatus === 'accepted') found.acceptedAt = Date.now();
         if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
         updateOrdersBadge();
+      }
+
+      // ── Guest notifications per status change ──
+      if (newStatus === 'accepted') {
+        showGuestNotif(
+          'Order Accepted! ✅',
+          'Your order is confirmed — kitchen is getting started.',
+          'accepted',
+          function() { if (typeof go === 'function') go('orders'); }
+        );
+      } else if (newStatus === 'preparing') {
+        showGuestNotif(
+          'Kitchen is Preparing Your Order 🍳',
+          'Sit back and relax — your food is being prepared.',
+          'preparing',
+          function() { if (typeof go === 'function') go('orders'); }
+        );
+      } else if (newStatus === 'ready') {
+        showGuestNotif(
+          'Your Order is Ready! 🛎',
+          'Your food will be delivered to your room shortly.',
+          'ready',
+          function() { if (typeof go === 'function') go('orders'); }
+        );
+      } else if (newStatus === 'delivered') {
+        showGuestNotif(
+          'Delivered! Enjoy your meal 🏁',
+          'Hope you enjoy it. Tap to view your order.',
+          'delivered',
+          function() { if (typeof go === 'function') go('orders'); }
+        );
+        // Clean up this channel — order is done
+        try { guestSb.removeChannel(guestRtChannels[orderId]); } catch(e) {}
+        delete guestRtChannels[orderId];
       }
     })
     .subscribe();
@@ -3171,6 +3306,7 @@ function subscribeGuestOrderUpdates(orderId, localOrder) {
 // ── Subscribe to real-time service request status changes for the guest
 function subscribeGuestServiceUpdates(reqId, localReq) {
   if (!guestSb) return;
+  var prevSvcStatus = localReq ? localReq.status : 'received';
 
   guestSb
     .channel('guest-svc-' + reqId)
@@ -3181,10 +3317,36 @@ function subscribeGuestServiceUpdates(reqId, localReq) {
       filter: 'id=eq.' + reqId
     }, function(payload) {
       var newStatus = payload.new && payload.new.status;
-      if (!newStatus) return;
+      if (!newStatus || newStatus === prevSvcStatus) return;
+      prevSvcStatus = newStatus;
       localReq.status = newStatus;
       if (document.getElementById('screen-services').classList.contains('active')) renderServices();
       updateServicesBadge();
+
+      // ── Guest notifications for service status changes ──
+      var svcName = localReq.type || 'Your request';
+      if (newStatus === 'assigned') {
+        showGuestNotif(
+          svcName + ' — Assigned 👤',
+          'A staff member has been assigned and is on their way.',
+          'accepted',
+          function() { if (typeof go === 'function') go('services'); }
+        );
+      } else if (newStatus === 'inprogress') {
+        showGuestNotif(
+          svcName + ' — Staff En Route 🚶',
+          'They will be at your room shortly.',
+          'preparing',
+          function() { if (typeof go === 'function') go('services'); }
+        );
+      } else if (newStatus === 'done') {
+        showGuestNotif(
+          svcName + ' — Completed ✅',
+          'Your request has been fulfilled.',
+          'delivered',
+          function() { if (typeof go === 'function') go('services'); }
+        );
+      }
     })
     .subscribe();
 }
@@ -3638,12 +3800,11 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
 (function() {
 if (window.APP_MODE === 'guest') return;
 
-var _SB_URL='https://webvlxcypqhcwzbcpths.supabase.co';
-var _SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw';
-var SUPABASE_URL=(localStorage.getItem('hyatt_sb_url')||_SB_URL).replace(/\/+$/,'');
-var SUPABASE_KEY=(localStorage.getItem('hyatt_sb_key')||_SB_KEY).trim();
-if(!localStorage.getItem('hyatt_sb_url'))localStorage.setItem('hyatt_sb_url',_SB_URL);
-if(!localStorage.getItem('hyatt_sb_key'))localStorage.setItem('hyatt_sb_key',_SB_KEY);
+// ── Permanent Supabase credentials (auto-connects on every load) ──
+var SUPABASE_URL='https://webvlxcypqhcwzbcpths.supabase.co';
+var SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlYnZseGN5cHFoY3d6YmNwdGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTI3MTMsImV4cCI6MjA4OTQ2ODcxM30.s0zDFy5zpn2sNMGZ0h1PLDymrlEcq7QNPA3_qyISCgw';
+localStorage.setItem('hyatt_sb_url',SUPABASE_URL);
+localStorage.setItem('hyatt_sb_key',SUPABASE_KEY);
 var sbClient=null,realtimeChan=null;
 var SETUP_SQL=`-- Run once in Supabase SQL Editor
 
@@ -3869,6 +4030,7 @@ function handleRealtimeEvent(payload){
       // Step 1: New order alert — sound + highlight
       showToast('order','New Order — Room '+o.room,'₹'+o.total+' · '+o.items.length+' item'+(o.items.length!==1?'s':''));
       startAlertBeep(o.id,'order');
+      announceNewOrder(o.room);
     }
   } else if(evt==='UPDATE'){
     var idx=orders.findIndex(function(x){return x.id===row.id;});
@@ -3966,7 +4128,7 @@ function autoConnect(){
     setTimeout(autoConnect, 100); return;
   }
   setConnBadge('connecting','Connecting…');
-  SUPABASE_URL=_SB_URL; SUPABASE_KEY=_SB_KEY;
+  // Credentials already hardcoded — no _SB_URL/_SB_KEY needed
   localStorage.setItem('hyatt_sb_url',SUPABASE_URL);
   localStorage.setItem('hyatt_sb_key',SUPABASE_KEY);
   realtimeInited=false;
@@ -4547,14 +4709,14 @@ function playBeep(type) {
   if (ctx.state === 'suspended') ctx.resume();
   try {
     if (type === 'order') {
-      // Pleasant 3-tone chime C5-E5-G5
+      // Urgent 3-tone chime C5-E5-G5 — high volume
       [523, 659, 784].forEach(function(freq, i) {
         var osc = ctx.createOscillator();
         var gain = ctx.createGain();
         osc.connect(gain); gain.connect(ctx.destination);
         osc.type = 'sine'; osc.frequency.value = freq;
         gain.gain.setValueAtTime(0, ctx.currentTime + i*0.16);
-        gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + i*0.16 + 0.02);
+        gain.gain.linearRampToValueAtTime(0.75, ctx.currentTime + i*0.16 + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i*0.16 + 0.35);
         osc.start(ctx.currentTime + i*0.16);
         osc.stop(ctx.currentTime + i*0.16 + 0.4);
@@ -4586,6 +4748,24 @@ function playBeep(type) {
   } catch(e) {}
 }
 
+function announceNewOrder(room) {
+  try {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel(); // stop any in-progress speech
+    var msg = new SpeechSynthesisUtterance('New order received. Room ' + room + '.');
+    msg.lang   = 'en-IN';
+    msg.rate   = 0.95;
+    msg.pitch  = 1.0;
+    msg.volume = 1.0;
+    // Prefer a clear voice if available
+    var voices = window.speechSynthesis.getVoices();
+    var pref = voices.find(function(v) { return v.lang === 'en-IN' || v.lang === 'en-GB'; });
+    if (pref) msg.voice = pref;
+    window.speechSynthesis.speak(msg);
+  } catch(e) { console.warn('Voice announce failed:', e); }
+}
+window.announceNewOrder = announceNewOrder;
+
 function startAlertBeep(orderId, type) {
   if (_beepIntervals[orderId]) return;
   playBeep(type);
@@ -4593,7 +4773,7 @@ function startAlertBeep(orderId, type) {
     var order = orders.find(function(o) { return o.id === orderId; });
     if (!order || order.status !== 'new') { stopAlertBeep(orderId); return; }
     playBeep(type);
-  }, 4000);
+  }, 2500);
 }
 
 function stopAlertBeep(orderId) {
