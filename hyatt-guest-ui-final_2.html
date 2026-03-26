@@ -1539,6 +1539,38 @@ let orderHistory = [];
 let serviceHistory = [];
 _loadHistory(); // restore from localStorage immediately
 
+// After loading from localStorage, sync status from Firebase (handles stale status)
+function _syncStatusFromFirebase() {
+  var activeOrders = orderHistory.filter(function(o){
+    return o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'rejected';
+  });
+  if (!activeOrders.length) return;
+  waitForDb().then(function(db) {
+    if (!db) return;
+    activeOrders.forEach(function(order) {
+      db.collection('orders').doc(String(order.id)).get().then(function(doc) {
+        if (!doc.exists) return;
+        var data = doc.data();
+        var realStatus = data.status;
+        if (realStatus && realStatus !== order.status) {
+          order.status = realStatus;
+          if (realStatus === 'accepted' && data.accepted_at) {
+            order.acceptedAt = typeof data.accepted_at === 'string'
+              ? new Date(data.accepted_at).getTime() : Date.now();
+          }
+          if (realStatus === 'preparing') order.preparingAt = order.preparingAt || Date.now();
+          _saveHistory();
+          updateOrdersBadge();
+          renderOrders();
+          if (realStatus === 'preparing') startBarTicker();
+        }
+      }).catch(function(){});
+    });
+  });
+}
+// Run status sync after Firebase is ready
+setTimeout(_syncStatusFromFirebase, 1500);
+
 // ── Navigation
 function _navigate(screenId) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -2789,7 +2821,7 @@ document.addEventListener('DOMContentLoaded', function() {
           }
         }).catch(function(e){ console.warn('Room orders fetch:', e); });
     });
-  }, 2000); // wait 2s for Firebase to init
+  }, 1000); // wait 1s for Firebase to init (reduced from 2s)
 });
 
 function startOrdering() {

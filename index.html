@@ -3846,17 +3846,21 @@ var services=[
   {id:'REQ-002',room:'107',guest:'Rahul Gupta',type:'Room Cleaning',icon:'🧹',qty:null,note:'Please clean before 3pm',status:'assigned',assignee:'Housekeeping',placedAt:Date.now()-22*60000},
 ];
 function rowToOrder(row){
-  // Handle both Firestore Timestamp objects and ISO strings
-  var placedAt = Date.now();
-  if (row.placed_at) {
-    if (typeof row.placed_at === 'string') placedAt = new Date(row.placed_at).getTime();
-    else if (row.placed_at.toDate) placedAt = row.placed_at.toDate().getTime();
-    else if (row.placed_at.seconds) placedAt = row.placed_at.seconds * 1000;
+  function safeMs(val) {
+    if (!val) return null;
+    if (typeof val === 'number' && !isNaN(val)) return val;
+    if (typeof val === 'string') { var d = new Date(val); return isNaN(d) ? null : d.getTime(); }
+    if (val.toDate) return val.toDate().getTime();
+    if (val.seconds) return val.seconds * 1000;
+    return null;
   }
+  var placedAt = safeMs(row.placed_at) || Date.now();
+  var acceptedAt = safeMs(row.accepted_at) || null;
   return {id:row.id, room:String(row.room), guest:row.guest||'Guest',
     items:Array.isArray(row.items)?row.items:[], total:row.total||0,
     status:row.status||'new', rejection_reason:row.rejection_reason||null,
-    placedAt:placedAt, fromSupa:true};
+    placedAt:placedAt, accepted_at: row.accepted_at||null,
+    acceptedAt: acceptedAt, fromSupa:true};
 }
 function setConnBadge(state,label){var b=document.getElementById('conn-badge'),l=document.getElementById('conn-label');if(!b)return;b.className='conn-badge '+state;l.textContent=label;}
 async function connectSupabase(){
@@ -4240,7 +4244,7 @@ function updateClock(){var d=new Date(),el=document.getElementById('clock');if(e
 setInterval(updateClock,1000);updateClock();
 function toMs(ts){
   if(!ts) return Date.now();
-  if(typeof ts==='number') return ts;
+  if(typeof ts==='number') return isNaN(ts) ? Date.now() : ts;
   if(typeof ts==='string') { var d=new Date(ts); return isNaN(d)?Date.now():d.getTime(); }
   if(ts && ts.toDate) return ts.toDate().getTime();
   if(ts && ts.seconds) return ts.seconds*1000;
