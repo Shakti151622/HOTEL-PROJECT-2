@@ -1545,7 +1545,7 @@ function _syncStatusFromFirebase() {
     return o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'rejected';
   });
   if (!activeOrders.length) return;
-  if (!DB) {
+  if (!_fbDb) {
     // Firebase not ready yet — retry in 500ms
     setTimeout(_syncStatusFromFirebase, 500);
     return;
@@ -1553,7 +1553,7 @@ function _syncStatusFromFirebase() {
   var updated = false;
   var pending = activeOrders.length;
   activeOrders.forEach(function(order) {
-    DB.collection('orders').doc(String(order.id)).get().then(function(doc) {
+    _fbDb.collection('orders').doc(String(order.id)).get().then(function(doc) {
       pending--;
       if (doc.exists) {
         var data = doc.data();
@@ -1997,7 +1997,10 @@ function cancelOrder(orderId) {
       _saveHistory();
       updateOrdersBadge();
       renderOrders();
-      var _cdb = getDB(); if (_cdb) _cdb.collection('orders').doc(String(orderId)).update({ status: 'cancelled' }).catch(function(e){ console.warn('Cancel error:', e); });
+      waitForDb().then(function(db) {
+        if (db) db.collection('orders').doc(String(orderId)).update({ status: 'cancelled' })
+          .catch(function(e){ console.warn('Cancel error:', e); });
+      });
       showGuestToast('Order cancelled.', 'green');
     };
     return;
@@ -2099,7 +2102,6 @@ function modifyOrder(orderId) {
 }
 
 // Expose to window for onclick handlers
-window.callReception = callReception;
 window.cancelOrder  = cancelOrder;
 window.modifyOrder  = modifyOrder;
 
@@ -2131,8 +2133,11 @@ window.confirmModify = async function(orderId) {
   renderOrders();
   updateOrdersBadge();
   showGuestToast(isAddOnly ? 'Items added to your order!' : 'Order updated!', 'green');
-  var db = getDB();
-  if (db) { db.collection('orders').doc(String(orderId)).update({ items: finalItems, total: newTotal }).catch(function(e){ console.warn('Modify error:',e); }); }
+  var s = await waitForSupa();
+  if (s) {
+    try { var db = await waitForDb(); if(db) await db.collection('orders').doc(String(orderId)).update({ items: items, total: newTotal }); }
+    catch(e) { console.warn('Modify update failed', e); }
+  }
 };
 
 // Re-render every 30s so ETA countdown ticks
@@ -2215,16 +2220,38 @@ function submitService() {
   document.getElementById('service-success').style.display = 'flex';
 
   // Write to Firebase + subscribe to live status updates
-  // Submit to Firebase
-  var svcData = {
-    id: reqId,
-    room: String(window.ROOM_NUM || '000'),
-    guest: String(window.GUEST_NAME || 'Guest'),
-    type: selectedService, icon: req.icon, qty: qty,
-    note: note || null, status: 'received',
-    placed_at: now.toISOString()
-  };
-  submitServiceToFirebase(reqId, svcData);
+  waitForDb().then(function(db) {
+    if (!db) { console.warn('Firebase not ready for service request'); return; }
+    var svcData = {
+      id: reqId,
+      room: String(window.ROOM_NUM || '000'),
+      guest: String(window.GUEST_NAME || 'Guest'),
+      type: selectedService,
+      icon: req.icon,
+      qty: qty,
+      note: note || null,
+      status: 'received',
+      placed_at: now.toISOString()
+    };
+    db.collection('service_requests').doc(reqId).set(svcData)
+      .then(function() {
+        // Subscribe to live status updates
+        db.collection('service_requests').doc(reqId).onSnapshot(function(doc) {
+          if (!doc.exists) return;
+          var newStatus = doc.data().status;
+          var r = serviceHistory.find(function(x){ return x.id === reqId; });
+          if (r && r.status !== newStatus) {
+            r.status = newStatus;
+            updateServicesBadge();
+            if (document.getElementById('screen-services').classList.contains('active')) renderServices();
+            var t = { assigned:'✓ Request assigned to staff', inprogress:'🚶 Staff is on the way…', done:'✓ Request completed!' };
+            if (t[newStatus]) showGuestToast(t[newStatus], 'green');
+          }
+        });
+      })
+      .catch(function(e) { console.error('Service insert failed:', e); });
+  });
+  // dummy to maintain structure
   xhrSvc.onerror=function(){console.warn('Service XHR error');};
   xhrSvc.send(svcData);
 }
@@ -2664,9 +2691,63 @@ function initTheme() {
 initTheme();
 
 // ══════════════════════════════════════════
-// ── Room setup on DOM ready ──
+// ── FIREBASE DATABASE
+// ══════════════════════════════════════════
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyAb1G6UATyCR0l_8kDyO3VpRgMwDJ5l7UI",
+  authDomain:        "roocan-16ea0.firebaseapp.com",
+  projectId:         "roocan-16ea0",
+  storageBucket:     "roocan-16ea0.firebasestorage.app",
+  messagingSenderId: "521412270728",
+  appId:             "1:521412270728:web:c2564cf45855e2a6961d3d"
+};
+var _fbDb = null; // var so it's hoisted — referenced by _syncStatusFromFirebase above
+
+function initFirebase() {
+  try {
+    if (typeof firebase === 'undefined' || typeof firebase.firestore === 'undefined') {
+      return; // SDK not loaded yet — waitForDb() will retry
+    }
+    if (_fbDb) return; // already initialized
+    // Initialize app only once — reuse existing if already created
+    var app = (!firebase.apps || !firebase.apps.length)
+      ? firebase.initializeApp(FIREBASE_CONFIG)
+      : firebase.app(); // get existing app
+    _fbDb = firebase.firestore(app);
+    window._guestFbDb = _fbDb; // expose globally for debug
+    console.log('Guest Firebase ready ✅ projectId:', FIREBASE_CONFIG.projectId);
+  } catch(e) { console.warn('Firebase init failed:', e && e.message || e); }
+}
+
+// Don't call initFirebase immediately — wait for SDK to load first
+document.addEventListener('DOMContentLoaded', function(){ if(!_fbDb) initFirebase(); });
+window.addEventListener('load', function(){ if(!_fbDb) initFirebase(); });
+// Also try after a short delay in case scripts load out of order
+setTimeout(function(){ if(!_fbDb) initFirebase(); }, 500);
+setTimeout(function(){ if(!_fbDb) initFirebase(); }, 1500);
+
+// Returns a promise that resolves when Firebase db is ready (max 10s wait)
+function waitForDb() {
+  return new Promise(function(resolve) {
+    if (_fbDb) { resolve(_fbDb); return; }
+    // Try to init now in case SDK loaded since last attempt
+    initFirebase();
+    var tries = 0;
+    var iv = setInterval(function() {
+      if (!_fbDb) initFirebase(); // keep trying
+      if (_fbDb) { clearInterval(iv); resolve(_fbDb); return; }
+      if (++tries > 100) { clearInterval(iv); resolve(null); } // 10s max
+    }, 100);
+  });
+}
+
+// Kept for any legacy references
+function waitForSupa() { return waitForDb(); }
+
+// ══════════════════════════════════════════
+// ── ENTRY SCREEN
 document.addEventListener('DOMContentLoaded', function() {
-  var rn = window.ROOM_NUM || '000';
+  var rn = window.ROOM_NUM;
   var sRoom = document.getElementById('splash-room-num');
   if (sRoom) sRoom.textContent = rn;
   document.querySelectorAll('.dyn-room').forEach(function(el){ el.textContent = 'Room ' + rn; });
@@ -2676,282 +2757,233 @@ document.addEventListener('DOMContentLoaded', function() {
   if (ms) ms.textContent = 'Someone in Room ' + rn + ' just ordered. Want to add to it?';
   setTimeout(function(){
     var inp = document.getElementById('guest-name-input');
-    if (inp) inp.focus();
-  }, 400);
+    if(inp) inp.focus();
+  }, 500);
+
+  // Re-subscribe to any active orders for this room (handles page refresh)
+  setTimeout(function() {
+    waitForDb().then(function(db) {
+      if (!db) return;
+      var room = String(window.ROOM_NUM || '000');
+      // Simple single-field query — no composite index needed
+      db.collection('orders')
+        .where('room', '==', room)
+        .get()
+        .then(function(snap) {
+          snap.docs.forEach(function(doc) {
+            var data = doc.data();
+            var orderId = doc.id;
+            // Skip completed orders — filter client-side
+            if (data.status === 'delivered' || data.status === 'cancelled') return;
+            // Check if already in orderHistory
+            var existing = orderHistory.find(function(o){ return o.id === orderId; });
+            if (!existing) {
+              // Add to history
+              var placedMs = data.placed_at ? new Date(data.placed_at).getTime() : Date.now();
+              var order = {
+                id: orderId,
+                time: new Date(placedMs).toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',hour12:true}),
+                date: new Date(placedMs).toLocaleDateString('en-IN', {day:'numeric',month:'short'}),
+                items: data.items || [],
+                total: data.total || 0,
+                status: data.status || 'new',
+                placedAt: placedMs,
+                eta: 25,
+                isMerge: false,
+                fromPeer: false
+              };
+              orderHistory.unshift(order);
+              _saveHistory();
+              existing = order;
+            }
+            // Re-subscribe — skip if already has an active listener from this session
+            if (window._guestListeners && window._guestListeners[orderId]) return;
+            if (!window._guestListeners) window._guestListeners = {};
+            var prevSt = null;
+            window._guestListeners[orderId] = db.collection('orders').doc(orderId).onSnapshot(function(d) {
+              if (!d.exists) return;
+              var docData = d.data();
+              var newStatus = docData.status;
+              var isFirstFire = (prevSt === null);
+              if (newStatus === prevSt) return;
+              prevSt = newStatus;
+              existing.status = newStatus;
+              if (newStatus === 'accepted' && !existing.acceptedAt) existing.acceptedAt = Date.now();
+              if (newStatus === 'preparing' && !existing.preparingAt) existing.preparingAt = Date.now();
+              if (newStatus === 'rejected') existing.rejection_reason = docData.rejection_reason || null;
+              _saveHistory();
+              updateOrdersBadge();
+              renderOrders(); // always re-render so tracker updates
+              if (newStatus === 'preparing') startBarTicker();
+              // Only show toast for real-time changes, not page-load sync
+              if (isFirstFire) return;
+              var msgs = {
+                accepted:  ['✓ Order accepted! Kitchen is getting started.', 'green'],
+                preparing: ['🍳 Your food is being prepared!', 'green'],
+                ready:     ['🛎 Your order is ready! Delivering now.', 'green'],
+                rejected:  ['Order not accepted: ' + (docData.rejection_reason||'contact reception'), 'red'],
+                delivered: ['✓ Your order has been delivered! Enjoy!', 'green']
+              };
+              if (msgs[newStatus]) showGuestToast(msgs[newStatus][0], msgs[newStatus][1]);
+            });
+          });
+          if (!snap.empty) {
+            _saveHistory();
+            updateOrdersBadge();
+            renderOrders();
+          }
+        }).catch(function(e){ console.warn('Room orders fetch:', e); });
+    });
+  }, 500); // try at 500ms — _syncStatusFromFirebase handles retries if not ready
 });
 
-// ── Entry screen: name input + Continue ──
 function startOrdering() {
   var inp = document.getElementById('guest-name-input');
   var name = inp ? inp.value.trim() : '';
   if (!name) {
-    if (inp) { inp.style.borderColor = 'rgba(192,57,43,0.6)'; inp.focus(); }
+    if(inp){ inp.style.borderColor='rgba(192,57,43,0.6)'; inp.focus(); }
     return;
   }
   window.GUEST_NAME = name;
   go('home');
 }
-window.startOrdering = startOrdering;
 
-// ── Expose nav to window ──
-window.go = function(screenId) { go(screenId); };
-
-// ══════════════════════════════════════════
-// FIREBASE — complete rewrite, single source of truth
-// ══════════════════════════════════════════
-
-var FB_CONFIG = {
-  apiKey:            "AIzaSyAb1G6UATyCR0l_8kDyO3VpRgMwDJ5l7UI",
-  authDomain:        "roocan-16ea0.firebaseapp.com",
-  projectId:         "roocan-16ea0",
-  storageBucket:     "roocan-16ea0.firebasestorage.app",
-  messagingSenderId: "521412270728",
-  appId:             "1:521412270728:web:c2564cf45855e2a6961d3d"
-};
-
-// ── Single DB instance ──
-var DB = null;
-
-function getDB() {
-  if (DB) return DB;
-  if (typeof firebase === 'undefined' || !firebase.firestore) return null;
-  try {
-    if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(FB_CONFIG);
-    DB = firebase.firestore();
-    console.log('Firebase DB ready');
-  } catch(e) { console.warn('Firebase init error:', e.message); }
-  return DB;
-}
-
-// Try to init immediately and on load
-function tryInit() { getDB(); }
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', tryInit);
-} else {
-  tryInit();
-}
-window.addEventListener('load', tryInit);
-setTimeout(tryInit, 300);
-setTimeout(tryInit, 1000);
-
-// ── Simple toast ──
-function showGuestToast(msg, color) {
-  var old = document.getElementById('guest-toast');
-  if (old) old.remove();
-  var toast = document.createElement('div');
-  toast.id = 'guest-toast';
-  var bg = color === 'red' ? 'rgba(192,57,43,0.95)' : 'rgba(76,175,125,0.95)';
-  toast.style.cssText = 'position:fixed;top:24px;left:50%;transform:translateX(-50%);' +
-    'background:' + bg + ';color:white;border-radius:14px;padding:14px 20px;z-index:9999;' +
-    'font-size:14px;font-family:DM Sans,sans-serif;text-align:center;' +
-    'max-width:320px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3);';
-  toast.textContent = msg;
-  document.body.appendChild(toast);
-  setTimeout(function() { if (toast.parentNode) toast.remove(); }, 5000);
-}
-
-// ── Active listeners map ──
-var _listeners = {};
-
-// ── Subscribe to a single order — call this whenever you want live updates ──
-function watchOrder(orderId) {
-  if (_listeners[orderId]) return; // already watching
-  var db = getDB();
-  if (!db) {
-    // DB not ready yet — retry in 500ms
-    setTimeout(function() { watchOrder(orderId); }, 500);
-    return;
-  }
-  _listeners[orderId] = db.collection('orders').doc(orderId).onSnapshot(function(doc) {
-    if (!doc.exists) return;
-    var data = doc.data();
-    var newStatus = data.status;
-    // Find order in history
-    var order = orderHistory.find(function(o) { return o.id === orderId; });
-    if (!order) return;
-    if (newStatus === order.status) return; // no change
-    // Update
-    order.status = newStatus;
-    if (newStatus === 'accepted' && data.accepted_at && !order.acceptedAt) {
-      order.acceptedAt = typeof data.accepted_at === 'string'
-        ? new Date(data.accepted_at).getTime() : Date.now();
-    }
-    if (newStatus === 'preparing' && !order.preparingAt) order.preparingAt = Date.now();
-    if (data.rejection_reason) order.rejection_reason = data.rejection_reason;
-    _saveHistory();
-    updateOrdersBadge();
-    renderOrders();
-    if (newStatus === 'preparing') startBarTicker();
-    // Toast notifications
-    var toasts = {
-      accepted:  '✅ Order accepted! Kitchen is getting started.',
-      preparing: '🍳 Your food is being prepared!',
-      ready:     '🛎 Your order is ready! Delivering now.',
-      rejected:  '❌ Order not accepted: ' + (data.rejection_reason || 'contact reception'),
-      delivered: '✅ Your order has been delivered! Enjoy!'
-    };
-    if (toasts[newStatus]) showGuestToast(toasts[newStatus], newStatus === 'rejected' ? 'red' : 'green');
-  }, function(err) {
-    console.warn('Order watch error:', orderId, err.message);
-    // Retry on error
-    delete _listeners[orderId];
-    setTimeout(function() { watchOrder(orderId); }, 3000);
-  });
-}
-
-// ── On page load: restore saved orders and watch all active ones ──
-function initOrderWatchers() {
-  var db = getDB();
-  if (!db) { setTimeout(initOrderWatchers, 500); return; }
-  // Watch all active orders from localStorage
-  orderHistory.forEach(function(order) {
-    if (order.status !== 'delivered' && order.status !== 'cancelled' && order.status !== 'rejected') {
-      watchOrder(order.id);
-    }
-  });
-  // Also fetch current status from Firebase directly (handles stale localStorage)
-  var room = String(window.ROOM_NUM || '000');
-  db.collection('orders').where('room', '==', room).get().then(function(snap) {
-    snap.docs.forEach(function(doc) {
-      var data = doc.data();
-      if (data.status === 'delivered' || data.status === 'cancelled') return;
-      // Add to history if missing
-      var existing = orderHistory.find(function(o) { return o.id === doc.id; });
-      if (!existing) {
-        var placedMs = data.placed_at ? new Date(data.placed_at).getTime() : Date.now();
-        existing = {
-          id: doc.id,
-          time: new Date(placedMs).toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',hour12:true}),
-          date: new Date(placedMs).toLocaleDateString('en-IN', {day:'numeric',month:'short'}),
-          items: data.items || [], total: data.total || 0,
-          status: data.status || 'new', placedAt: placedMs, eta: 25,
-          isMerge: false, fromPeer: false
-        };
-        orderHistory.unshift(existing);
-        _saveHistory();
-      } else if (data.status && data.status !== existing.status) {
-        // Update stale status from localStorage
-        existing.status = data.status;
-        if (data.accepted_at && !existing.acceptedAt) {
-          existing.acceptedAt = new Date(data.accepted_at).getTime();
-        }
-        _saveHistory();
-      }
-      watchOrder(doc.id);
-    });
-    updateOrdersBadge();
-    renderOrders();
-  }).catch(function(e) { console.warn('Room orders fetch error:', e.message); });
-}
-
-// Start watchers — retry until DB ready
-setTimeout(function() { initOrderWatchers(); }, 500);
-
-// ── Override placeOrder to write to Firebase ──
-var _origPlaceOrder = placeOrder;
+// ── OVERRIDE placeOrder TO INSERT TO FIREBASE + SUBSCRIBE TO STATUS UPDATES
+const _origPlaceOrder = placeOrder;
 placeOrder = async function(isMerge) {
-  // Snapshot cart before original clears it
-  var cartItems = [];
-  var cartTotal = 0;
+  // Capture cart BEFORE _origPlaceOrder runs (it clears cart)
+  var cartSnapshot;
   try {
-    Object.values(cart).forEach(function(item) {
-      cartItems.push({ name: String(item.name||''), qty: Number(item.qty||1), price: Number(item.price||0), category: String(item.category||'') });
-      cartTotal += item.qty * item.price;
-    });
-  } catch(e) {}
+    cartSnapshot = JSON.parse(JSON.stringify(
+      Object.entries(cart).map(function(entry) {
+        var item = entry[1];
+        return {
+          name: String(item.name || ''),
+          qty: Number(item.qty || 1),
+          price: Number(item.price || 0),
+          category: String(item.category || '')
+        };
+      })
+    ));
+  } catch(e) { cartSnapshot = []; }
+  const totalSnapshot = cartSnapshot.reduce(function(s,i){ return s + i.qty*i.price; }, 0);
 
-  // Generate order ID
-  var prefix = (window.HOTEL_NAME||'SH').trim().split(/\s+/).slice(0,3).map(function(w){return w[0].toUpperCase();}).join('');
-  var counter = parseInt(localStorage.getItem('hyatt_order_counter')||'0',10) + 1;
-  localStorage.setItem('hyatt_order_counter', String(counter));
-  var orderId = prefix + '-' + String(counter).padStart(4,'0');
-
-  // Run original (shows success screen, clears cart)
+  // Generate ID before calling original so both use same ID
+  // Use same hotel-prefixed sequential ID
+  var _prefix = window._hotelPrefix || (window.HOTEL_NAME||'SH').trim().split(/\s+/).slice(0,3).map(function(w){return w.charAt(0).toUpperCase();}).join('');
+  var _counter_key = 'hyatt_order_counter';
+  var _n = parseInt(localStorage.getItem(_counter_key) || '0', 10) + 1;
+  localStorage.setItem(_counter_key, String(_n));
+  const orderId = _prefix + '-' + String(_n).padStart(4, '0');
   window._pendingOrderId = orderId;
   _origPlaceOrder(isMerge);
   window._pendingOrderId = null;
 
-  // Write to Firebase
-  var db = getDB();
-  if (!db) {
-    // Retry up to 5s
-    var tries = 0;
-    var retry = setInterval(function() {
-      db = getDB();
-      if (db || ++tries > 10) {
-        clearInterval(retry);
-        if (db) doInsert(db);
-      }
-    }, 500);
-  } else {
-    doInsert(db);
-  }
+  const db = await waitForDb();
+  if (!db) { console.warn('Firebase not available — order saved locally only'); return; }
 
-  function doInsert(db) {
-    var orderData = {
+  try {
+    const insertData = {
       id: orderId,
       room: String(window.ROOM_NUM || '000'),
       guest: String(window.GUEST_NAME || 'Guest'),
-      items: cartItems,
-      total: cartTotal,
+      items: cartSnapshot,
+      total: Number(totalSnapshot),
       status: 'new',
       placed_at: new Date().toISOString()
     };
-    db.collection('orders').doc(orderId).set(orderData).then(function() {
-      console.log('Order saved to Firebase:', orderId);
-      watchOrder(orderId); // start watching for status changes
-    }).catch(function(e) {
-      console.error('Firebase order insert failed:', e.message);
-    });
-  }
-};
 
-// ── Submit service request to Firebase ──
-var _origSubmitService = typeof submitService === 'function' ? submitService : null;
-function submitServiceToFirebase(reqId, reqData) {
-  var db = getDB();
-  if (!db) { setTimeout(function(){ submitServiceToFirebase(reqId, reqData); }, 500); return; }
-  db.collection('service_requests').doc(reqId).set(reqData).then(function() {
-    console.log('Service saved:', reqId);
-    // Watch for status updates
-    db.collection('service_requests').doc(reqId).onSnapshot(function(doc) {
-      if (!doc.exists) return;
-      var newStatus = doc.data().status;
-      var req = serviceHistory.find(function(r) { return r.id === reqId; });
-      if (req && req.status !== newStatus) {
-        req.status = newStatus;
-        updateServicesBadge();
-        renderServices();
-        var msgs = { assigned: '✓ Request assigned to staff', inprogress: '🚶 Staff is on the way…', done: '✓ Request completed!' };
-        if (msgs[newStatus]) showGuestToast(msgs[newStatus], 'green');
-      }
-    });
-  }).catch(function(e) { console.error('Firebase service insert failed:', e.message); });
-}
+    // Write to Firestore
+    await db.collection('orders').doc(orderId).set(insertData);
 
-// ── Polling backup: check every 8 seconds ──
-setInterval(function() {
-  if (!DB) return;
-  var active = orderHistory.filter(function(o) {
-    return o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'rejected';
-  });
-  if (!active.length) return;
-  active.forEach(function(order) {
-    DB.collection('orders').doc(String(order.id)).get().then(function(doc) {
+    // Subscribe to live status updates for this order
+    if (!window._guestListeners) window._guestListeners = {};
+    var prevStatus = 'new';
+    window._guestListeners[orderId] = db.collection('orders').doc(orderId).onSnapshot(function(doc) {
       if (!doc.exists) return;
-      var newStatus = doc.data().status;
-      if (newStatus && newStatus !== order.status) {
-        order.status = newStatus;
-        if (doc.data().accepted_at && !order.acceptedAt) order.acceptedAt = new Date(doc.data().accepted_at).getTime();
-        if (newStatus === 'preparing' && !order.preparingAt) order.preparingAt = Date.now();
+      var row = doc.data();
+      if (row.status === prevStatus) return;
+      prevStatus = row.status;
+
+      var order = orderHistory.find(function(o){ return o.id === orderId; });
+      if (order) {
+        order.status = row.status;
+        order.rejection_reason = row.rejection_reason || null;
+        if (row.status === 'accepted')  order.acceptedAt  = Date.now();
+        if (row.status === 'preparing') order.preparingAt = Date.now();
         _saveHistory();
         updateOrdersBadge();
-        renderOrders();
-        if (newStatus === 'preparing') startBarTicker();
+        renderOrders(); // always re-render regardless of screen
       }
-    }).catch(function(){});
-  });
-}, 8000);
+
+      if (row.status === 'accepted') {
+        showGuestToast('✓ Order accepted! Kitchen is getting started.', 'green');
+      } else if (row.status === 'preparing') {
+        startBarTicker();
+        showGuestToast('🍳 Your food is being prepared!', 'green');
+      } else if (row.status === 'ready') {
+        showGuestToast('🛎 Your order is ready! Delivering now.', 'green');
+      } else if (row.status === 'rejected') {
+        var reason = row.rejection_reason || 'Please contact reception';
+        showGuestToast('Order not accepted: ' + reason, 'red');
+      } else if (row.status === 'delivered') {
+        showGuestToast('✓ Your order has been delivered! Enjoy!', 'green');
+        broadcastActivity('idle');
+      }
+    });
+
+  } catch(e) { console.error('Firebase order insert failed:', e && e.message || e); }
+};
+
+// ── Polling fallback: check Firebase every 5s for status updates
+var _pollInterval = null;
+function _startPolling() {
+  if (_pollInterval) return;
+  _pollInterval = setInterval(function() {
+    if (!_fbDb) return;
+    var active = orderHistory.filter(function(o){
+      return o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'rejected';
+    });
+    if (!active.length) { clearInterval(_pollInterval); _pollInterval = null; return; }
+    var updated = false;
+    var done = 0;
+    active.forEach(function(order) {
+      _fbDb.collection('orders').doc(String(order.id)).get().then(function(doc) {
+        done++;
+        if (doc.exists) {
+          var d = doc.data();
+          if (d.status && d.status !== order.status) {
+            order.status = d.status;
+            if (d.status === 'accepted' && !order.acceptedAt) order.acceptedAt = Date.now();
+            if (d.status === 'preparing' && !order.preparingAt) order.preparingAt = Date.now();
+            if (d.rejection_reason) order.rejection_reason = d.rejection_reason;
+            updated = true;
+          }
+        }
+        if (done === active.length && updated) {
+          _saveHistory();
+          updateOrdersBadge();
+          renderOrders();
+        }
+      }).catch(function(){done++;});
+    });
+  }, 5000);
+}
+// Start polling when page loads
+setTimeout(_startPolling, 2000);
+
+function showGuestToast(msg, color) {
+  var toast = document.createElement('div');
+  var bg = color === 'red' ? 'rgba(192,57,43,0.95)' : 'rgba(76,175,125,0.95)';
+  toast.style.cssText = 'position:fixed;top:24px;left:50%;transform:translateX(-50%);'+
+    'background:'+bg+';color:white;border-radius:14px;padding:14px 20px;z-index:999;'+
+    'font-size:14px;font-family:DM Sans,sans-serif;text-align:center;'+
+    'max-width:320px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3);';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(function(){ toast.remove(); }, 5000);
+}
+
 </script>
 </body>
 </html>
