@@ -1545,11 +1545,17 @@ function _syncStatusFromFirebase() {
     return o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'rejected';
   });
   if (!activeOrders.length) return;
-  waitForDb().then(function(db) {
-    if (!db) return;
-    activeOrders.forEach(function(order) {
-      db.collection('orders').doc(String(order.id)).get().then(function(doc) {
-        if (!doc.exists) return;
+  if (!_fbDb) {
+    // Firebase not ready yet — retry in 500ms
+    setTimeout(_syncStatusFromFirebase, 500);
+    return;
+  }
+  var updated = false;
+  var pending = activeOrders.length;
+  activeOrders.forEach(function(order) {
+    _fbDb.collection('orders').doc(String(order.id)).get().then(function(doc) {
+      pending--;
+      if (doc.exists) {
         var data = doc.data();
         var realStatus = data.status;
         if (realStatus && realStatus !== order.status) {
@@ -1559,17 +1565,22 @@ function _syncStatusFromFirebase() {
               ? new Date(data.accepted_at).getTime() : Date.now();
           }
           if (realStatus === 'preparing') order.preparingAt = order.preparingAt || Date.now();
-          _saveHistory();
-          updateOrdersBadge();
-          renderOrders();
-          if (realStatus === 'preparing') startBarTicker();
+          updated = true;
         }
-      }).catch(function(){});
-    });
+      }
+      if (pending === 0 && updated) {
+        _saveHistory();
+        updateOrdersBadge();
+        renderOrders();
+        if (orderHistory.some(function(o){ return o.status==='preparing'; })) startBarTicker();
+      }
+    }).catch(function(){ pending--; });
   });
 }
-// Run status sync after Firebase is ready
+// Run sync at 500ms, 1500ms, 3000ms — ensures Firebase is ready by at least one of these
+setTimeout(_syncStatusFromFirebase, 500);
 setTimeout(_syncStatusFromFirebase, 1500);
+setTimeout(_syncStatusFromFirebase, 3000);
 
 // ── Navigation
 function _navigate(screenId) {
@@ -2785,9 +2796,11 @@ document.addEventListener('DOMContentLoaded', function() {
               _saveHistory();
               existing = order;
             }
-            // Re-subscribe — prevSt=null so first snapshot ALWAYS updates UI with real Firebase status
+            // Re-subscribe — skip if already has an active listener from this session
+            if (window._guestListeners && window._guestListeners[orderId]) return;
+            if (!window._guestListeners) window._guestListeners = {};
             var prevSt = null;
-            db.collection('orders').doc(orderId).onSnapshot(function(d) {
+            window._guestListeners[orderId] = db.collection('orders').doc(orderId).onSnapshot(function(d) {
               if (!d.exists) return;
               var docData = d.data();
               var newStatus = docData.status;
@@ -2821,7 +2834,7 @@ document.addEventListener('DOMContentLoaded', function() {
           }
         }).catch(function(e){ console.warn('Room orders fetch:', e); });
     });
-  }, 1000); // wait 1s for Firebase to init (reduced from 2s)
+  }, 500); // try at 500ms — _syncStatusFromFirebase handles retries if not ready
 });
 
 function startOrdering() {
@@ -2884,8 +2897,9 @@ placeOrder = async function(isMerge) {
     await db.collection('orders').doc(orderId).set(insertData);
 
     // Subscribe to live status updates for this order
+    if (!window._guestListeners) window._guestListeners = {};
     var prevStatus = 'new';
-    db.collection('orders').doc(orderId).onSnapshot(function(doc) {
+    window._guestListeners[orderId] = db.collection('orders').doc(orderId).onSnapshot(function(doc) {
       if (!doc.exists) return;
       var row = doc.data();
       if (row.status === prevStatus) return;
