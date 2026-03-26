@@ -2701,7 +2701,7 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "521412270728",
   appId:             "1:521412270728:web:c2564cf45855e2a6961d3d"
 };
-let _fbDb = null;
+var _fbDb = null; // var so it's hoisted — referenced by _syncStatusFromFirebase above
 
 function initFirebase() {
   try {
