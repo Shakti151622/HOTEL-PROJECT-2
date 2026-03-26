@@ -12,6 +12,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
+// Ensure Firebase is available before page scripts run
+window._fbSdkReady = (typeof firebase !== 'undefined' && firebase.firestore);
+</script>
+<script>
 (function(){
   var p={};
   try{window.location.search.slice(1).split('&').forEach(function(s){var kv=s.split('=');if(kv[0])p[decodeURIComponent(kv[0])]=decodeURIComponent((kv[1]||'').replace(/\+/g,' '));});}catch(e){}
@@ -964,7 +968,7 @@
   }
   .tracker-step.active .tracker-dot {
     border-color: var(--green);
-    background: var(--surface);
+    background: var(--green);
     box-shadow: 0 0 0 4px rgba(76,175,125,0.18);
     animation: pulse-dot 1.5s infinite;
   }
@@ -973,6 +977,7 @@
     50% { box-shadow: 0 0 0 8px rgba(76,175,125,0.06); }
   }
   .tracker-step.done .tracker-dot svg { display: block; }
+  .tracker-step.active .tracker-dot svg { display: block; }
   .tracker-step-name {
     font-size: 10px; color: var(--text-dim); margin-top: 5px;
     letter-spacing: 0.05em; text-align: center;
@@ -1705,6 +1710,41 @@ function updateOrdersBadge() {
   }
 }
 
+// Live bar ticker — updates progress bar and ETA every 30s while preparing
+var _barTickerInterval = null;
+function startBarTicker() {
+  if (_barTickerInterval) return;
+  _barTickerInterval = setInterval(function() {
+    var hasPreparing = orderHistory.some(function(o) {
+      return o.status === 'preparing' || o.status === 'accepted';
+    });
+    if (!hasPreparing) {
+      clearInterval(_barTickerInterval);
+      _barTickerInterval = null;
+      return;
+    }
+    // Update bar widths in-place without full re-render (smoother)
+    orderHistory.forEach(function(o) {
+      if (o.status !== 'preparing' && o.status !== 'accepted') return;
+      var card = document.getElementById('ocard-' + o.id);
+      if (!card) return;
+      var fill = card.querySelector('.tracker-bar-fill');
+      if (fill) { fill.style.width = getBarPct(o) + '%'; fill.style.transition = 'width 2s ease'; }
+      // Update ETA text
+      var eta = card.querySelector('.tracker-eta');
+      if (eta) eta.innerHTML = '<div class="tracker-eta-dot"></div>' + (function() {
+        var etaMins = o.eta || 25;
+        var startTime = o.preparingAt || o.acceptedAt || o.placedAt;
+        var elapsedMin = Math.floor((Date.now() - startTime) / 60000);
+        var remaining = Math.max(0, etaMins - elapsedMin);
+        if (o.status === 'accepted') return 'Est. ' + etaMins + ' min';
+        if (remaining <= 0) return 'Almost ready!';
+        return remaining + ' min remaining';
+      })();
+    });
+  }, 30000); // update every 30 seconds
+}
+
 function renderOrders() {
   const body = document.getElementById('orders-body');
   if (orderHistory.length === 0) {
@@ -1726,23 +1766,48 @@ function renderOrders() {
   function stepIndex(status) {
     return { new:0, accepted:1, preparing:2, ready:3, delivered:4, rejected:-1 }[status] ?? 0;
   }
-  const barPctMap = { new:5, accepted:25, preparing:50, ready:80, delivered:100 };
+  // Dynamic bar % — bar aligns with step dot positions
+  // 5 steps equally spaced: Placed=0% Accepted=25% Preparing=50% Ready=75% Delivered=100%
+  function getBarPct(o) {
+    if (o.status === 'new') {
+      // Bar animates toward Accepted — shows it's on the way (pulsing near 22%)
+      return 22;
+    }
+    if (o.status === 'accepted')  return 25;  // exactly at Accepted dot
+    if (o.status === 'ready')     return 75;  // exactly at Ready dot
+    if (o.status === 'delivered') return 100;
+    if (o.status === 'preparing') {
+      const eta = (o.eta || 25) * 60 * 1000; // ms
+      const startTime = o.preparingAt || o.acceptedAt || o.placedAt;
+      const elapsed = Date.now() - startTime;
+      // Goes from 25% (Accepted) to 72% (just before Ready) over ETA duration
+      const progress = Math.min(elapsed / eta, 1);
+      return Math.round(25 + progress * 47);
+    }
+    return 22;
+  }
+
   function getEtaHtml(o) {
     if(o.status==='delivered'||o.status==='rejected'||o.status==='cancelled') return '';
     if(o.status==='new') return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Waiting for kitchen…</div>';
-    const startTime = o.acceptedAt || o.placedAt;
-    const remaining = Math.max(0, (o.eta||25) - Math.floor((Date.now()-startTime)/60000));
-    if(o.status==='accepted') return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Est. '+remaining+' min</div>';
-    return remaining<=0
-      ? '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Almost ready!</div>'
-      : '<div class="tracker-eta"><div class="tracker-eta-dot"></div>'+remaining+' min remaining</div>';
+    if(o.status==='ready') return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Ready — on the way! 🛎</div>';
+    const eta = o.eta || 25;
+    const startTime = o.preparingAt || o.acceptedAt || o.placedAt;
+    const elapsedMin = Math.floor((Date.now() - startTime) / 60000);
+    const remaining = Math.max(0, eta - elapsedMin);
+    if(o.status==='accepted') return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Est. ' + eta + ' min</div>';
+    if(o.status==='preparing') {
+      if(remaining <= 0) return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Almost ready!</div>';
+      return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>' + remaining + ' min remaining</div>';
+    }
+    return '';
   }
 
   function renderCard(o) {
     const si = stepIndex(o.status);
     const isRejected = o.status === 'rejected';
     const isCancelled = o.status === 'cancelled';
-    const barPct = barPctMap[o.status] || 8;
+    const barPct = getBarPct(o);
     const etaHtml = getEtaHtml(o);
     const checkSvgGreen = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
     const steps = isRejected
@@ -1802,7 +1867,7 @@ function renderOrders() {
         </div>
         <div class="tracker-bar-wrap">
           <div class="tracker-bar-fill" style="width:${barPct}%">
-            ${o.status==='preparing'?'<div class="tracker-bar-shimmer"></div>':''}
+            ${(o.status==='preparing'||o.status==='new')?'<div class="tracker-bar-shimmer"></div>':''}
           </div>
         </div>
         <div class="tracker-steps">${steps}</div>
@@ -1819,6 +1884,9 @@ function renderOrders() {
   if (active.length > 0) {
     html += `<div class="orders-section-label">In Progress</div>`;
     html += active.map(renderCard).join('');
+    // Start live ticker if any order is preparing or accepted
+    var needsTicker = active.some(function(o){ return o.status==='preparing'||o.status==='accepted'; });
+    if (needsTicker) startBarTicker();
   }
   if (past.length > 0) {
     html += `<div class="orders-section-label" style="margin-top:${active.length?'20px':'0'}">Past Orders</div>`;
@@ -2500,29 +2568,38 @@ let _fbDb = null;
 
 function initFirebase() {
   try {
-    if (typeof firebase === 'undefined' || !firebase.firestore) {
-      setTimeout(initFirebase, 150); return;
+    if (typeof firebase === 'undefined' || typeof firebase.firestore === 'undefined') {
+      return; // SDK not loaded yet — waitForDb() will retry
     }
-    if (!firebase.apps || !firebase.apps.length) {
-      firebase.initializeApp(FIREBASE_CONFIG);
-    }
-    _fbDb = firebase.firestore();
-    console.log('Guest Firebase ready');
-  } catch(e) { console.warn('Firebase init failed:', e); }
+    if (_fbDb) return; // already initialized
+    // Initialize app only once — reuse existing if already created
+    var app = (!firebase.apps || !firebase.apps.length)
+      ? firebase.initializeApp(FIREBASE_CONFIG)
+      : firebase.app(); // get existing app
+    _fbDb = firebase.firestore(app);
+    window._guestFbDb = _fbDb; // expose globally for debug
+    console.log('Guest Firebase ready ✅ projectId:', FIREBASE_CONFIG.projectId);
+  } catch(e) { console.warn('Firebase init failed:', e && e.message || e); }
 }
 
-initFirebase();
+// Don't call initFirebase immediately — wait for SDK to load first
 document.addEventListener('DOMContentLoaded', function(){ if(!_fbDb) initFirebase(); });
 window.addEventListener('load', function(){ if(!_fbDb) initFirebase(); });
+// Also try after a short delay in case scripts load out of order
+setTimeout(function(){ if(!_fbDb) initFirebase(); }, 500);
+setTimeout(function(){ if(!_fbDb) initFirebase(); }, 1500);
 
-// Returns a promise that resolves when Firebase db is ready (max 5s wait)
+// Returns a promise that resolves when Firebase db is ready (max 10s wait)
 function waitForDb() {
   return new Promise(function(resolve) {
     if (_fbDb) { resolve(_fbDb); return; }
+    // Try to init now in case SDK loaded since last attempt
+    initFirebase();
     var tries = 0;
     var iv = setInterval(function() {
+      if (!_fbDb) initFirebase(); // keep trying
       if (_fbDb) { clearInterval(iv); resolve(_fbDb); return; }
-      if (++tries > 50) { clearInterval(iv); resolve(null); }
+      if (++tries > 100) { clearInterval(iv); resolve(null); } // 10s max
     }, 100);
   });
 }
@@ -2613,7 +2690,8 @@ placeOrder = async function(isMerge) {
       if (order) {
         order.status = row.status;
         order.rejection_reason = row.rejection_reason || null;
-        if (row.status === 'accepted') order.acceptedAt = Date.now();
+        if (row.status === 'accepted')  order.acceptedAt  = Date.now();
+        if (row.status === 'preparing') order.preparingAt = Date.now();
         updateOrdersBadge();
         if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
       }
@@ -2621,6 +2699,7 @@ placeOrder = async function(isMerge) {
       if (row.status === 'accepted') {
         showGuestToast('✓ Order accepted! Kitchen is getting started.', 'green');
       } else if (row.status === 'preparing') {
+        startBarTicker();
         showGuestToast('🍳 Your food is being prepared!', 'green');
       } else if (row.status === 'ready') {
         showGuestToast('🛎 Your order is ready! Delivering now.', 'green');
