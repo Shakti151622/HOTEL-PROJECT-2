@@ -1512,8 +1512,32 @@ const menuData = {
 let cart = {}; // { itemKey: { name, price, qty } }
 let currentCat = 'veg';
 let selectedService = null;
-let orderHistory = []; // all placed orders
-let serviceHistory = []; // all service requests
+// ── Persistent history — survives refresh/back navigation ──
+var _storageKey = function() {
+  return 'hyatt_guest_' + (window.ROOM_NUM || '000');
+};
+function _saveHistory() {
+  try {
+    var data = { orders: orderHistory, services: serviceHistory, ts: Date.now() };
+    localStorage.setItem(_storageKey(), JSON.stringify(data));
+  } catch(e) {}
+}
+function _loadHistory() {
+  try {
+    var raw = localStorage.getItem(_storageKey());
+    if (!raw) return;
+    var data = JSON.parse(raw);
+    // Only restore if saved within last 24 hours
+    if (!data.ts || Date.now() - data.ts > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(_storageKey()); return;
+    }
+    if (Array.isArray(data.orders))   orderHistory   = data.orders;
+    if (Array.isArray(data.services)) serviceHistory = data.services;
+  } catch(e) {}
+}
+let orderHistory = [];
+let serviceHistory = [];
+_loadHistory(); // restore from localStorage immediately
 
 // ── Navigation
 function _navigate(screenId) {
@@ -1656,7 +1680,15 @@ function placeOrder(isMerge) {
   const items = Object.entries(cart).map(([key, item]) => ({...item}));
   const total = items.reduce((s,i)=>s+i.qty*i.price, 0);
   const now = new Date();
-  const orderId = window._pendingOrderId || ('ORD-' + String(orderHistory.length + 1).padStart(3, '0'));
+  // Generate hotel-prefixed sequential order ID
+  function getNextOrderNum() {
+    var key = 'hyatt_order_counter';
+    var n = parseInt(localStorage.getItem(key) || '0', 10) + 1;
+    localStorage.setItem(key, String(n));
+    return n;
+  }
+  var prefix = window._hotelPrefix || (window.HOTEL_NAME||'SH').trim().split(/\s+/).slice(0,3).map(function(w){return w.charAt(0).toUpperCase();}).join('');
+  const orderId = window._pendingOrderId || (prefix + '-' + String(getNextOrderNum()).padStart(4, '0'));
   const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   const order = {
@@ -1672,6 +1704,7 @@ function placeOrder(isMerge) {
     fromPeer: false
   };
   orderHistory.unshift(order);
+  _saveHistory();
 
   // Broadcast to other devices in the room
   broadcastOrder(order);
@@ -1823,9 +1856,10 @@ function renderOrders() {
           </div>`;
         }).join('');
 
-    // 5-min cancel/modify window — only if status is 'accepted' and within 5 mins of acceptance
-    const minsElapsed = o.acceptedAt ? (Date.now() - o.acceptedAt) / 60000 : 999;
-    const canModify = o.status === 'accepted' && minsElapsed < 5;
+    // Cancel/Modify available while order is new (not yet accepted) OR within 5 mins of acceptance
+    const minsElapsed = o.acceptedAt ? (Date.now() - o.acceptedAt) / 60000 : 0;
+    const canModify = o.status === 'new' || (o.status === 'accepted' && minsElapsed < 10);
+    const isNew = o.status === 'new';
     const minsLeft = Math.ceil(5 - minsElapsed);
     const modifyBtns = canModify ? `
       <div style="display:flex;gap:8px;margin-top:12px;">
@@ -1833,11 +1867,11 @@ function renderOrders() {
           ✏ Modify
         </button>
         <button onclick="cancelOrder('${o.id}')" style="flex:1;padding:10px;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.2);border-radius:10px;color:var(--red);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;">
-          ✕ Cancel
+          ✕ Cancel Order
         </button>
       </div>
       <div style="font-size:11px;color:var(--text-dim);text-align:center;margin-top:6px;">
-        Can modify/cancel for ${minsLeft} min${minsLeft!==1?'s':''}
+        ${isNew ? 'Cancel or modify before staff accepts' : 'Can modify/add items for ' + Math.ceil(10 - minsElapsed) + ' min' + (Math.ceil(10-minsElapsed)!==1?'s':'')}
       </div>` : '';
 
     return `<div class="order-card" id="ocard-${o.id}">
@@ -1899,8 +1933,39 @@ function renderOrders() {
 function cancelOrder(orderId) {
   var order = orderHistory.find(function(o){ return o.id === orderId; });
   if (!order) return;
-  if (order.status !== 'accepted') { alert('Order cannot be cancelled at this stage.'); return; }
-  if (!order.acceptedAt || (Date.now() - order.acceptedAt) > 5 * 60000) { alert('Cancellation window has expired.'); return; }
+
+  // If order is still 'new' — show confirmation modal then cancel via Firebase
+  if (order.status === 'new') {
+    var confirmOverlay = document.createElement('div');
+    confirmOverlay.id = 'cancel-confirm-overlay';
+    confirmOverlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:300;display:flex;align-items:center;justify-content:center;padding:24px;';
+    confirmOverlay.innerHTML = '<div style="background:var(--surface);border:1px solid rgba(201,169,110,0.3);border-radius:24px;padding:32px 24px;text-align:center;width:100%;max-width:320px;">'
+      + '<div style="font-size:40px;margin-bottom:12px;">\uD83D\uDDD1</div>'
+      + '<div style="font-family:Cormorant Garamond,serif;font-size:22px;color:var(--text);margin-bottom:8px;">Cancel Order?</div>'
+      + '<div style="font-size:13px;color:var(--text-muted);margin-bottom:24px;">Your order has not been accepted yet. It will be removed.</div>'
+      + '<button id="confirm-cancel-btn" style="width:100%;padding:14px;background:rgba(192,57,43,0.12);border:1.5px solid rgba(192,57,43,0.3);border-radius:14px;color:var(--red);font-family:DM Sans,sans-serif;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:10px;">&#10005; Yes, Cancel Order</button>'
+      + '<button onclick="document.getElementById(&quot;cancel-confirm-overlay&quot;).remove();" style="width:100%;padding:14px;background:transparent;border:1px solid var(--card-border);border-radius:14px;color:var(--text-muted);font-family:DM Sans,sans-serif;font-size:14px;cursor:pointer;">Keep Order</button>'
+      + '</div>';
+    document.body.appendChild(confirmOverlay);
+    // Attach click after appending so element exists
+    document.getElementById('confirm-cancel-btn').onclick = function() {
+      document.getElementById('cancel-confirm-overlay').remove();
+      order.status = 'cancelled';
+      _saveHistory();
+      updateOrdersBadge();
+      renderOrders();
+      waitForDb().then(function(db) {
+        if (db) db.collection('orders').doc(String(orderId)).update({ status: 'cancelled' })
+          .catch(function(e){ console.warn('Cancel error:', e); });
+      });
+      showGuestToast('Order cancelled.', 'green');
+    };
+    return;
+  }
+
+  // If accepted — show call reception modal
+  if (order.status !== 'accepted') { showGuestToast('Order cannot be cancelled at this stage.', 'red'); return; }
+  if (!order.acceptedAt || (Date.now() - order.acceptedAt) > 10 * 60000) { showGuestToast('Cancellation window has expired.', 'red'); return; }
   // Show call reception modal — guest must call to cancel
   var overlay = document.createElement('div');
   overlay.id = 'cancel-overlay';
@@ -1927,11 +1992,13 @@ function cancelOrder(orderId) {
 function modifyOrder(orderId) {
   var order = orderHistory.find(function(o){ return o.id === orderId; });
   if (!order) return;
-  if (order.status !== 'accepted') { alert('Order cannot be modified at this stage.'); return; }
-  if (!order.acceptedAt || (Date.now() - order.acceptedAt) > 5 * 60000) { alert('Modification window has expired.'); return; }
+  if (order.status !== 'new' && order.status !== 'accepted') { showGuestToast('Order cannot be modified at this stage.', 'red'); return; }
+  if (order.status === 'accepted' && (!order.acceptedAt || (Date.now() - order.acceptedAt) > 10 * 60000)) { showGuestToast('Modification window has expired.', 'red'); return; }
 
   // Build edit state — copy current items
   var editItems = order.items.map(function(i){ return { name: i.name, price: i.price, qty: i.qty, category: i.category || '' }; });
+  var isAddOnly = order.status === 'accepted'; // after acceptance: add only. while new: add+subtract
+  var origQtys  = order.items.map(function(i){ return i.qty; }); // minimum qty = original (can't go below)
 
   function renderEditModal() {
     var existing = document.getElementById('modify-overlay');
@@ -1942,16 +2009,23 @@ function modifyOrder(orderId) {
     overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:flex-end;justify-content:center;';
 
     var itemRows = editItems.map(function(item, idx) {
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--card-border);">
-        <div>
-          <div style="font-size:14px;color:var(--text);font-weight:500;">${item.name}</div>
-          <div style="font-size:12px;color:var(--text-muted);">₹${item.price} each</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:15px;color:var(--text);min-width:20px;text-align:center;">×${item.qty}</span>
-          <button onclick="editQty(${idx},1)" style="width:32px;height:32px;border-radius:50%;background:var(--gold);border:none;color:var(--dark);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">+</button>
-        </div>
-      </div>`;
+      var minQty = isAddOnly ? item.qty : 0; // after accepted: can't go below current; while new: can go to 0
+      var canSubtract = !isAddOnly; // only subtract when order is 'new'
+      var subtractBtn = canSubtract
+        ? '<button onclick="editQty(' + idx + ',-1)" style="width:32px;height:32px;border-radius:50%;background:' + (item.qty > 0 ? 'rgba(192,57,43,0.12)' : 'var(--surface2)') + ';border:1px solid ' + (item.qty > 0 ? 'rgba(192,57,43,0.3)' : 'var(--card-border)') + ';color:' + (item.qty > 0 ? 'var(--red)' : 'var(--text-dim)') + ';font-size:20px;cursor:' + (item.qty > 0 ? 'pointer' : 'default') + ';display:flex;align-items:center;justify-content:center;line-height:1;font-weight:300;">−</button>'
+        : '';
+      var qtyStyle = item.qty === 0 ? 'text-decoration:line-through;color:var(--text-dim);' : '';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--card-border);">'
+        + '<div>'
+        + '<div style="font-size:14px;color:var(--text);font-weight:500;' + qtyStyle + '">' + item.name + '</div>'
+        + '<div style="font-size:12px;color:var(--text-muted);">₹' + item.price + ' each</div>'
+        + '</div>'
+        + '<div style="display:flex;align-items:center;gap:10px;">'
+        + subtractBtn
+        + '<span style="font-size:15px;color:var(--text);min-width:24px;text-align:center;font-weight:600;">' + item.qty + '</span>'
+        + '<button onclick="editQty(' + idx + ',1)" style="width:32px;height:32px;border-radius:50%;background:var(--gold);border:none;color:var(--dark);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">+</button>'
+        + '</div>'
+        + '</div>';
     }).join('');
 
     var newTotal = editItems.reduce(function(s,i){ return s + i.qty * i.price; }, 0);
@@ -1959,17 +2033,17 @@ function modifyOrder(orderId) {
     overlay.innerHTML = `
       <div style="background:var(--surface);border-radius:24px 24px 0 0;padding:24px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-          <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--text);">Add to Order</div>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--text);">${isAddOnly ? 'Add to Order' : 'Modify Order'}</div>
           <button onclick="document.getElementById('modify-overlay').remove();" style="background:var(--surface2);border:1px solid var(--card-border);border-radius:8px;width:30px;height:30px;color:var(--text-muted);font-size:18px;cursor:pointer;">×</button>
         </div>
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Tap + to add more of any item. To cancel, call reception.</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">${isAddOnly ? 'You can only add items after acceptance.' : 'Use + and − to change quantities. Set to 0 to remove an item.'}</div>
         <div>${itemRows}</div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;margin-top:4px;">
           <div style="font-size:13px;color:var(--text-muted);">Updated Total</div>
           <div style="font-size:18px;font-weight:600;color:var(--gold);">₹${newTotal}</div>
         </div>
         <button onclick="confirmModify('${orderId}')" style="width:100%;padding:15px;background:var(--gold);border:none;border-radius:14px;color:var(--dark);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;">
-          Confirm Addition
+          ${isAddOnly ? "Confirm Addition" : "Confirm Changes"}
         </button>
       </div>`;
     document.body.appendChild(overlay);
@@ -1977,33 +2051,45 @@ function modifyOrder(orderId) {
     window._editItems = editItems;
     window._editOrderId = orderId;
     window._renderEditModal = renderEditModal;
+    window._isAddOnly = isAddOnly;
+    window._origQtys  = origQtys;
   }
 
   renderEditModal();
 }
 
+// Expose to window for onclick handlers
+window.cancelOrder  = cancelOrder;
+window.modifyOrder  = modifyOrder;
+
 window.editQty = function(idx, delta) {
   var items = window._editItems;
   if (!items) return;
-  // Only allow adding — qty can only go up
-  items[idx].qty = Math.max(items[idx].qty, items[idx].qty + Math.max(0, delta));
-  items[idx].qty += 1; // delta is always +1 now
+  var isAddOnly = window._isAddOnly;
+  var origQtys  = window._origQtys;
+  var minQty = isAddOnly ? (origQtys ? origQtys[idx] : 1) : 0;
+  items[idx].qty = Math.max(minQty, items[idx].qty + delta);
   window._renderEditModal();
 };
 
 window.confirmModify = async function(orderId) {
   var items = window._editItems;
   if (!items) return;
-  var newTotal = items.reduce(function(s,i){ return s + i.qty*i.price; }, 0);
+  // Filter out items with qty=0 (removed items)
+  var finalItems = items.filter(function(i){ return i.qty > 0; });
+  if (finalItems.length === 0) { showGuestToast('Cannot remove all items. Cancel the order instead.', 'red'); return; }
+  var newTotal = finalItems.reduce(function(s,i){ return s + i.qty*i.price; }, 0);
+  var isAddOnly = window._isAddOnly;
   var order = orderHistory.find(function(o){ return o.id === orderId; });
   if (order) {
-    order.items = items;
+    order.items = finalItems;
     order.total = newTotal;
+    _saveHistory();
   }
   document.getElementById('modify-overlay').remove();
   renderOrders();
   updateOrdersBadge();
-  showGuestToast('Items added to your order!', 'green');
+  showGuestToast(isAddOnly ? 'Items added to your order!' : 'Order updated!', 'green');
   var s = await waitForSupa();
   if (s) {
     try { var db = await waitForDb(); if(db) await db.collection('orders').doc(String(orderId)).update({ items: items, total: newTotal }); }
@@ -2058,7 +2144,11 @@ function submitService() {
   const qty = hasQty ? serviceQty : null;
 
   const now = new Date();
-  const reqId = 'REQ-' + String(serviceHistory.length + 1).padStart(3, '0');
+  var _svcPrefix = window._hotelPrefix || (window.HOTEL_NAME||'SH').trim().split(/\s+/).slice(0,3).map(function(w){return w.charAt(0).toUpperCase();}).join('');
+  var _svcKey = 'hyatt_svc_counter';
+  var _svcN = parseInt(localStorage.getItem(_svcKey) || '0', 10) + 1;
+  localStorage.setItem(_svcKey, String(_svcN));
+  const reqId = _svcPrefix + '-SVC-' + String(_svcN).padStart(4, '0');
   const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   const req = {
@@ -2073,6 +2163,7 @@ function submitService() {
     placedAt: Date.now()
   };
   serviceHistory.unshift(req);
+  _saveHistory();
   updateServicesBadge();
 
   // Build confirmation message
@@ -2335,6 +2426,7 @@ if (roomChannel) {
       // Add to our local order history so we see it in My Orders
       if (!orderHistory.find(o => o.id === msg.order.id)) {
         orderHistory.unshift({ ...msg.order, fromPeer: true });
+        _saveHistory();
         updateOrdersBadge();
         if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
       }
@@ -2517,6 +2609,8 @@ function initTheme() {
   // Hotel name + logo from dashboard localStorage
   var hotelName = window.HOTEL_NAME || localStorage.getItem('hyatt_hotel_name') || 'Shakti Hotels';
   var initial = hotelName.trim().charAt(0).toUpperCase();
+  // Build order prefix from hotel name initials (up to 3 words)
+  window._hotelPrefix = hotelName.trim().split(/\s+/).slice(0,3).map(function(w){ return w.charAt(0).toUpperCase(); }).join('');
   // Update all hotel name elements
   document.querySelectorAll('.hotel-name').forEach(function(el){ el.textContent = hotelName; });
   // Update page title
@@ -2622,6 +2716,75 @@ document.addEventListener('DOMContentLoaded', function() {
     var inp = document.getElementById('guest-name-input');
     if(inp) inp.focus();
   }, 500);
+
+  // Re-subscribe to any active orders for this room (handles page refresh)
+  setTimeout(function() {
+    waitForDb().then(function(db) {
+      if (!db) return;
+      var room = String(window.ROOM_NUM || '000');
+      db.collection('orders')
+        .where('room', '==', room)
+        .where('status', 'not-in', ['delivered', 'rejected', 'cancelled'])
+        .get()
+        .then(function(snap) {
+          snap.docs.forEach(function(doc) {
+            var data = doc.data();
+            var orderId = doc.id;
+            // Check if already in orderHistory
+            var existing = orderHistory.find(function(o){ return o.id === orderId; });
+            if (!existing) {
+              // Add to history
+              var placedMs = data.placed_at ? new Date(data.placed_at).getTime() : Date.now();
+              var order = {
+                id: orderId,
+                time: new Date(placedMs).toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',hour12:true}),
+                date: new Date(placedMs).toLocaleDateString('en-IN', {day:'numeric',month:'short'}),
+                items: data.items || [],
+                total: data.total || 0,
+                status: data.status || 'new',
+                placedAt: placedMs,
+                eta: 25,
+                isMerge: false,
+                fromPeer: false
+              };
+              orderHistory.unshift(order);
+              _saveHistory();
+              existing = order;
+            }
+            // Always re-subscribe to live status for this order
+            var prevSt = existing.status;
+            db.collection('orders').doc(orderId).onSnapshot(function(d) {
+              if (!d.exists) return;
+              var newStatus = d.data().status;
+              if (newStatus === prevSt) return;
+              prevSt = newStatus;
+              existing.status = newStatus;
+              if (newStatus === 'accepted') existing.acceptedAt = Date.now();
+              if (newStatus === 'preparing') existing.preparingAt = Date.now();
+              _saveHistory();
+              _saveHistory();
+              updateOrdersBadge();
+              if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
+              // Show notification
+              var msgs = {
+                accepted:  ['✓ Order accepted! Kitchen is getting started.', 'green'],
+                preparing: ['🍳 Your food is being prepared!', 'green'],
+                ready:     ['🛎 Your order is ready! Delivering now.', 'green'],
+                rejected:  ['Order not accepted: ' + (d.data().rejection_reason||'contact reception'), 'red'],
+                delivered: ['✓ Your order has been delivered! Enjoy!', 'green']
+              };
+              if (msgs[newStatus]) showGuestToast(msgs[newStatus][0], msgs[newStatus][1]);
+              if (newStatus === 'preparing') startBarTicker();
+            });
+          });
+          if (!snap.empty) {
+            _saveHistory();
+            updateOrdersBadge();
+            renderOrders();
+          }
+        }).catch(function(e){ console.warn('Room orders fetch:', e); });
+    });
+  }, 2000); // wait 2s for Firebase to init
 });
 
 function startOrdering() {
@@ -2656,7 +2819,12 @@ placeOrder = async function(isMerge) {
   const totalSnapshot = cartSnapshot.reduce(function(s,i){ return s + i.qty*i.price; }, 0);
 
   // Generate ID before calling original so both use same ID
-  const orderId = 'ORD-' + Date.now() + '-' + Math.random().toString(36).slice(2,6).toUpperCase();
+  // Use same hotel-prefixed sequential ID
+  var _prefix = window._hotelPrefix || (window.HOTEL_NAME||'SH').trim().split(/\s+/).slice(0,3).map(function(w){return w.charAt(0).toUpperCase();}).join('');
+  var _counter_key = 'hyatt_order_counter';
+  var _n = parseInt(localStorage.getItem(_counter_key) || '0', 10) + 1;
+  localStorage.setItem(_counter_key, String(_n));
+  const orderId = _prefix + '-' + String(_n).padStart(4, '0');
   window._pendingOrderId = orderId;
   _origPlaceOrder(isMerge);
   window._pendingOrderId = null;
