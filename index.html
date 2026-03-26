@@ -4238,8 +4238,16 @@ document.addEventListener('visibilitychange',function(){
 window.addEventListener('online',function(){ autoConnect(); });
 function updateClock(){var d=new Date(),el=document.getElementById('clock');if(el)el.textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');}
 setInterval(updateClock,1000);updateClock();
-function elapsed(ts){var m=Math.floor((Date.now()-ts)/60000);if(m<1)return'< 1m';if(m<60)return m+'m';return Math.floor(m/60)+'h '+(m%60)+'m';}
-function elapsedClass(ts){var m=Math.floor((Date.now()-ts)/60000);return m<15?'ok':m<25?'warn':'late';}
+function toMs(ts){
+  if(!ts) return Date.now();
+  if(typeof ts==='number') return ts;
+  if(typeof ts==='string') { var d=new Date(ts); return isNaN(d)?Date.now():d.getTime(); }
+  if(ts && ts.toDate) return ts.toDate().getTime();
+  if(ts && ts.seconds) return ts.seconds*1000;
+  return Date.now();
+}
+function elapsed(ts){var m=Math.floor((Date.now()-toMs(ts))/60000);if(m<1)return'< 1m';if(m<60)return m+'m';return Math.floor(m/60)+'h '+(m%60)+'m';}
+function elapsedClass(ts){var m=Math.floor((Date.now()-toMs(ts))/60000);return m<15?'ok':m<25?'warn':'late';}
 function renderOrders(){if(typeof renderTasks==='function'){renderTasks();if(typeof updateSmartStrip==='function')updateSmartStrip();}}
 function filterOrders(f,el){if(typeof setTypeFilter==='function')setTypeFilter(f,el);}
 function renderServices(){var list=document.getElementById('svc-list');var filtered=services.filter(function(s){return svcFilter==='all'||s.status===svcFilter;});document.getElementById('svc-count').textContent=filtered.length+' requests';document.getElementById('service-badge').textContent=services.filter(function(s){return s.status!=='done';}).length;document.getElementById('stat-svc-pending').textContent=services.filter(function(s){return s.status!=='done';}).length;if(!filtered.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">✓</div><div style="color:var(--text-muted);font-size:15px;font-family:&quot;Cormorant Garamond&quot;,serif">No requests</div></div>';return;}var pills={received:'<span class="status-pill pill-received"><span class="pill-dot"></span>New</span>',assigned:'<span class="status-pill pill-assigned"><span class="pill-dot"></span>Assigned</span>',inprogress:'<span class="status-pill pill-inprogress"><span class="pill-dot"></span>In Progress</span>',done:'<span class="status-pill pill-done"><span class="pill-dot"></span>Done</span>'};list.innerHTML=filtered.map(function(s){var qtyStr=s.qty?' ×'+s.qty:'';var btns='';if(s.status==='received')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'assigned\')">Assign to Staff</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='assigned')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'inprogress\')" style="background:rgba(76,175,125,0.08);border-color:rgba(76,175,125,0.22);color:var(--green)">In Progress</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='inprogress')btns='<button class="svc-complete" style="width:100%" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Completed</button>';else btns='<span style="font-size:13px;color:var(--text-muted);padding:4px 0;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>Completed</span>';return'<div class="svc-card" id="svc-card-'+s.id+'"><div class="svc-head"><div class="svc-icon-box">'+s.icon+'</div><div><div class="svc-room">Room '+s.room+'</div><div class="svc-type">'+s.type+qtyStr+'</div>'+(s.note?'<div class="svc-note">"'+ s.note+'"</div>':'')+ '</div><div class="svc-meta">'+(pills[s.status]||'')+'<div class="svc-time" style="margin-top:6px">'+s.id+'</div><div class="svc-elapsed '+elapsedClass(s.placedAt)+'">'+elapsed(s.placedAt)+'</div></div></div><div class="svc-actions">'+btns+'<button class="btn-call" onclick="callRoom(\''+s.room+'\')" title="Call room" style="width:36px;height:36px;border-radius:10px;background:var(--surface2);border:1px solid var(--card-border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6z"/></svg></button></div></div>';}).join('');}
@@ -5181,7 +5189,7 @@ var TARGET_PREP_SECONDS = 20 * 60; // default 20 min, overridden by order.target
 
 function getElapsed(o) {
   // elapsed from accepted_at if available, else placed_at
-  var ref = o.accepted_at || o.placedAt || Date.now();
+  var ref = toMs(o.accepted_at || o.placedAt);
   return Math.floor((Date.now() - ref) / 1000); // seconds
 }
 
@@ -5228,7 +5236,7 @@ function updateSmartStrip() {
   var prepOrd = ord.filter(function(o){return o.status==='accepted'||o.status==='preparing';});
   var nP = prepOrd.length;
   var nRisk = prepOrd.filter(function(o){
-    var ref = o.accepted_at || o.placedAt;
+    var ref = toMs(o.accepted_at || o.placedAt);
     var ratio = (Date.now()-ref)/60000 / TARGET_PREP_MIN;
     return ratio >= 0.8;
   }).length;
@@ -5296,7 +5304,7 @@ function renderTasks() {
 
   // ── Risk calculation
   function riskLevel(o) {
-    var ref = o.accepted_at || o.placedAt;
+    var ref = toMs(o.accepted_at || o.placedAt);
     var elapsed = (Date.now() - ref) / 60000;
     var target  = o.target_prep_seconds ? o.target_prep_seconds/60 : TARGET_PREP_MIN;
     if (o.status === 'new') return 'new';
@@ -5309,7 +5317,7 @@ function renderTasks() {
 
   // ── Priority score: late=1000, risk=500, + elapsed minutes
   function priorityScore(o) {
-    var ref = o.accepted_at || o.placedAt;
+    var ref = toMs(o.accepted_at || o.placedAt);
     var elapsed = Math.floor((Date.now() - ref) / 60000);
     var r = riskLevel(o);
     var stateBase = {new:0, received:0, accepted:100, preparing:100, assigned:100, ready:200, inprogress:200, rejected:9999}[o.status] || 0;
@@ -5366,7 +5374,7 @@ function renderTasks() {
 
   // ── ETA progress bar row
   function etaRow(o) {
-    var ref = o.accepted_at || o.placedAt;
+    var ref = toMs(o.accepted_at || o.placedAt);
     var elapsed = (Date.now() - ref) / 60000;
     var target  = o.target_prep_seconds ? o.target_prep_seconds/60 : TARGET_PREP_MIN;
     var eta_min = o.eta_min || Math.round(target);
@@ -5383,7 +5391,7 @@ function renderTasks() {
   }
 
   function fCard(o, isFirst) {
-    var ref     = o.accepted_at || o.placedAt;
+    var ref     = toMs(o.accepted_at || o.placedAt);
     var elapsed = (Date.now() - ref) / 60000;
     var target  = o.target_prep_seconds ? o.target_prep_seconds/60 : TARGET_PREP_MIN;
     var risk    = riskLevel(o);
@@ -5439,10 +5447,11 @@ function renderTasks() {
       + '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px 10px;border-bottom:1px solid var(--card-border);">'
         + '<div>'
           + '<div style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:600;color:var(--gold);">Room '+room+lt+'</div>'
-          + '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">'+id+' &middot; '+o.guest+'</div>'
+          + '<div style="font-size:13px;color:var(--text);font-weight:500;margin-top:1px;">'+o.guest+'</div>'
+          + '<div style="font-size:10px;color:var(--text-dim);margin-top:2px;">'+id+'</div>'
         + '</div>'
         + '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">'
-          + '<div style="font-size:13px;font-weight:700;'+tc+'">'+ts+'</div>'
+          + '<div style="font-size:12px;font-weight:600;'+tc+'">'+ts+'</div>'
           + (sp[o.status]||'')
           + (rb ? rb : '')
         + '</div>'

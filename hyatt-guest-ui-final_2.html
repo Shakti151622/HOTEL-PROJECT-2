@@ -2722,14 +2722,16 @@ document.addEventListener('DOMContentLoaded', function() {
     waitForDb().then(function(db) {
       if (!db) return;
       var room = String(window.ROOM_NUM || '000');
+      // Simple single-field query — no composite index needed
       db.collection('orders')
         .where('room', '==', room)
-        .where('status', 'not-in', ['delivered', 'rejected', 'cancelled'])
         .get()
         .then(function(snap) {
           snap.docs.forEach(function(doc) {
             var data = doc.data();
             var orderId = doc.id;
+            // Skip completed orders — filter client-side
+            if (data.status === 'delivered' || data.status === 'cancelled') return;
             // Check if already in orderHistory
             var existing = orderHistory.find(function(o){ return o.id === orderId; });
             if (!existing) {
@@ -2751,30 +2753,33 @@ document.addEventListener('DOMContentLoaded', function() {
               _saveHistory();
               existing = order;
             }
-            // Always re-subscribe to live status for this order
-            var prevSt = existing.status;
+            // Re-subscribe — prevSt=null so first snapshot ALWAYS updates UI with real Firebase status
+            var prevSt = null;
             db.collection('orders').doc(orderId).onSnapshot(function(d) {
               if (!d.exists) return;
-              var newStatus = d.data().status;
+              var docData = d.data();
+              var newStatus = docData.status;
+              var isFirstFire = (prevSt === null);
               if (newStatus === prevSt) return;
               prevSt = newStatus;
               existing.status = newStatus;
-              if (newStatus === 'accepted') existing.acceptedAt = Date.now();
-              if (newStatus === 'preparing') existing.preparingAt = Date.now();
-              _saveHistory();
+              if (newStatus === 'accepted' && !existing.acceptedAt) existing.acceptedAt = Date.now();
+              if (newStatus === 'preparing' && !existing.preparingAt) existing.preparingAt = Date.now();
+              if (newStatus === 'rejected') existing.rejection_reason = docData.rejection_reason || null;
               _saveHistory();
               updateOrdersBadge();
-              if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
-              // Show notification
+              renderOrders(); // always re-render so tracker updates
+              if (newStatus === 'preparing') startBarTicker();
+              // Only show toast for real-time changes, not page-load sync
+              if (isFirstFire) return;
               var msgs = {
                 accepted:  ['✓ Order accepted! Kitchen is getting started.', 'green'],
                 preparing: ['🍳 Your food is being prepared!', 'green'],
                 ready:     ['🛎 Your order is ready! Delivering now.', 'green'],
-                rejected:  ['Order not accepted: ' + (d.data().rejection_reason||'contact reception'), 'red'],
+                rejected:  ['Order not accepted: ' + (docData.rejection_reason||'contact reception'), 'red'],
                 delivered: ['✓ Your order has been delivered! Enjoy!', 'green']
               };
               if (msgs[newStatus]) showGuestToast(msgs[newStatus][0], msgs[newStatus][1]);
-              if (newStatus === 'preparing') startBarTicker();
             });
           });
           if (!snap.empty) {
