@@ -8,13 +8,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Shakti Hotels</title>
-<!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script>
-// Ensure Firebase is available before page scripts run
-window._fbSdkReady = (typeof firebase !== 'undefined' && firebase.firestore);
-</script>
 <script>
 (function(){
   var p={};
@@ -445,9 +440,23 @@ window._fbSdkReady = (typeof firebase !== 'undefined' && firebase.firestore);
     padding: 16px 24px 28px;
     background: linear-gradient(to top, var(--dark2) 80%, transparent);
     pointer-events: none;
+    display: flex; gap: 10px; align-items: flex-end;
   }
+  .cart-sticky-call {
+    flex-shrink: 0;
+    width: 54px; height: 54px;
+    border-radius: 50%;
+    background: var(--gold);
+    border: none;
+    display: none;
+    align-items: center; justify-content: center;
+    cursor: pointer;
+    pointer-events: all;
+    box-shadow: 0 4px 24px rgba(201,169,110,0.4);
+  }
+  .cart-sticky-call.visible { display: flex; }
   .cart-btn {
-    width: 100%;
+    flex: 1;
     padding: 18px 24px;
     background: var(--gold);
     color: var(--dark);
@@ -743,6 +752,7 @@ window._fbSdkReady = (typeof firebase !== 'undefined' && firebase.firestore);
   .ci-btn.minus:active { background: rgba(192,57,43,0.12); border-color: rgba(192,57,43,0.3); color: #E07070; }
   .ci-btn.plus { background: rgba(201,169,110,0.1); border-color: rgba(201,169,110,0.3); color: var(--gold); }
   .ci-btn.plus:active { background: rgba(201,169,110,0.2); }
+  body.modify-mode .ci-btn.del { display: none !important; }
   .ci-btn.del { color: #C0392B; border-color: rgba(192,57,43,0.25); background: rgba(192,57,43,0.06); }
   .ci-btn.del:active { background: rgba(192,57,43,0.18); }
   .ci-qty {
@@ -858,6 +868,11 @@ window._fbSdkReady = (typeof firebase !== 'undefined' && firebase.firestore);
     overflow: hidden;
     animation: fadeIn 0.3s ease;
   }
+  .order-card.past-card {
+    background: var(--surface2);
+    border-color: transparent;
+    opacity: 0.75;
+  }
   .order-card-head {
     padding: 16px 18px 12px;
     display: flex; align-items: center; justify-content: space-between;
@@ -891,6 +906,38 @@ window._fbSdkReady = (typeof firebase !== 'undefined' && firebase.firestore);
     border: 1px solid rgba(76,175,125,0.3);
     animation: pulse-badge 2s infinite;
   }
+  .status-live {
+    background: rgba(76,175,125,0.12);
+    color: var(--green);
+    border: 1px solid rgba(76,175,125,0.3);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .status-delivered-green {
+    background: transparent;
+    color: var(--green);
+  }
+  .status-cancelled-red {
+    background: transparent;
+    color: #C0392B;
+  }
+  .status-rejected {
+    background: rgba(192,57,43,0.1);
+    color: #C0392B;
+    border: 1px solid rgba(192,57,43,0.25);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .pill-dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  }
+  .pill-dot-green {
+    background: var(--green);
+    animation: pill-blink 1.2s ease-in-out infinite;
+  }
+  .pill-dot-red {
+    background: #C0392B;
+    animation: pill-blink 1.2s ease-in-out infinite;
+  }
+  @keyframes pill-blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
   .status-delivered {
     background: var(--surface2);
     color: var(--text-muted);
@@ -930,13 +977,14 @@ window._fbSdkReady = (typeof firebase !== 'undefined' && firebase.firestore);
   .order-tracker { padding: 16px 18px 18px; border-top: 1px solid var(--topbar-border); }
   .tracker-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
   .tracker-label { font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted); }
-  .tracker-eta { font-size:12px; font-weight:500; color:var(--green); display:flex; align-items:center; gap:5px; }
-  .tracker-eta-dot { width:6px; height:6px; border-radius:50%; background:var(--green); animation:eta-pulse 1.2s ease-in-out infinite; }
+  .tracker-eta { font-size:12px; font-weight:500; color:var(--text-muted); display:flex; align-items:center; gap:5px; }
+  .tracker-eta-dot { width:6px; height:6px; border-radius:50%; background:var(--text-muted); animation:eta-pulse 1.2s ease-in-out infinite; }
   @keyframes eta-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
-  .tracker-bar-wrap { position:relative; height:5px; background:var(--surface2); border-radius:3px; margin-bottom:12px; overflow:hidden; }
-  .tracker-bar-fill { position:absolute; top:0; left:0; bottom:0; background:linear-gradient(90deg,#3a9e6a,#4CAF7D); border-radius:3px; transition:width 1s ease; }
   .tracker-bar-shimmer { position:absolute; top:0; left:-60%; width:60%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent); animation:shimmer 2s infinite; }
   @keyframes shimmer { 0%{left:-60%} 100%{left:120%} }
+  @keyframes _flash { 0%,100%{opacity:1} 50%{opacity:0.15} }
+  @keyframes svc-blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+  @keyframes line-tip-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(1.6)} }
   .tracker-steps {
     display: flex; align-items: center; gap: 0;
   }
@@ -952,7 +1000,7 @@ window._fbSdkReady = (typeof firebase !== 'undefined' && firebase.firestore);
     z-index: 0;
   }
   .tracker-step:last-child::before { display: none; }
-  .tracker-step.done::before { background: var(--gold); }
+  .tracker-step.done::before { background: var(--green); }
   .tracker-dot {
     width: 22px; height: 22px;
     border-radius: 50%;
@@ -968,7 +1016,7 @@ window._fbSdkReady = (typeof firebase !== 'undefined' && firebase.firestore);
   }
   .tracker-step.active .tracker-dot {
     border-color: var(--green);
-    background: var(--green);
+    background: var(--surface);
     box-shadow: 0 0 0 4px rgba(76,175,125,0.18);
     animation: pulse-dot 1.5s infinite;
   }
@@ -977,9 +1025,8 @@ window._fbSdkReady = (typeof firebase !== 'undefined' && firebase.firestore);
     50% { box-shadow: 0 0 0 8px rgba(76,175,125,0.06); }
   }
   .tracker-step.done .tracker-dot svg { display: block; }
-  .tracker-step.active .tracker-dot svg { display: block; }
   .tracker-step-name {
-    font-size: 10px; color: var(--text-dim); margin-top: 5px;
+    font-size: 10px; color: var(--text-dim); margin-top: 3px;
     letter-spacing: 0.05em; text-align: center;
     white-space: nowrap;
   }
@@ -1204,6 +1251,37 @@ window._fbSdkReady = (typeof firebase !== 'undefined' && firebase.firestore);
     margin-left: 6px; vertical-align: middle;
   }
 
+  .sub-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--gold);
+    padding: 6px 12px;
+    margin: 20px 0 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(201,169,110,0.15);
+    border: 1px solid rgba(201,169,110,0.35);
+    border-radius: 6px;
+    box-shadow: 0 1px 6px rgba(201,169,110,0.08);
+  }
+  .sub-label::before {
+    content: '';
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--gold);
+    opacity: 0.9;
+    flex-shrink: 0;
+  }
+  :root.day .sub-label {
+    background: rgba(168,117,42,0.08);
+    border-color: rgba(168,117,42,0.2);
+    box-shadow: none;
+  }
+
   /* ── SCROLLBAR ── */
   ::-webkit-scrollbar { width: 0; }
 </style>
@@ -1264,7 +1342,7 @@ window._fbSdkReady = (typeof firebase !== 'undefined' && firebase.firestore);
       <div class="action-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#C9A96E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div>
       <div class="action-info">
         <div class="action-title">Order Food</div>
-        <div class="action-desc">In-room dining · 25 min avg</div>
+        <div class="action-desc">8 categories · In-room dining · 25 min avg</div>
       </div>
       <div class="action-arrow">›</div>
     </div>
@@ -1324,14 +1402,30 @@ window._fbSdkReady = (typeof firebase !== 'undefined' && firebase.firestore);
   </div>
 
   <div class="cat-tabs">
-    <button class="cat-tab active" onclick="filterCat('veg', this)">🥗 Veg</button>
-    <button class="cat-tab" onclick="filterCat('nonveg', this)">🍗 Non-Veg</button>
-    <button class="cat-tab" onclick="filterCat('drinks', this)">🥤 Drinks</button>
+    <button class="cat-tab active" onclick="filterCat('breakfast', this)">🌅 Breakfast</button>
+    <button class="cat-tab" onclick="filterCat('snacks', this)">🍿 Snacks & Starters</button>
+    <button class="cat-tab" onclick="filterCat('mainveg', this)">🥗 Main Course (Veg)</button>
+    <button class="cat-tab" onclick="filterCat('mainnonveg', this)">🍗 Main Course (Non-Veg)</button>
+    <button class="cat-tab" onclick="filterCat('sides', this)">🍚 Breads, Rice & Sides</button>
+    <button class="cat-tab" onclick="filterCat('desserts', this)">🍰 Desserts</button>
+    <button class="cat-tab" onclick="filterCat('drinks', this)">🥤 Beverages</button>
+    <button class="cat-tab" onclick="filterCat('bar', this)">🍺 Bar & Cocktails</button>
   </div>
 
+  <div id="modify-mode-banner" style="display:none;margin:0 16px 12px;padding:14px 16px;background:var(--surface);border:1px solid rgba(201,169,110,0.3);border-radius:14px;">
+    <div style="font-size:11px;color:var(--gold);letter-spacing:0.06em;margin-bottom:8px;">MODIFYING ORDER</div>
+    <div id="modify-mode-items"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--card-border);">
+      <div style="font-size:12px;color:var(--text-muted);">Updated total</div>
+      <div id="modify-mode-total" style="font-size:14px;font-weight:600;color:var(--gold);"></div>
+    </div>
+  </div>
   <div class="menu-body" id="menu-list"></div>
 
   <div class="cart-sticky">
+    <button class="cart-sticky-call" id="cart-sticky-call" onclick="callReception()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0D0D0D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
+    </button>
     <button class="cart-btn" id="cart-btn" onclick="go('cart')">
       <span id="cart-label">View Cart</span>
       <span class="cart-btn-badge" id="cart-badge">0</span>
@@ -1350,7 +1444,7 @@ window._fbSdkReady = (typeof firebase !== 'undefined' && firebase.firestore);
   </div>
 
   <div class="cart-body" id="cart-body">
-    <div class="cart-hint" id="cart-hint">Tap − to reduce · Tap 🗑 to remove item</div>
+
     <div id="cart-items"></div>
     <div class="cart-divider"></div>
     <div class="cart-total">
@@ -1366,14 +1460,16 @@ window._fbSdkReady = (typeof firebase !== 'undefined' && firebase.firestore);
         Add more
       </button>
       <button class="place-btn" id="place-btn" onclick="placeOrder()">Place Order</button>
+      <button class="place-btn" id="modify-place-btn" onclick="placeOrder()" style="display:none;background:var(--gold);">Update Order</button>
     </div>
   </div>
 
   <div class="success-screen" id="order-success">
     <div class="success-icon">✓</div>
     <div class="success-title">Order Placed!</div>
-    <div class="success-sub" id="success-sub">Room -- · Your food is being prepared</div>
+    <div class="success-sub" id="success-sub">Waiting for kitchen confirmation · Usually around 25 minutes</div>
     <div class="success-eta">Estimated time: 25 minutes</div>
+    <button class="btn-primary" style="margin-bottom:12px" onclick="resetOrder(); go('orders')">Track Order</button>
     <button class="btn-ghost" onclick="resetOrder(); go('home')">Back to Home</button>
   </div>
 </div>
@@ -1481,106 +1577,180 @@ window._fbSdkReady = (typeof firebase !== 'undefined' && firebase.firestore);
 </div>
 
 <!-- ════════════════ FLOATING CALL ════════════════ -->
-<button class="float-call" id="float-call" onclick="callReception()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0D0D0D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg></button>
+
 
 <!-- ════════════════ JS ════════════════ -->
 <script>
 // ── State
 const menuData = {
-  veg: [
-    { name: 'Paneer Butter Masala', price: 250 },
-    { name: 'Dal Tadka', price: 180 },
-    { name: 'Veg Biryani', price: 220 },
-    { name: 'Aloo Gobi', price: 160 },
-    { name: 'Palak Paneer', price: 230 },
+  breakfast: [
+    { _sub: 'Indian' },
+    { name: 'Besan Cheela', price: 110 },
+    { name: 'Aloo Paratha', price: 130 },
+    { name: 'Poha', price: 90 },
+    { name: 'Idli Sambar', price: 110 },
+    { name: 'Upma', price: 90 },
+    { name: 'Puri Bhaji', price: 120 },
+    { _sub: 'Continental' },
+    { name: 'Bread Butter Toast', price: 70 },
+    { name: 'Veg Sandwich', price: 130 },
+    { name: 'Pancakes with Syrup', price: 180 },
+    { name: 'Cheese Toast', price: 110 },
+    { _sub: 'Healthy & Light' },
+    { name: 'Fruit Bowl', price: 150 },
+    { name: 'Corn Flakes with Milk', price: 120 },
+    { name: 'Yogurt Parfait', price: 140 },
+    { name: 'Oats Porridge', price: 100 },
   ],
-  nonveg: [
-    { name: 'Chicken Biryani', price: 320 },
+  snacks: [
+    { _sub: 'Fried & Crunchy' },
+    { name: 'Samosa (2 pcs)', price: 80 },
+    { name: 'Onion Bhaji', price: 110 },
+    { name: 'French Fries', price: 140 },
+    { name: 'Crispy Corn', price: 160 },
+    { name: 'Veg Spring Rolls', price: 160 },
+    { name: 'Nachos with Dip', price: 190 },
+    { _sub: 'Kebabs & Grills' },
+    { name: 'Paneer Tikka', price: 240 },
+    { name: 'Veg Seekh Kebab', price: 220 },
+    { name: 'Hara Bhara Kebab', price: 180 },
+    { _sub: 'Light Bites' },
+    { name: 'Masala Peanuts', price: 70 },
+    { name: 'Cheese Garlic Bread', price: 180 },
+    { name: 'Bruschetta', price: 160 },
+  ],
+  mainveg: [
+    { _sub: 'Paneer' },
+    { name: 'Paneer Butter Masala', price: 250 },
+    { name: 'Shahi Paneer', price: 270 },
+    { name: 'Palak Paneer', price: 230 },
+    { name: 'Matar Paneer', price: 240 },
+    { _sub: 'Dal & Lentils' },
+    { name: 'Dal Tadka', price: 180 },
+    { name: 'Dal Makhani', price: 200 },
+    { name: 'Chana Masala', price: 185 },
+    { _sub: 'Vegetable Curries' },
+    { name: 'Aloo Gobi', price: 160 },
+    { name: 'Mix Veg Curry', price: 190 },
+    { name: 'Aloo Mutter', price: 170 },
+    { name: 'Baingan Bharta', price: 175 },
+  ],
+  mainnonveg: [
+    { _sub: 'Chicken' },
     { name: 'Butter Chicken', price: 340 },
-    { name: 'Egg Fried Rice', price: 210 },
-    { name: 'Chicken Tikka', price: 380 },
+    { name: 'Chicken Tikka Masala', price: 360 },
+    { name: 'Chicken Curry', price: 300 },
+    { name: 'Chicken Korma', price: 350 },
+    { _sub: 'Mutton' },
+    { name: 'Mutton Rogan Josh', price: 420 },
+    { name: 'Keema Matar', price: 320 },
+    { name: 'Mutton Curry', price: 400 },
+    { _sub: 'Seafood & Egg' },
+    { name: 'Fish Masala', price: 360 },
+    { name: 'Fish Curry', price: 370 },
+    { name: 'Prawn Stir Fry', price: 450 },
+    { name: 'Egg Bhurji', price: 170 },
+    { name: 'Egg Curry', price: 190 },
+  ],
+  sides: [
+    { _sub: 'Breads' },
+    { name: 'Plain Chapati', price: 25 },
+    { name: 'Butter Roti', price: 35 },
+    { name: 'Tandoori Roti', price: 30 },
+    { name: 'Missi Roti', price: 45 },
+    { name: 'Laccha Paratha', price: 70 },
+    { name: 'Butter Naan', price: 50 },
+    { name: 'Garlic Naan', price: 55 },
+    { name: 'Stuffed Aloo Naan', price: 90 },
+    { name: 'Puri (2 pcs)', price: 50 },
+    { _sub: 'Rice' },
+    { name: 'Steamed Rice', price: 100 },
+    { name: 'Jeera Rice', price: 130 },
+    { name: 'Veg Fried Rice', price: 160 },
+    { name: 'Veg Pulao', price: 180 },
+    { name: 'Saffron Rice', price: 160 },
+    { _sub: 'Biryani' },
+    { name: 'Veg Biryani', price: 220 },
+    { name: 'Paneer Biryani', price: 280 },
+    { name: 'Mushroom Biryani', price: 250 },
+    { name: 'Soya Biryani', price: 230 },
+    { _sub: 'Curd & Raita' },
+    { name: 'Plain Curd', price: 60 },
+    { name: 'Boondi Raita', price: 80 },
+    { name: 'Cucumber Raita', price: 80 },
+    { name: 'Pineapple Raita', price: 90 },
+    { name: 'Mixed Vegetable Raita', price: 90 },
+    { _sub: 'Salads & Extras' },
+    { name: 'Green Salad', price: 80 },
+    { name: 'Onion Salad', price: 50 },
+    { name: 'Kachumber Salad', price: 90 },
+    { name: 'Papad (2 pcs)', price: 40 },
+    { name: 'Pickle (Achar)', price: 30 },
+    { name: 'Mint Chutney', price: 40 },
+  ],
+  desserts: [
+    { _sub: 'Indian Sweets' },
+    { name: 'Gulab Jamun', price: 100 },
+    { name: 'Gajar Ka Halwa', price: 120 },
+    { name: 'Rasgulla', price: 100 },
+    { name: 'Kheer', price: 110 },
+    { name: 'Phirni', price: 120 },
+    { name: 'Mango Kulfi', price: 130 },
+    { _sub: 'Western' },
+    { name: 'Chocolate Brownie', price: 160 },
+    { name: 'Chocolate Mousse', price: 180 },
+    { name: 'Fruit Custard', price: 130 },
+    { name: 'Cheesecake Slice', price: 190 },
+    { _sub: 'Frozen' },
+    { name: 'Ice Cream (2 scoops)', price: 140 },
+    { name: 'Mango Sorbet', price: 120 },
+    { name: 'Sundae', price: 170 },
   ],
   drinks: [
-    { name: 'Fresh Lime Soda', price: 90 },
+    { _sub: 'Hot Drinks' },
     { name: 'Masala Chai', price: 60 },
+    { name: 'Hot Chocolate', price: 140 },
+    { name: 'Filter Coffee', price: 80 },
+    { name: 'Green Tea', price: 70 },
+    { _sub: 'Cold Coffee & Shakes' },
     { name: 'Cold Coffee', price: 150 },
+    { name: 'Green Apple Smoothie', price: 160 },
     { name: 'Mango Lassi', price: 120 },
+    { name: 'Rose Milk', price: 100 },
+    { _sub: 'Juices & Fresh' },
+    { name: 'Fresh Lime Soda', price: 90 },
+    { name: 'Watermelon Juice', price: 130 },
+    { name: 'Coconut Water', price: 90 },
+    { name: 'Iced Tea', price: 110 },
     { name: 'Sparkling Water', price: 80 },
-  ]
+  ],
+  bar: [
+    { _sub: 'Beer' },
+    { name: 'Kingfisher Beer (330ml)', price: 220 },
+    { name: 'Heineken Beer (330ml)', price: 280 },
+    { name: 'Corona (330ml)', price: 300 },
+    { _sub: 'Wine' },
+    { name: 'House Red Wine (glass)', price: 350 },
+    { name: 'House White Wine (glass)', price: 350 },
+    { name: 'Sangria (glass)', price: 390 },
+    { _sub: 'Spirits' },
+    { name: 'Whisky on the Rocks', price: 400 },
+    { name: 'Gin & Tonic', price: 380 },
+    { name: 'Vodka Lemon', price: 360 },
+    { name: 'Old Monk Rum', price: 340 },
+    { _sub: 'Cocktails & Mocktails' },
+    { name: 'Classic Mojito', price: 320 },
+    { name: 'Virgin Mojito', price: 180 },
+    { name: 'Cosmopolitan', price: 380 },
+    { name: 'Peach Iced Tea Mocktail', price: 200 },
+  ],
 };
 
 let cart = {}; // { itemKey: { name, price, qty } }
-let currentCat = 'veg';
+let currentCat = 'breakfast';
 let selectedService = null;
-// ── Persistent history — survives refresh/back navigation ──
-var _storageKey = function() {
-  return 'hyatt_guest_' + (window.ROOM_NUM || '000');
-};
-function _saveHistory() {
-  try {
-    var data = { orders: orderHistory, services: serviceHistory, ts: Date.now() };
-    localStorage.setItem(_storageKey(), JSON.stringify(data));
-  } catch(e) {}
-}
-function _loadHistory() {
-  try {
-    var raw = localStorage.getItem(_storageKey());
-    if (!raw) return;
-    var data = JSON.parse(raw);
-    // Only restore if saved within last 24 hours
-    if (!data.ts || Date.now() - data.ts > 24 * 60 * 60 * 1000) {
-      localStorage.removeItem(_storageKey()); return;
-    }
-    if (Array.isArray(data.orders))   orderHistory   = data.orders;
-    if (Array.isArray(data.services)) serviceHistory = data.services;
-  } catch(e) {}
-}
-let orderHistory = [];
-let serviceHistory = [];
-_loadHistory(); // restore from localStorage immediately
-
-// After loading from localStorage, sync status from Firebase (handles stale status)
-function _syncStatusFromFirebase() {
-  var activeOrders = orderHistory.filter(function(o){
-    return o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'rejected';
-  });
-  if (!activeOrders.length) return;
-  if (!_fbDb) {
-    // Firebase not ready yet — retry in 500ms
-    setTimeout(_syncStatusFromFirebase, 500);
-    return;
-  }
-  var updated = false;
-  var pending = activeOrders.length;
-  activeOrders.forEach(function(order) {
-    _fbDb.collection('orders').doc(String(order.id)).get().then(function(doc) {
-      pending--;
-      if (doc.exists) {
-        var data = doc.data();
-        var realStatus = data.status;
-        if (realStatus && realStatus !== order.status) {
-          order.status = realStatus;
-          if (realStatus === 'accepted' && data.accepted_at) {
-            order.acceptedAt = typeof data.accepted_at === 'string'
-              ? new Date(data.accepted_at).getTime() : Date.now();
-          }
-          if (realStatus === 'preparing') order.preparingAt = order.preparingAt || Date.now();
-          updated = true;
-        }
-      }
-      if (pending === 0 && updated) {
-        _saveHistory();
-        updateOrdersBadge();
-        renderOrders();
-        if (orderHistory.some(function(o){ return o.status==='preparing'; })) startBarTicker();
-      }
-    }).catch(function(){ pending--; });
-  });
-}
-// Run sync at 500ms, 1500ms, 3000ms — ensures Firebase is ready by at least one of these
-setTimeout(_syncStatusFromFirebase, 500);
-setTimeout(_syncStatusFromFirebase, 1500);
-setTimeout(_syncStatusFromFirebase, 3000);
+let orderHistory = []; // all placed orders
+let serviceHistory = []; // all service requests
 
 // ── Navigation
 function _navigate(screenId) {
@@ -1588,13 +1758,22 @@ function _navigate(screenId) {
   document.getElementById('screen-' + screenId).classList.add('active');
   window.scrollTo(0,0);
 
-  const floatCall = document.getElementById('float-call');
-  floatCall.classList.toggle('visible', screenId !== 'entry' && screenId !== 'home');
+
 
   if (screenId === 'menu') renderMenu(currentCat);
   if (screenId === 'cart') renderCart();
   if (screenId === 'orders') renderOrders();
   if (screenId === 'services') renderServices();
+  // Reset modify mode when navigating away from menu/cart
+  if (screenId !== 'menu' && screenId !== 'cart') {
+    window._addItemsForOrderId = null;
+    var banner = document.getElementById('modify-mode-banner');
+    if (banner) banner.style.display = 'none';
+    var placeBtn = document.getElementById('place-btn');
+    var modifyBtn = document.getElementById('modify-place-btn');
+    if (placeBtn) placeBtn.style.display = '';
+    if (modifyBtn) modifyBtn.style.display = 'none';
+  }
 }
 
 // ── Menu
@@ -1607,53 +1786,163 @@ function filterCat(cat, el) {
 
 function renderMenu(cat) {
   const items = menuData[cat];
+  const catLabel = {breakfast:'Breakfast', snacks:'Snacks & Starters', mainveg:'Main Course · Vegetarian', mainnonveg:'Main Course · Non-Vegetarian', sides:'Breads, Rice, Biryani & Sides', desserts:'Desserts', drinks:'Beverages', bar:'Bar & Cocktails'}[cat] || cat;
+
+  // Track a flat index for keys (skip _sub dividers)
+  let itemIndex = 0;
+  const rows = items.map((item) => {
+    if (item._sub) {
+      return `<div style="padding: 4px 0 2px;"><span class="sub-label">${item._sub}</span></div>`;
+    }
+    const key = cat + '_' + itemIndex++;
+    const qty = (window._addItemsForOrderId && window._modifyItems)
+      ? (window._modifyItems.find(function(m){ return m.name===item.name; }) || {qty:0}).qty
+      : (cart[key] ? cart[key].qty : 0);
+    return `
+      <div class="menu-item">
+        <div class="menu-item-info">
+          <div class="menu-item-name">${item.name}</div>
+          <div class="menu-item-price">₹${item.price}</div>
+        </div>
+        <div class="qty-control" id="qty-ctrl-${key}">
+          ${qty === 0
+            ? `<button class="qty-add" onclick="addItem('${key}','${item.name}',${item.price})">+</button>`
+            : `<button class="qty-btn" onclick="changeQty('${key}',-1)">−</button>
+               <span class="qty-num">${qty}</span>
+               <button class="qty-btn" onclick="changeQty('${key}',1)" style="background:var(--gold);color:var(--dark);border-color:var(--gold)">+</button>`
+          }
+        </div>
+      </div>`;
+  }).join('');
+
   const html = `
     <div class="menu-section">
-      <div class="section-label">${cat === 'veg' ? 'Vegetarian' : cat === 'nonveg' ? 'Non-Vegetarian' : 'Beverages'}</div>
-      ${items.map((item, i) => {
-        const key = cat + '_' + i;
-        const qty = cart[key] ? cart[key].qty : 0;
-        return `
-          <div class="menu-item">
-            <div class="menu-item-info">
-              <div class="menu-item-name">${item.name}</div>
-              <div class="menu-item-price">₹${item.price}</div>
-            </div>
-            <div class="qty-control" id="qty-ctrl-${key}">
-              ${qty === 0
-                ? `<button class="qty-add" onclick="addItem('${key}','${item.name}',${item.price})">+</button>`
-                : `<button class="qty-btn" onclick="changeQty('${key}',-1)">−</button>
-                   <span class="qty-num">${qty}</span>
-                   <button class="qty-btn" onclick="changeQty('${key}',1)" style="background:var(--gold);color:var(--dark);border-color:var(--gold)">+</button>`
-              }
-            </div>
-          </div>`;
-      }).join('')}
+      <div class="section-label">${catLabel}</div>
+      ${rows}
     </div>`;
   document.getElementById('menu-list').innerHTML = html;
   updateCartBtn();
 }
 
 function addItem(key, name, price) {
+  if (window._addItemsForOrderId && window._modifyItems) {
+    var ex = window._modifyItems.find(function(i){ return i.name === name; });
+    if (ex) { ex.qty += 1; }
+    else { window._modifyItems.push({name:name, price:price, qty:1, category:''}); }
+    // Keep cart in sync so changeQty can reference name via cart[key]
+    if (!cart[key]) cart[key] = {name:name, price:price, qty:1};
+    else cart[key].qty += 1;
+    window._renderModifyBanner();
+    updateCartBtn();
+    renderMenu(currentCat);
+    return;
+  }
   cart[key] = { name, price, qty: 1 };
   renderMenu(currentCat);
 }
 
 function changeQty(key, delta) {
+  if (window._addItemsForOrderId && window._modifyItems) {
+    // Look up item name: from cart if exists, else parse key via menuData
+    var itemName = null;
+    if (cart[key]) {
+      itemName = cart[key].name;
+    } else {
+      var parts = key.split('_'); var cat = parts[0]; var idx2 = parseInt(parts[1]);
+      if (menuData[cat]) {
+        var flatItems = menuData[cat].filter(function(x){ return !x._sub; });
+        if (flatItems[idx2]) itemName = flatItems[idx2].name;
+      }
+    }
+    if (!itemName) { renderMenu(currentCat); return; }
+    var ex = window._modifyItems.find(function(i){ return i.name === itemName; });
+    if (ex) {
+      ex.qty = Math.max(0, ex.qty + delta);
+      if (ex.qty === 0) window._modifyItems.splice(window._modifyItems.indexOf(ex), 1);
+    }
+    if (cart[key]) { cart[key].qty += delta; if (cart[key].qty <= 0) delete cart[key]; }
+    window._renderModifyBanner();
+    updateCartBtn();
+    renderMenu(currentCat);
+    return;
+  }
   if (!cart[key]) return;
   cart[key].qty += delta;
   if (cart[key].qty <= 0) delete cart[key];
   renderMenu(currentCat);
 }
 
-
-// ── Cart
 function renderCart() {
+  // Update button label based on mode
+  var placeBtn = document.getElementById('place-btn');
+  if (placeBtn) placeBtn.textContent = window._addItemsForOrderId ? 'Modify Order' : 'Place Order';
   const items = Object.entries(cart); // [[key, {name,price,qty}], ...]
   const totalAmt = items.reduce((s,[,i])=>s+i.qty*i.price, 0);
   const totalQty = items.reduce((s,[,i])=>s+i.qty, 0);
 
   const container = document.getElementById('cart-items');
+
+  // In modify mode: merge _modifyItems + cart into unified list, no duplicates
+  var existingSection = document.getElementById('cart-existing-items');
+  if (existingSection) existingSection.remove();
+  if (window._addItemsForOrderId && window._modifyItems) {
+    // Merge cart items into _modifyItems (deduplicate by name)
+    Object.values(cart).forEach(function(ci) {
+      var ex = window._modifyItems.find(function(i){ return i.name === ci.name; });
+      if (ex) { ex.qty += ci.qty; }
+      else { window._modifyItems.push({name:ci.name, price:ci.price, qty:ci.qty, category:ci.category||''}); }
+    });
+    cart = {}; // clear cart — everything is now in _modifyItems
+    // Render unified editable list
+    var _sec = document.createElement('div');
+    _sec.id = 'cart-existing-items';
+    _sec.style.cssText = 'padding:4px 0;';
+    var _totalAmt = window._modifyItems.filter(function(i){ return i.qty>0; }).reduce(function(s,i){ return s+i.qty*i.price; },0);
+    var _totalQty = window._modifyItems.filter(function(i){ return i.qty>0; }).reduce(function(s,i){ return s+i.qty; },0);
+    var _hdr = document.createElement('div');
+    _hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 0 12px;border-bottom:2px solid var(--card-border);margin-bottom:4px;';
+    _hdr.innerHTML = '<div style="font-size:11px;color:var(--gold);letter-spacing:0.06em;">ORDER SUMMARY · '+_totalQty+' items</div>';
+    _sec.appendChild(_hdr);
+    window._modifyItems.filter(function(i){ return i.qty>0; }).forEach(function(item, idx){
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--card-border);';
+      row.innerHTML = '<div><div style="font-size:14px;color:var(--text);font-weight:500;">'+item.name+'</div>'
+        + '<div style="font-size:12px;color:var(--text-muted);">₹'+item.price+' · Total ₹'+(item.qty*item.price)+'</div></div>'
+        + '<div style="display:flex;align-items:center;gap:8px;">'
+        + '<button data-midx="'+idx+'" data-mdelta="-1" class="mbanner-btn" style="width:32px;height:32px;border-radius:50%;background:var(--surface2);border:1px solid var(--card-border);color:var(--text);font-size:18px;cursor:pointer;">−</button>'
+        + '<span style="font-size:15px;color:var(--text);min-width:20px;text-align:center;">'+item.qty+'</span>'
+        + '<button data-midx="'+idx+'" data-mdelta="1" class="mbanner-btn" style="width:32px;height:32px;border-radius:50%;background:var(--gold);border:none;color:var(--dark);font-size:18px;cursor:pointer;">+</button>'
+        + '</div>';
+      _sec.appendChild(row);
+    });
+    _sec.querySelectorAll('.mbanner-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var idx = parseInt(this.getAttribute('data-midx'));
+        var delta = parseInt(this.getAttribute('data-mdelta'));
+        if(window._modifyItems && window._modifyItems[idx]){
+          window._modifyItems[idx].qty = Math.max(0, window._modifyItems[idx].qty + delta);
+          renderCart();
+          var _bid = window._addItemsForOrderId;
+          var _bo = orderHistory.find(function(o){ return o.id === _bid; });
+          if(_bo){
+            var _fi = window._modifyItems.filter(function(i){ return i.qty>0; });
+            _bo.items=_fi; _bo.total=_fi.reduce(function(s,i){ return s+i.qty*i.price; },0);
+            _saveHistory();
+            _waitDb().then(function(db){ if(db) db.collection('orders').doc(String(_bid)).update({items:_fi,total:_bo.total}).catch(function(){}); });
+            updateOrdersBadge();
+          }
+        }
+      });
+    });
+    container.before(_sec);
+    // In modify mode, cart is now empty (merged into _modifyItems above) — hide normal cart
+    container.innerHTML = '';
+    // Update bottom total from _modifyItems
+    var _mt = window._modifyItems.filter(function(i){ return i.qty>0; }).reduce(function(s,i){ return s+i.qty*i.price; },0);
+    var _ctEl = document.getElementById('cart-total');
+    if(_ctEl) _ctEl.textContent = '₹'+_mt;
+    return; // skip normal cart rendering
+  }
 
   if (items.length === 0) {
     container.innerHTML = `
@@ -1684,7 +1973,13 @@ function renderCart() {
     document.getElementById('place-btn').style.opacity = '1';
   }
 
-  document.getElementById('cart-total').textContent = `₹${totalAmt}`;
+  // In modify mode total = _modifyItems total (cart already merged into it)
+  var displayTotal = totalAmt;
+  if (window._addItemsForOrderId && window._modifyItems) {
+    displayTotal = window._modifyItems.filter(function(i){ return i.qty>0; }).reduce(function(s,i){ return s+i.qty*i.price; },0);
+  }
+  var cartTotalEl = document.getElementById('cart-total');
+  if (cartTotalEl) cartTotalEl.textContent = '₹'+displayTotal;
   document.getElementById('cart-item-count').textContent =
     totalQty > 0 ? `${totalQty} item${totalQty > 1 ? 's' : ''}` : '';
   document.getElementById('cart-body').style.display = 'block';
@@ -1719,19 +2014,54 @@ function cartRemove(key) {
 }
 
 function placeOrder(isMerge) {
+  // Remove banner and reset cart label
+  var banner = document.getElementById('add-items-banner');
+  if (banner) banner.remove();
+  var cartLabel = document.getElementById('cart-label');
+  if (cartLabel) cartLabel.textContent = 'View Cart';
+  // If adding items to existing order, merge into that order instead
+  if (window._addItemsForOrderId) {
+    var _targetId = window._addItemsForOrderId;
+    window._addItemsForOrderId = null;
+    var _targetOrder = orderHistory.find(function(o){ return o.id === _targetId; });
+    if (_targetOrder) {
+      // Start with edited existing items (_modifyItems)
+      var baseItems = (window._modifyItems || _targetOrder.items).filter(function(i){ return i.qty > 0; });
+      // Merge new cart items on top
+      Object.values(cart).forEach(function(ci) {
+        var ex = baseItems.find(function(i){ return i.name === ci.name; });
+        if (ex) { ex.qty += ci.qty; }
+        else { baseItems.push({ name: ci.name, price: ci.price, qty: ci.qty, category: ci.category || '' }); }
+      });
+      _targetOrder.items = baseItems;
+      _targetOrder.total = baseItems.reduce(function(s,i){ return s + i.qty * i.price; }, 0);
+      cart = {};
+      window._modifyItems = null;
+      window._editItems = null;
+      _saveHistory();
+      // Update Firebase
+      _waitDb().then(function(db){
+        if(db) db.collection('orders').doc(String(_targetId)).update({items:_targetOrder.items,total:_targetOrder.total}).catch(function(){});
+      });
+      // Hide banner, restore buttons
+      var banner = document.getElementById('modify-mode-banner');
+      if (banner) banner.style.display = 'none';
+      var placeBtn = document.getElementById('place-btn');
+      var modifyBtn = document.getElementById('modify-place-btn');
+      if (placeBtn) placeBtn.style.display = '';
+      if (modifyBtn) modifyBtn.style.display = 'none';
+      document.body.classList.remove('modify-mode');
+      go('orders');
+      renderOrders(); updateOrdersBadge();
+      showGuestToast('Order updated!','green');
+      return;
+    }
+  }
   isMerge = isMerge === true;
   const items = Object.entries(cart).map(([key, item]) => ({...item}));
   const total = items.reduce((s,i)=>s+i.qty*i.price, 0);
   const now = new Date();
-  // Generate hotel-prefixed sequential order ID
-  function getNextOrderNum() {
-    var key = 'hyatt_order_counter';
-    var n = parseInt(localStorage.getItem(key) || '0', 10) + 1;
-    localStorage.setItem(key, String(n));
-    return n;
-  }
-  var prefix = window._hotelPrefix || (window.HOTEL_NAME||'SH').trim().split(/\s+/).slice(0,3).map(function(w){return w.charAt(0).toUpperCase();}).join('');
-  const orderId = window._pendingOrderId || (prefix + '-' + String(getNextOrderNum()).padStart(4, '0'));
+  const orderId = window._pendingOrderId || ('ORD-' + String(orderHistory.length + 1).padStart(3, '0'));
   const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   const order = {
@@ -1744,7 +2074,8 @@ function placeOrder(isMerge) {
     placedAt: Date.now(),
     eta: 25,
     isMerge,
-    fromPeer: false
+    fromPeer: false,
+    guest: String(window.GUEST_NAME || '')
   };
   orderHistory.unshift(order);
   _saveHistory();
@@ -1786,48 +2117,13 @@ function updateOrdersBadge() {
   }
 }
 
-// Live bar ticker — updates progress bar and ETA every 30s while preparing
-var _barTickerInterval = null;
-function startBarTicker() {
-  if (_barTickerInterval) return;
-  _barTickerInterval = setInterval(function() {
-    var hasPreparing = orderHistory.some(function(o) {
-      return o.status === 'preparing' || o.status === 'accepted';
-    });
-    if (!hasPreparing) {
-      clearInterval(_barTickerInterval);
-      _barTickerInterval = null;
-      return;
-    }
-    // Update bar widths in-place without full re-render (smoother)
-    orderHistory.forEach(function(o) {
-      if (o.status !== 'preparing' && o.status !== 'accepted') return;
-      var card = document.getElementById('ocard-' + o.id);
-      if (!card) return;
-      var fill = card.querySelector('.tracker-bar-fill');
-      if (fill) { fill.style.width = getBarPct(o) + '%'; fill.style.transition = 'width 2s ease'; }
-      // Update ETA text
-      var eta = card.querySelector('.tracker-eta');
-      if (eta) eta.innerHTML = '<div class="tracker-eta-dot"></div>' + (function() {
-        var etaMins = o.eta || 25;
-        var startTime = o.preparingAt || o.acceptedAt || o.placedAt;
-        var elapsedMin = Math.floor((Date.now() - startTime) / 60000);
-        var remaining = Math.max(0, etaMins - elapsedMin);
-        if (o.status === 'accepted') return 'Est. ' + etaMins + ' min';
-        if (remaining <= 0) return 'Almost ready!';
-        return remaining + ' min remaining';
-      })();
-    });
-  }, 30000); // update every 30 seconds
-}
-
 function renderOrders() {
   const body = document.getElementById('orders-body');
   if (orderHistory.length === 0) {
     body.innerHTML = `<div class="orders-empty">
       <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.25;margin:0 auto 14px;display:block"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
-      <div style="color:var(--text-muted)">No orders yet</div>
-      <div style="font-size:13px;margin-top:4px;color:var(--text-dim)">Your orders will appear here</div>
+      <div style="color:var(--text-muted)">No active orders</div>
+      <div style="font-size:13px;margin-top:4px;color:var(--text-dim)">Place an order to get started</div>
     </div>`;
     return;
   }
@@ -1835,47 +2131,47 @@ function renderOrders() {
   const active = orderHistory.filter(o => o.status !== 'delivered' && o.status !== 'rejected' && o.status !== 'cancelled');
   const past   = orderHistory.filter(o => o.status === 'delivered' || o.status === 'rejected' || o.status === 'cancelled');
 
-  const statusLabel = { new: 'Order Placed', accepted: 'Accepted ✓', preparing: 'Preparing 🍳', ready: 'Ready! 🛎', delivered: 'Delivered ✓', rejected: 'Declined ❌', cancelled: 'Cancelled' };
-  const statusClass = { new: 'status-new', accepted: 'status-accepted', preparing: 'status-preparing', ready: 'status-active', delivered: 'status-delivered', rejected: 'status-rejected', cancelled: 'status-delivered' };
+  const statusLabel = { new: 'LIVE', accepted: 'LIVE', preparing: 'LIVE', ready: 'LIVE', delivered: 'Delivered', rejected: 'Rejected', cancelled: 'Cancelled' };
+  const statusClass = { new: 'status-live', accepted: 'status-live', preparing: 'status-live', ready: 'status-live', delivered: 'status-delivered-green', rejected: 'status-rejected', cancelled: 'status-cancelled-red' };
 
-  const stepsDef = ['Placed', 'Accepted', 'Preparing', 'Ready', 'Delivered'];
+  const stepsDef = ['Placed', 'Accepted', 'Delivered'];
   function stepIndex(status) {
-    return { new:0, accepted:1, preparing:2, ready:3, delivered:4, rejected:-1 }[status] ?? 0;
+    var _m={new:0,accepted:1,preparing:1,ready:1,delivered:2,rejected:-1}; return _m[status]!==undefined?_m[status]:0;
   }
-  // Dynamic bar % — bar aligns with step dot positions
-  // 5 steps equally spaced: Placed=0% Accepted=25% Preparing=50% Ready=75% Delivered=100%
-  function getBarPct(o) {
-    if (o.status === 'new') {
-      // Bar animates toward Accepted — shows it's on the way (pulsing near 22%)
-      return 22;
+  function getEtaHtml(o) {
+    if(o.status==='rejected'||o.status==='cancelled') return '';
+    var eta = o.eta || 25;
+    var acceptedAt = o.acceptedAt || null;
+    var now = Date.now();
+    // Colour: grey before accepted, then green/orange/red based on lateness
+    var col, num;
+    if(!acceptedAt || o.status==='new') {
+      col = 'var(--text-muted)';
+      num = eta+' min';
+    } else {
+      var elapsedMin = Math.floor((now - acceptedAt) / 60000);
+      var overMin = elapsedMin - eta;
+      var remaining = Math.max(0, eta - elapsedMin);
+      col = overMin >= 20 ? '#C0392B' : overMin >= 10 ? '#E67E22' : 'var(--green)';
+      if(o.status==='delivered') {
+        var deliveredAt = o.deliveredAt || now;
+        num = (Math.round((deliveredAt - acceptedAt)/60000))+' min';
+      } else {
+        num = remaining > 0 ? remaining+' min' : 'Ready!';
+      }
     }
-    if (o.status === 'accepted')  return 25;  // exactly at Accepted dot
-    if (o.status === 'ready')     return 75;  // exactly at Ready dot
-    if (o.status === 'delivered') return 100;
-    if (o.status === 'preparing') {
-      const eta = (o.eta || 25) * 60 * 1000; // ms
-      const startTime = o.preparingAt || o.acceptedAt || o.placedAt;
-      const elapsed = Date.now() - startTime;
-      // Goes from 25% (Accepted) to 72% (just before Ready) over ETA duration
-      const progress = Math.min(elapsed / eta, 1);
-      return Math.round(25 + progress * 47);
-    }
-    return 22;
+    var _clock='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="'+col+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+    return '<div style="text-align:right;display:flex;align-items:center;justify-content:flex-end;gap:2px;">'
+      + _clock
+      + '<span style="font-size:15px;font-weight:700;font-family:DM Sans,sans-serif;color:'+col+';">'+num+'</span>'
+      + '</div>';
   }
 
-  function getEtaHtml(o) {
-    if(o.status==='delivered'||o.status==='rejected'||o.status==='cancelled') return '';
-    if(o.status==='new') return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Waiting for kitchen…</div>';
-    if(o.status==='ready') return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Ready — on the way! 🛎</div>';
-    const eta = o.eta || 25;
-    const startTime = o.preparingAt || o.acceptedAt || o.placedAt;
-    const elapsedMin = Math.floor((Date.now() - startTime) / 60000);
-    const remaining = Math.max(0, eta - elapsedMin);
-    if(o.status==='accepted') return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Est. ' + eta + ' min</div>';
-    if(o.status==='preparing') {
-      if(remaining <= 0) return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>Almost ready!</div>';
-      return '<div class="tracker-eta"><div class="tracker-eta-dot"></div>' + remaining + ' min remaining</div>';
-    }
+  function getStatusText(o) {
+    if(o.status==='new') return 'Order received · Awaiting confirmation';
+    if(o.status==='accepted') return 'Kitchen is on it';
+    if(o.status==='preparing'||o.status==='ready') return 'Kitchen is on it';
+    if(o.status==='delivered') return 'Delivered · Enjoy your meal';
     return '';
   }
 
@@ -1883,7 +2179,6 @@ function renderOrders() {
     const si = stepIndex(o.status);
     const isRejected = o.status === 'rejected';
     const isCancelled = o.status === 'cancelled';
-    const barPct = getBarPct(o);
     const etaHtml = getEtaHtml(o);
     const checkSvgGreen = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
     const steps = isRejected
@@ -1891,39 +2186,54 @@ function renderOrders() {
       : isCancelled
       ? '<div style="font-size:12px;color:var(--text-muted);padding:4px 0;">Order cancelled</div>'
       : stepsDef.map((s, i) => {
-          const cls = i <= si ? (i < si ? 'done' : 'active') : '';
-          const showTick = i <= si; // tick on current AND all past steps
-          return `<div class="tracker-step ${cls}">
-            <div class="tracker-dot">${showTick ? checkSvgGreen : ''}</div>
-            <div class="tracker-step-name">${s}</div>
-          </div>`;
+          var cls = (i===0||i<si)?'done':(i===si?'active':'');
+          var tick = (i===0||i<si)?checkSvgGreen:'';
+          var anim='';
+          if(i===1 && si===0){
+            // Dot centered on Accepted circle while waiting for acceptance
+            anim='<div style="position:absolute;top:6px;left:calc(50% - 5px);width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
+          }
+          if(i===1){
+            var _eta=o.eta||25;
+            var _sm=o.acceptedAt||Date.now();
+            var _em=Date.now()-_sm;
+            var _isLate=_em>_eta*60000;
+            var _lineCol=_isLate?'#E67E22':'var(--green)';
+            if(si===1){
+              // Line grows from Accepted center, dot at moving tip, stops 1min before ETA
+              var _targetMs=Math.max(1000,(_eta-1)*60000);
+              var _pct=Math.min(30,(_em/_targetMs)*30);
+              var _rm=Math.max(0,_targetMs-_em);
+              var _trans=_rm>0?'transition:width '+_rm+'ms linear;':'';
+              var _lineAnim=_isLate?'animation:_flash 0.8s ease-in-out infinite;':'';
+              var _dot='<div style="position:absolute;right:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:'+_lineCol+';filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
+              anim='<div style="position:absolute;top:11px;left:55%;height:2px;background:'+_lineCol+';z-index:1;width:'+_pct.toFixed(1)+'%;'+_trans+_lineAnim+'">'+_dot+'</div>';
+            }
+          }
+          return '<div class="tracker-step '+cls+'">'+anim+'<div class="tracker-dot">'+tick+'</div><div class="tracker-step-name">'+s+'</div></div>';
         }).join('');
 
-    // Cancel/Modify available while order is new (not yet accepted) OR within 5 mins of acceptance
+    // Cancel/Modify: always for 'new', within 10 mins for 'accepted'
     const minsElapsed = o.acceptedAt ? (Date.now() - o.acceptedAt) / 60000 : 0;
-    const canModify = o.status === 'new' || (o.status === 'accepted' && minsElapsed < 10);
+    const canModify = o.status === 'new' || o.status === 'accepted';
+    const canCancel = o.status === 'new' || o.status === 'accepted';
     const isNew = o.status === 'new';
-    const minsLeft = Math.ceil(5 - minsElapsed);
-    const modifyBtns = canModify ? `
-      <div style="display:flex;gap:8px;margin-top:12px;">
-        <button onclick="modifyOrder('${o.id}')" style="flex:1;padding:10px;background:rgba(201,169,110,0.1);border:1px solid rgba(201,169,110,0.3);border-radius:10px;color:var(--gold);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;">
-          ✏ Modify
-        </button>
-        <button onclick="cancelOrder('${o.id}')" style="flex:1;padding:10px;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.2);border-radius:10px;color:var(--red);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;">
-          ✕ Cancel Order
-        </button>
-      </div>
-      <div style="font-size:11px;color:var(--text-dim);text-align:center;margin-top:6px;">
-        ${isNew ? 'Cancel or modify before staff accepts' : 'Can modify/add items for ' + Math.ceil(10 - minsElapsed) + ' min' + (Math.ceil(10-minsElapsed)!==1?'s':'')}
+    const modifyBtns = (canModify || canCancel) ? `
+      <div style="display:flex;gap:10px;padding:10px 0 4px;">
+        ${canModify ? `<button onclick="modifyOrder('${o.id}')" style="flex:1;padding:10px;background:transparent;border:1px solid rgba(201,169,110,0.4);border-radius:10px;color:var(--gold);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;letter-spacing:0.02em;">Modify</button>` : ''}
+        <button onclick="cancelOrder('${o.id}')" style="flex:1;padding:10px;background:transparent;border:1px solid rgba(192,57,43,0.25);border-radius:10px;color:#C0392B;font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;letter-spacing:0.02em;">Cancel</button>
       </div>` : '';
 
     return `<div class="order-card" id="ocard-${o.id}">
       <div class="order-card-head">
         <div class="order-card-meta">
-          <div class="order-card-id">${o.id} · ${o.date}${o.fromPeer ? ' <span class="order-device-tag">Roommate</span>' : ''}${o.isMerge ? ' <span class="order-device-tag">Merged</span>' : ''}</div>
-          <div class="order-card-time">${o.time}</div>
+          <div class="order-card-id">${o.id} · ${o.date} · ${o.time}${o.fromPeer ? ' <span class="order-device-tag">Roommate</span>' : ''}${o.isMerge ? ' <span class="order-device-tag">Merged</span>' : ''}</div>
+          ${o.guest ? '<div class="order-card-time" style="display:flex;align-items:center;gap:4px;">' + o.guest + '<span onclick="editGuestName()" style="font-size:10px;color:var(--gold);opacity:0.7;cursor:pointer;margin-left:4px;">✏</span></div>' : ''}
         </div>
-        <div class="order-status-pill ${statusClass[o.status]||'status-preparing'}">${statusLabel[o.status]||o.status}</div>
+        <div class="order-status-pill ${statusClass[o.status]||'status-delivered'}">
+          ${(o.status==='new'||o.status==='accepted'||o.status==='preparing'||o.status==='ready') ? '<span class="pill-dot pill-dot-green"></span>' : o.status==='rejected' ? '<span class="pill-dot pill-dot-red"></span>' : ''}
+          ${statusLabel[o.status]||o.status}
+        </div>
       </div>
       ${o.status === 'rejected' && o.rejection_reason ? `
       <div style="margin:8px 0;padding:10px 12px;background:rgba(192,57,43,0.1);border-radius:10px;font-size:13px;color:var(--red);">
@@ -1936,38 +2246,64 @@ function renderOrders() {
             <div class="order-item-price">₹${i.qty * i.price}</div>
           </div>`).join('')}
       </div>
+      <div class="order-card-footer">
+        <div class="order-total-label">Total</div>
+        <div class="order-total-amt">₹${o.total}</div>
+      </div>
       ${o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'rejected' ? `
       <div class="order-tracker">
         <div class="tracker-header">
           <div class="tracker-label">Order Status</div>
           ${etaHtml}
         </div>
-        <div class="tracker-bar-wrap">
-          <div class="tracker-bar-fill" style="width:${barPct}%">
-            ${(o.status==='preparing'||o.status==='new')?'<div class="tracker-bar-shimmer"></div>':''}
-          </div>
-        </div>
         <div class="tracker-steps">${steps}</div>
+        <div class="tracker-eta" style="margin-top:10px;padding-left:calc(100%/3*0.5 - 11px);" id="status-text-${o.id}">
+          <div class="tracker-eta-dot"></div>
+          <span id="status-msg-${o.id}">${getStatusText(o)}</span>
+        </div>
       </div>` : ''}
       ${modifyBtns}
-      <div class="order-card-footer">
-        <div class="order-total-label">Total</div>
-        <div class="order-total-amt">₹${o.total}</div>
-      </div>
     </div>`;
   }
 
   let html = '';
   if (active.length > 0) {
-    html += `<div class="orders-section-label">In Progress</div>`;
+    html += `<div class="orders-section-label">Active Orders</div>`;
     html += active.map(renderCard).join('');
-    // Start live ticker if any order is preparing or accepted
-    var needsTicker = active.some(function(o){ return o.status==='preparing'||o.status==='accepted'; });
-    if (needsTicker) startBarTicker();
   }
+  // Start rotating status text for 'new' and 'accepted' orders after DOM is updated
+  setTimeout(function() {
+    var newMsgs = [
+      'Order received · Awaiting confirmation',
+      'Your order will be accepted shortly',
+      'Thanks for your patience'
+    ];
+    var acceptedMsgs = [
+      'Kitchen is preparing your order',
+      'Love to serve you delicious food',
+      'Thanks for your patience',
+      'You will receive your order soon'
+    ];
+    orderHistory.forEach(function(o) {
+      if (o.status !== 'new' && o.status !== 'accepted' && o.status !== 'preparing' && o.status !== 'ready') return;
+      var el = document.getElementById('status-msg-' + o.id);
+      if (!el || el._rotating) return;
+      el._rotating = true;
+      var msgs = (o.status === 'new') ? newMsgs : acceptedMsgs;
+      var idx = 0;
+      el._rotateTimer = setInterval(function() {
+        var el2 = document.getElementById('status-msg-' + o.id);
+        if (!el2) { clearInterval(el._rotateTimer); return; }
+        idx = (idx + 1) % msgs.length;
+        el2.textContent = msgs[idx];
+      }, 3000);
+    });
+  }, 100);
   if (past.length > 0) {
     html += `<div class="orders-section-label" style="margin-top:${active.length?'20px':'0'}">Past Orders</div>`;
-    html += past.map(renderCard).join('');
+    html += past.map(function(o) {
+      return renderCard(o).replace('<div class="order-card"', '<div class="order-card past-card"');
+    }).join('');
   }
   body.innerHTML = html;
 }
@@ -1976,72 +2312,80 @@ function renderOrders() {
 function cancelOrder(orderId) {
   var order = orderHistory.find(function(o){ return o.id === orderId; });
   if (!order) return;
-
-  // If order is still 'new' — show confirmation modal then cancel via Firebase
+  if (order.status !== 'new' && order.status !== 'accepted') { alert('Order cannot be cancelled at this stage.'); return; }
+  if (order.status === 'accepted' && (!order.acceptedAt || (Date.now() - order.acceptedAt) > 10 * 60000)) { alert('Cancellation window has expired.'); return; }
+  // For 'new' orders — cancel directly. For 'accepted' — must call reception.
   if (order.status === 'new') {
-    var confirmOverlay = document.createElement('div');
-    confirmOverlay.id = 'cancel-confirm-overlay';
-    confirmOverlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:300;display:flex;align-items:center;justify-content:center;padding:24px;';
-    confirmOverlay.innerHTML = '<div style="background:var(--surface);border:1px solid rgba(201,169,110,0.3);border-radius:24px;padding:32px 24px;text-align:center;width:100%;max-width:320px;">'
-      + '<div style="font-size:40px;margin-bottom:12px;">\uD83D\uDDD1</div>'
+    // Direct cancel — confirm then remove
+    var overlay = document.createElement('div');
+    overlay.id = 'cancel-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;';
+    overlay.innerHTML = '<div style="background:var(--surface);border:1px solid rgba(201,169,110,0.3);border-radius:24px;padding:32px 24px;text-align:center;width:100%;max-width:320px;">'
       + '<div style="font-family:Cormorant Garamond,serif;font-size:22px;color:var(--text);margin-bottom:8px;">Cancel Order?</div>'
-      + '<div style="font-size:13px;color:var(--text-muted);margin-bottom:24px;">Your order has not been accepted yet. It will be removed.</div>'
-      + '<button id="confirm-cancel-btn" style="width:100%;padding:14px;background:rgba(192,57,43,0.12);border:1.5px solid rgba(192,57,43,0.3);border-radius:14px;color:var(--red);font-family:DM Sans,sans-serif;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:10px;">&#10005; Yes, Cancel Order</button>'
-      + '<button onclick="document.getElementById(&quot;cancel-confirm-overlay&quot;).remove();" style="width:100%;padding:14px;background:transparent;border:1px solid var(--card-border);border-radius:14px;color:var(--text-muted);font-family:DM Sans,sans-serif;font-size:14px;cursor:pointer;">Keep Order</button>'
+      + '<div style="font-size:13px;color:var(--text-muted);margin-bottom:24px;">Kitchen has not started yet.</div>'
+      + '<button id="confirm-cancel-btn" data-orderid="' + orderId + '" style="width:100%;padding:14px;background:rgba(192,57,43,0.1);border:1.5px solid rgba(192,57,43,0.3);border-radius:14px;color:var(--red);font-family:DM Sans,sans-serif;font-size:15px;cursor:pointer;margin-bottom:10px;">Yes, cancel</button>'
+      + '<button onclick="document.getElementById(\'cancel-overlay\').remove();" style="width:100%;padding:14px;background:transparent;border:1px solid var(--card-border);border-radius:14px;color:var(--text-muted);font-family:DM Sans,sans-serif;font-size:14px;cursor:pointer;">Go Back</button>'
       + '</div>';
-    document.body.appendChild(confirmOverlay);
-    // Attach click after appending so element exists
-    document.getElementById('confirm-cancel-btn').onclick = function() {
-      document.getElementById('cancel-confirm-overlay').remove();
-      order.status = 'cancelled';
-      _saveHistory();
-      updateOrdersBadge();
-      renderOrders();
-      waitForDb().then(function(db) {
-        if (db) db.collection('orders').doc(String(orderId)).update({ status: 'cancelled' })
-          .catch(function(e){ console.warn('Cancel error:', e); });
-      });
-      showGuestToast('Order cancelled.', 'green');
-    };
-    return;
+    document.body.appendChild(overlay);
+    var cancelBtn = document.getElementById('confirm-cancel-btn');
+    if (cancelBtn) cancelBtn.addEventListener('click', function() { window.doDirectCancel(this.getAttribute('data-orderid')); });
+  } else {
+    // Accepted — call reception to cancel
+    var overlay = document.createElement('div');
+    overlay.id = 'cancel-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;';
+    overlay.innerHTML = '<div style="background:var(--surface);border:1px solid rgba(201,169,110,0.3);border-radius:24px;padding:32px 24px;text-align:center;width:100%;max-width:320px;">'
+      + '<div style="font-family:Cormorant Garamond,serif;font-size:22px;color:var(--text);margin-bottom:8px;">Cancel Order?</div>'
+      + '<div style="font-size:13px;color:var(--text-muted);margin-bottom:24px;">Please call reception to cancel your order. They will assist you immediately.</div>'
+      + '<button onclick="callReception();document.getElementById(\'cancel-overlay\').remove();" style="width:100%;padding:14px;background:rgba(192,57,43,0.1);border:1.5px solid rgba(192,57,43,0.3);border-radius:14px;color:var(--red);font-family:DM Sans,sans-serif;font-size:15px;cursor:pointer;margin-bottom:10px;">📞 Call Reception</button>'
+      + '<button onclick="document.getElementById(\'cancel-overlay\').remove();" style="width:100%;padding:14px;background:transparent;border:1px solid var(--card-border);border-radius:14px;color:var(--text-muted);font-family:DM Sans,sans-serif;font-size:14px;cursor:pointer;">Go Back</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
   }
-
-  // If accepted — show call reception modal
-  if (order.status !== 'accepted') { showGuestToast('Order cannot be cancelled at this stage.', 'red'); return; }
-  if (!order.acceptedAt || (Date.now() - order.acceptedAt) > 10 * 60000) { showGuestToast('Cancellation window has expired.', 'red'); return; }
-  // Show call reception modal — guest must call to cancel
-  var overlay = document.createElement('div');
-  overlay.id = 'cancel-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;';
-  overlay.innerHTML = `
-    <div style="background:var(--surface);border:1px solid rgba(201,169,110,0.3);border-radius:24px;padding:32px 24px;text-align:center;width:100%;max-width:320px;">
-      <div style="width:64px;height:64px;border-radius:50%;background:rgba(192,57,43,0.12);border:1.5px solid var(--red);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/>
-        </svg>
-      </div>
-      <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--text);margin-bottom:8px;">Cancel Order?</div>
-      <div style="font-size:13px;color:var(--text-muted);margin-bottom:24px;">Please call reception to cancel your order. They will assist you immediately.</div>
-      <button onclick="callReception();document.getElementById('cancel-overlay').remove();" style="width:100%;padding:14px;background:rgba(192,57,43,0.1);border:1.5px solid rgba(192,57,43,0.3);border-radius:14px;color:var(--red);font-family:'DM Sans',sans-serif;font-size:15px;cursor:pointer;margin-bottom:10px;">
-        📞 Call Reception
-      </button>
-      <button onclick="document.getElementById('cancel-overlay').remove();" style="width:100%;padding:14px;background:transparent;border:1px solid var(--card-border);border-radius:14px;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;">
-        Go Back
-      </button>
-    </div>`;
-  document.body.appendChild(overlay);
 }
+
+window.doDirectCancel = function(orderId) {
+  var co = document.getElementById('cancel-overlay'); if (co) co.remove();
+  var order = orderHistory.find(function(o){ return o.id === orderId; });
+  if (order) { order.status = 'cancelled'; }
+  _saveHistory();
+  renderOrders();
+  updateOrdersBadge();
+  showGuestToast('Order cancelled.', 'green');
+  _waitDb().then(function(db) {
+    if (db) {
+      db.collection('orders').doc(String(orderId)).update({ status: 'cancelled' })
+        .catch(function(e){ console.warn('Cancel update failed', e); });
+    }
+  });
+};
 
 function modifyOrder(orderId) {
   var order = orderHistory.find(function(o){ return o.id === orderId; });
   if (!order) return;
-  if (order.status !== 'new' && order.status !== 'accepted') { showGuestToast('Order cannot be modified at this stage.', 'red'); return; }
-  if (order.status === 'accepted' && (!order.acceptedAt || (Date.now() - order.acceptedAt) > 10 * 60000)) { showGuestToast('Modification window has expired.', 'red'); return; }
+  // After accepted — show call kitchen
+  if (order.status === 'accepted') {
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;';
+    ov.innerHTML = '<div style="background:var(--surface);border-radius:20px;padding:28px 24px;width:100%;max-width:320px;text-align:center;">'
+      + '<div style="font-family:Cormorant Garamond,serif;font-size:20px;color:var(--text);margin-bottom:10px;">Modify Order?</div>'
+      + '<div style="font-size:13px;color:var(--text-muted);margin-bottom:24px;">Kitchen has started. Please call to modify.</div>'
+      + '<button id="mod-call-btn" style="width:100%;padding:13px;background:rgba(201,169,110,0.1);border:1.5px solid rgba(201,169,110,0.4);border-radius:12px;color:var(--gold);font-family:DM Sans,sans-serif;font-size:15px;cursor:pointer;margin-bottom:10px;">📞 Call Kitchen</button>'
+      + '<button id="mod-back-btn" style="width:100%;padding:11px;background:transparent;border:none;color:var(--text-muted);font-family:DM Sans,sans-serif;font-size:14px;cursor:pointer;">Go Back</button>'
+      + '</div>';
+    document.body.appendChild(ov);
+    document.getElementById('mod-call-btn').addEventListener('click', function(){ callReception(); ov.remove(); });
+    document.getElementById('mod-back-btn').addEventListener('click', function(){ ov.remove(); });
+    return;
+  }
+  if (order.status !== 'new') { return; }
 
   // Build edit state — copy current items
   var editItems = order.items.map(function(i){ return { name: i.name, price: i.price, qty: i.qty, category: i.category || '' }; });
-  var isAddOnly = order.status === 'accepted'; // after acceptance: add only. while new: add+subtract
-  var origQtys  = order.items.map(function(i){ return i.qty; }); // minimum qty = original (can't go below)
+
+  // canSubtract: new status OR within 2 mins of accepted
+  var minsAccepted = order.acceptedAt ? (Date.now() - order.acceptedAt) / 60000 : 0;
+  var canSubtract = (order.status === 'new') || (order.status === 'accepted' && minsAccepted < 2);
 
   function renderEditModal() {
     var existing = document.getElementById('modify-overlay');
@@ -2051,94 +2395,172 @@ function modifyOrder(orderId) {
     overlay.id = 'modify-overlay';
     overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:flex-end;justify-content:center;';
 
-    var itemRows = editItems.map(function(item, idx) {
-      var minQty = isAddOnly ? item.qty : 0; // after accepted: can't go below current; while new: can go to 0
-      var canSubtract = !isAddOnly; // only subtract when order is 'new'
-      var subtractBtn = canSubtract
-        ? '<button onclick="editQty(' + idx + ',-1)" style="width:32px;height:32px;border-radius:50%;background:' + (item.qty > 0 ? 'rgba(192,57,43,0.12)' : 'var(--surface2)') + ';border:1px solid ' + (item.qty > 0 ? 'rgba(192,57,43,0.3)' : 'var(--card-border)') + ';color:' + (item.qty > 0 ? 'var(--red)' : 'var(--text-dim)') + ';font-size:20px;cursor:' + (item.qty > 0 ? 'pointer' : 'default') + ';display:flex;align-items:center;justify-content:center;line-height:1;font-weight:300;">−</button>'
+    var itemRows = editItems.filter(function(item){ return item.qty > 0; }).map(function(item, idx) {
+      var minusBtn = canSubtract
+        ? '<button onclick="editQty(' + idx + ',-1)" style="width:32px;height:32px;border-radius:50%;background:var(--surface2);border:1px solid var(--card-border);color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">−</button>'
         : '';
-      var qtyStyle = item.qty === 0 ? 'text-decoration:line-through;color:var(--text-dim);' : '';
       return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--card-border);">'
         + '<div>'
-        + '<div style="font-size:14px;color:var(--text);font-weight:500;' + qtyStyle + '">' + item.name + '</div>'
+        + '<div style="font-size:14px;color:var(--text);font-weight:500;">' + item.name + '</div>'
         + '<div style="font-size:12px;color:var(--text-muted);">₹' + item.price + ' each</div>'
         + '</div>'
         + '<div style="display:flex;align-items:center;gap:10px;">'
-        + subtractBtn
-        + '<span style="font-size:15px;color:var(--text);min-width:24px;text-align:center;font-weight:600;">' + item.qty + '</span>'
+        + minusBtn
+        + '<span style="font-size:15px;color:var(--text);min-width:20px;text-align:center;">×' + item.qty + '</span>'
         + '<button onclick="editQty(' + idx + ',1)" style="width:32px;height:32px;border-radius:50%;background:var(--gold);border:none;color:var(--dark);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">+</button>'
         + '</div>'
         + '</div>';
     }).join('');
 
     var newTotal = editItems.reduce(function(s,i){ return s + i.qty * i.price; }, 0);
+    var title = canSubtract ? 'Modify Order' : 'Add to Order';
+    var hint = canSubtract ? 'Add or remove items from your order.' : 'Tap + to add more items. Removal no longer available.';
+    // No inline menu — handled via Add Items button
 
-    overlay.innerHTML = `
-      <div style="background:var(--surface);border-radius:24px 24px 0 0;padding:24px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-          <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--text);">${isAddOnly ? 'Add to Order' : 'Modify Order'}</div>
-          <button onclick="document.getElementById('modify-overlay').remove();" style="background:var(--surface2);border:1px solid var(--card-border);border-radius:8px;width:30px;height:30px;color:var(--text-muted);font-size:18px;cursor:pointer;">×</button>
-        </div>
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">${isAddOnly ? 'You can only add items after acceptance.' : 'Use + and − to change quantities. Set to 0 to remove an item.'}</div>
-        <div>${itemRows}</div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;margin-top:4px;">
-          <div style="font-size:13px;color:var(--text-muted);">Updated Total</div>
-          <div style="font-size:18px;font-weight:600;color:var(--gold);">₹${newTotal}</div>
-        </div>
-        <button onclick="confirmModify('${orderId}')" style="width:100%;padding:15px;background:var(--gold);border:none;border-radius:14px;color:var(--dark);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;">
-          ${isAddOnly ? "Confirm Addition" : "Confirm Changes"}
-        </button>
-      </div>`;
+    overlay.innerHTML = '<div style="background:var(--surface);border-radius:24px 24px 0 0;padding:24px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">'
+      + '<div style="font-family:Cormorant Garamond,serif;font-size:20px;color:var(--text);">' + title + '</div>'
+      + '<button onclick="document.getElementById(\'modify-overlay\').remove();" style="background:var(--surface2);border:1px solid var(--card-border);border-radius:8px;width:30px;height:30px;color:var(--text-muted);font-size:18px;cursor:pointer;">×</button>'
+      + '</div>'
+      + '<div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">' + hint + '</div>'
+      + '<div>' + itemRows + '</div>'
+      + '<button id="goto-menu-add-btn" style="width:100%;padding:12px;margin:12px 0 4px;background:transparent;border:1px solid var(--card-border);border-radius:12px;color:var(--text-muted);font-size:13px;font-family:DM Sans,sans-serif;cursor:pointer;letter-spacing:0.02em;">+ Add Items from Menu</button>'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;margin-top:4px;">'
+      + '<div style="font-size:13px;color:var(--text-muted);">Updated Total</div>'
+      + '<div style="font-size:18px;font-weight:600;color:var(--gold);">₹' + newTotal + '</div>'
+      + '</div>'
+      + '<button id="confirm-modify-btn" data-orderid="' + orderId + '" style="width:100%;padding:15px;background:var(--gold);border:none;border-radius:14px;color:var(--dark);font-family:DM Sans,sans-serif;font-size:15px;font-weight:600;cursor:pointer;">Confirm Changes</button>'
+      + '</div>';
+
     document.body.appendChild(overlay);
-
+    overlay.addEventListener('click', function(e) {
+      var btn = e.target.closest('.menu-qty-btn');
+      if (!btn) return;
+      window.menuEditQty(btn.getAttribute('data-mname'), Number(btn.getAttribute('data-mprice')), Number(btn.getAttribute('data-mdelta')));
+    });
     window._editItems = editItems;
     window._editOrderId = orderId;
     window._renderEditModal = renderEditModal;
-    window._isAddOnly = isAddOnly;
-    window._origQtys  = origQtys;
+    // Attach confirm button click via JS (safer than inline onclick on iOS)
+    var confirmBtn = document.getElementById('confirm-modify-btn');
+    if (confirmBtn) confirmBtn.addEventListener('click', function() { window.confirmModify(this.getAttribute('data-orderid')); });
+    var addMenuBtn = document.getElementById('goto-menu-add-btn');
+    if (addMenuBtn) addMenuBtn.addEventListener('click', function() {
+      var order = orderHistory.find(function(o){ return o.id === orderId; });
+      if (!order) return;
+      window._addItemsForOrderId = orderId;
+      window._editItems = null;
+      document.body.classList.add('modify-mode');
+      // _modifyItems = editable copy of existing order items
+      window._modifyItems = order.items.map(function(i){ return {name:i.name,price:i.price,qty:i.qty,category:i.category||''}; });
+      var mo = document.getElementById('modify-overlay'); if (mo) mo.remove();
+      cart = {};
+      go('menu');
+      // Swap Place Order → Update Order
+      var placeBtn = document.getElementById('place-btn');
+      var modifyBtn = document.getElementById('modify-place-btn');
+      if (placeBtn) placeBtn.style.display = 'none';
+      if (modifyBtn) { modifyBtn.style.display = ''; modifyBtn.textContent = 'Update Order'; }
+      window._renderModifyBanner();
+    });
   }
 
   renderEditModal();
 }
 
-// Expose to window for onclick handlers
-window.cancelOrder  = cancelOrder;
-window.modifyOrder  = modifyOrder;
+// Render the modify banner with editable existing items + cart total
+window._renderModifyBanner = function() {
+  var banner = document.getElementById('modify-mode-banner');
+  var itemsEl = document.getElementById('modify-mode-items');
+  var totalEl = document.getElementById('modify-mode-total');
+  if (!banner || !window._modifyItems) return;
+  var canSub = true; // always allow subtract in this view
+  itemsEl.innerHTML = window._modifyItems.filter(function(i){ return i.qty>0; }).map(function(item,idx){
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">'
+      + '<span style="font-size:13px;color:var(--text);">'+item.name+'</span>'
+      + '<div style="display:flex;align-items:center;gap:8px;">'
+      + '<button data-midx="'+idx+'" data-mdelta="-1" class="mbanner-btn" style="width:26px;height:26px;border-radius:50%;background:var(--surface2);border:1px solid var(--card-border);color:var(--text);font-size:14px;cursor:pointer;">−</button>'
+      + '<span style="font-size:13px;color:var(--text);min-width:18px;text-align:center;">'+item.qty+'</span>'
+      + '<button data-midx="'+idx+'" data-mdelta="1" class="mbanner-btn" style="width:26px;height:26px;border-radius:50%;background:var(--gold);border:none;color:var(--dark);font-size:14px;cursor:pointer;">+</button>'
+      + '</div></div>';
+  }).join('');
+  // Total = existing items + cart items
+  var existingTotal = window._modifyItems.reduce(function(s,i){ return s+i.qty*i.price; },0);
+  var cartTotal = Object.values(cart).reduce(function(s,i){ return s+i.qty*i.price; },0);
+  totalEl.textContent = '₹'+(existingTotal+cartTotal);
+  banner.style.display = 'block';
+  // Attach button listeners
+  banner.querySelectorAll('.mbanner-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var idx = parseInt(this.getAttribute('data-midx'));
+      var delta = parseInt(this.getAttribute('data-mdelta'));
+      var items = window._modifyItems;
+      if (!items[idx]) return;
+      items[idx].qty = Math.max(0, items[idx].qty + delta);
+      window._renderModifyBanner();
+      _autoSaveModify();
+    });
+  });
+};
 
-window.editQty = function(idx, delta) {
+window.menuEditQty = function(name, price, delta) {
   var items = window._editItems;
   if (!items) return;
-  var isAddOnly = window._isAddOnly;
-  var origQtys  = window._origQtys;
-  var minQty = isAddOnly ? (origQtys ? origQtys[idx] : 1) : 0;
-  items[idx].qty = Math.max(minQty, items[idx].qty + delta);
+  var existing = items.find(function(i){ return i.name === name; });
+  if (existing) {
+    existing.qty = Math.max(0, existing.qty + delta);
+    if (existing.qty === 0) items.splice(items.indexOf(existing), 1);
+  } else if (delta > 0) {
+    items.push({ name: name, price: price, qty: 1, category: '' });
+  }
   window._renderEditModal();
 };
 
-window.confirmModify = async function(orderId) {
+
+// Auto-save _modifyItems to order
+function _autoSaveModify() {
+  var orderId = window._addItemsForOrderId || window._editOrderId;
+  if (!orderId) return;
+  var items = window._modifyItems || window._editItems;
+  if (!items) return;
+  var finalItems = items.filter(function(i){ return i.qty > 0; });
+  var order = orderHistory.find(function(o){ return o.id === orderId; });
+  if (!order) return;
+  order.items = finalItems;
+  order.total = finalItems.reduce(function(s,i){ return s+i.qty*i.price; }, 0);
+  _saveHistory();
+  _waitDb().then(function(db){
+    if(db) db.collection('orders').doc(String(orderId)).update({items:finalItems,total:order.total}).catch(function(){});
+  });
+  updateOrdersBadge();
+}
+window.editQty = function(idx, delta) {
   var items = window._editItems;
   if (!items) return;
-  // Filter out items with qty=0 (removed items)
-  var finalItems = items.filter(function(i){ return i.qty > 0; });
-  if (finalItems.length === 0) { showGuestToast('Cannot remove all items. Cancel the order instead.', 'red'); return; }
-  var newTotal = finalItems.reduce(function(s,i){ return s + i.qty*i.price; }, 0);
-  var isAddOnly = window._isAddOnly;
-  var order = orderHistory.find(function(o){ return o.id === orderId; });
-  if (order) {
-    order.items = finalItems;
-    order.total = newTotal;
-    _saveHistory();
+  if (delta < 0) {
+    if (items[idx].qty <= 1) {
+      // Check if this is the only remaining item
+      var remaining = items.filter(function(i){ return i.qty > 0; });
+      if (remaining.length <= 1) {
+        // Last item — offer to cancel instead
+        var mo = document.getElementById('modify-overlay'); if (mo) mo.remove();
+        var orderId = window._editOrderId;
+        if (orderId) window.cancelOrder(orderId);
+        return;
+      }
+      // Remove this item (set qty to 0, confirmModify filters it out)
+      items[idx].qty = 0;
+    } else {
+      items[idx].qty -= 1;
+    }
+  } else {
+    items[idx].qty += 1;
   }
-  document.getElementById('modify-overlay').remove();
-  renderOrders();
-  updateOrdersBadge();
-  showGuestToast(isAddOnly ? 'Items added to your order!' : 'Order updated!', 'green');
-  var s = await waitForSupa();
-  if (s) {
-    try { var db = await waitForDb(); if(db) await db.collection('orders').doc(String(orderId)).update({ items: items, total: newTotal }); }
-    catch(e) { console.warn('Modify update failed', e); }
-  }
+  window._renderEditModal();
+  _autoSaveModify();
 };
+
+// confirmModify defined in Firebase section below
 
 // Re-render every 30s so ETA countdown ticks
 setInterval(function(){
@@ -2187,11 +2609,9 @@ function submitService() {
   const qty = hasQty ? serviceQty : null;
 
   const now = new Date();
-  var _svcPrefix = window._hotelPrefix || (window.HOTEL_NAME||'SH').trim().split(/\s+/).slice(0,3).map(function(w){return w.charAt(0).toUpperCase();}).join('');
-  var _svcKey = 'hyatt_svc_counter';
-  var _svcN = parseInt(localStorage.getItem(_svcKey) || '0', 10) + 1;
-  localStorage.setItem(_svcKey, String(_svcN));
-  const reqId = _svcPrefix + '-SVC-' + String(_svcN).padStart(4, '0');
+  const _svcNums = serviceHistory.map(function(r){ return parseInt((r.id||'0').replace('REQ-','')); });
+  const _nextSvcNum = (_svcNums.length ? Math.max.apply(null,_svcNums) : 0) + 1;
+  const reqId = 'REQ-' + String(_nextSvcNum).padStart(3, '0');
   const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   const req = {
@@ -2219,41 +2639,16 @@ function submitService() {
   document.getElementById('submit-bar').style.display = 'none';
   document.getElementById('service-success').style.display = 'flex';
 
-  // Write to Firebase + subscribe to live status updates
-  waitForDb().then(function(db) {
-    if (!db) { console.warn('Firebase not ready for service request'); return; }
-    var svcData = {
-      id: reqId,
-      room: String(window.ROOM_NUM || '000'),
-      guest: String(window.GUEST_NAME || 'Guest'),
-      type: selectedService,
-      icon: req.icon,
-      qty: qty,
-      note: note || null,
-      status: 'received',
-      placed_at: now.toISOString()
-    };
-    db.collection('service_requests').doc(reqId).set(svcData)
-      .then(function() {
-        // Subscribe to live status updates
-        db.collection('service_requests').doc(reqId).onSnapshot(function(doc) {
-          if (!doc.exists) return;
-          var newStatus = doc.data().status;
-          var r = serviceHistory.find(function(x){ return x.id === reqId; });
-          if (r && r.status !== newStatus) {
-            r.status = newStatus;
-            updateServicesBadge();
-            if (document.getElementById('screen-services').classList.contains('active')) renderServices();
-            var t = { assigned:'✓ Request assigned to staff', inprogress:'🚶 Staff is on the way…', done:'✓ Request completed!' };
-            if (t[newStatus]) showGuestToast(t[newStatus], 'green');
-          }
-        });
-      })
-      .catch(function(e) { console.error('Service insert failed:', e); });
+  // Write to Firebase
+  _waitDb().then(function(db){
+    if(!db)return;
+    db.collection('service_requests').doc(String(reqId)).set({id:reqId,room:String(window.ROOM_NUM||'000'),guest:String(window.GUEST_NAME||'Guest'),type:selectedService,icon:req.icon,qty:qty,note:note||null,status:'received',placed_at:now.toISOString()}).then(function(){
+      db.collection('service_requests').doc(String(reqId)).onSnapshot(function(doc){
+        if(!doc.exists)return;var r=serviceHistory.find(function(x){return x.id===reqId;});if(!r||doc.data().status===r.status)return;
+        r.status=doc.data().status;updateServicesBadge();if(document.getElementById('screen-services').classList.contains('active'))renderServices();
+      });
+    });
   });
-  // dummy to maintain structure
-  xhrSvc.onerror=function(){console.warn('Service XHR error');};
-  xhrSvc.send(svcData);
 }
 
 function resetService() {
@@ -2275,7 +2670,7 @@ function updateServicesBadge() {
   const desc = document.getElementById('services-card-desc');
   if (serviceHistory.length === 0) { card.style.display = 'none'; return; }
   card.style.display = 'flex';
-  const active = serviceHistory.filter(r => r.status !== 'done');
+  const active = serviceHistory.filter(r => r.status !== 'done' && r.status !== 'cancelled');
   if (active.length > 0) {
     badge.style.display = 'inline-block';
     desc.textContent = `${active.length} request${active.length > 1 ? 's' : ''} in progress`;
@@ -2296,56 +2691,97 @@ function renderServices() {
     return;
   }
 
-  const svcStepsDef  = ['Received', 'Assigned', 'In Progress', 'Done'];
-  const svcStepIndex = { received: 0, assigned: 1, inprogress: 2, done: 3 };
+  const svcStepsDef  = ['Received', 'Assigned', 'Done'];
+  const svcStepIndex = { received: 0, assigned: 1, inprogress: 2, done: 2 };
   const svcStatusLabel = { received: 'Received', assigned: 'Assigned', inprogress: 'In Progress', done: 'Done' };
   const svcStatusClass = { received: 'status-preparing', assigned: 'status-preparing', inprogress: 'status-active', done: 'status-delivered' };
 
   function renderSvcCard(r) {
-    const si = svcStepIndex[r.status];
-    const steps = svcStepsDef.map((s, i) => {
-      const cls = i < si ? 'done' : i === si ? 'active' : '';
-      const checkSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polyline points="20 6 9 17 4 12"/></svg>`;
-      return `<div class="tracker-step ${cls}">
-        <div class="tracker-dot">${checkSvg}</div>
-        <div class="tracker-step-name">${s}</div>
-      </div>`;
+    var si = svcStepIndex[r.status];
+    var isDone = r.status === 'done' || r.status === 'cancelled';
+    var checkSvgGreen = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    var steps = svcStepsDef.map(function(s, i) {
+      var cls = (i === 0 || i < si) ? 'done' : (i === si ? 'active' : '');
+      var tick = (i === 0 || i < si) ? checkSvgGreen : '';
+      var anim = '';
+      if (i === 1 && si === 0) {
+        anim = '<div style="position:absolute;top:6px;left:calc(50% - 5px);width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
+      } else if (i === si && i > 0 && i < svcStepsDef.length - 1) {
+        anim = '<div style="position:absolute;top:6px;left:calc(50% - 5px);width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
+      }
+      return '<div class="tracker-step ' + cls + '">' + anim + '<div class="tracker-dot">' + tick + '</div><div class="tracker-step-name">' + s + '</div></div>';
     }).join('');
 
-    // Build subtitle: qty + note
-    let subtitle = '';
-    if (r.qty) {
-      const unit = r.type === 'Water'
-        ? (r.qty > 1 ? `${r.qty} bottles` : '1 bottle')
-        : (r.qty > 1 ? `${r.qty} towels` : '1 towel');
+    var subtitle = '';
+    if (r.items && Array.isArray(r.items)) {
+      // Multi-item request
+      subtitle = r.items.map(function(it){
+        if (it.type === 'Water') return it.qty > 1 ? it.qty + ' bottles' : '1 bottle';
+        if (it.type === 'Towels') return it.qty > 1 ? it.qty + ' towels' : '1 towel';
+        if (it.type === 'Other') return it.note ? '"' + it.note + '"' : 'Other';
+        return it.type;
+      }).join(' · ');
+      if (r.otherNote && !r.items.find(function(i){return i.type==='Other';})) subtitle += (subtitle?' · ':'"') + r.otherNote + '"';
+    } else if (r.qty && ['Water','Towels'].indexOf(r.type) > -1) {
+      var unit = r.type === 'Water' ? (r.qty > 1 ? r.qty + ' bottles' : '1 bottle') : (r.qty > 1 ? r.qty + ' towels' : '1 towel');
       subtitle += unit;
     }
-    if (r.note) subtitle += (subtitle ? ' · ' : '') + `"${r.note}"`;
+    if (r.note) subtitle += (subtitle ? ' · ' : '') + '"' + r.note + '"';
 
-    return `<div class="order-card">
-      <div class="svc-card-head">
-        <div class="svc-type-icon">${r.icon}</div>
-        <div class="svc-card-meta">
-          <div class="svc-card-name">${r.type}${r.qty ? ` <span style="color:var(--gold);font-size:14px;font-weight:400">×${r.qty}</span>` : ''}</div>
-          ${subtitle ? `<div class="svc-card-note">${subtitle}</div>` : ''}
-          <div class="svc-card-time">${r.id} · ${r.date} · ${r.time}</div>
-        </div>
-        <div class="order-status-pill ${svcStatusClass[r.status]}">${svcStatusLabel[r.status]}</div>
-      </div>
-      ${r.status !== 'done' ? `
-      <div class="order-tracker">
-        <div class="tracker-label">Request Status</div>
-        <div class="tracker-steps">${steps}</div>
-      </div>` : `
-      <div style="padding:12px 18px;display:flex;align-items:center;gap:8px">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-        <span style="font-size:13px;color:var(--green)">Completed</span>
-      </div>`}
-    </div>`;
+    var cardCls = isDone ? 'order-card past-card' : 'order-card';
+    var pillDot = !isDone ? '<span class="pill-dot pill-dot-green"></span>' : '';
+    var svcLabel = { received: 'LIVE', assigned: 'LIVE', inprogress: 'LIVE', done: 'Done', cancelled: 'Cancelled' };
+    var svcCls = { received: 'status-live', assigned: 'status-live', inprogress: 'status-live', done: 'status-delivered-green', cancelled: 'status-cancelled-red' };
+
+    var _rid = String(r.id);
+    var canSvcModify = r.status === 'received' || r.status === 'assigned';
+    var canSvcCancel = r.status === 'received' || r.status === 'assigned';
+    var modifyBtns = (canSvcModify || canSvcCancel)
+      ? '<div style="display:flex;gap:10px;padding:10px 18px 4px;">'
+        + (canSvcModify ? '<button id="svc-mod-' + _rid + '" style="flex:1;padding:10px;background:transparent;border:1px solid rgba(201,169,110,0.4);border-radius:10px;color:var(--gold);font-size:13px;font-family:DM Sans,sans-serif;cursor:pointer;">Modify</button>' : '')
+        + '<button id="svc-can-' + _rid + '" style="flex:1;padding:10px;background:transparent;border:1px solid rgba(192,57,43,0.25);border-radius:10px;color:#C0392B;font-size:13px;font-family:DM Sans,sans-serif;cursor:pointer;">Cancel</button>'
+        + '</div>'
+      : '';
+
+    var trackerHtml = !isDone
+      ? '<div class="order-tracker">'
+        + '<div class="tracker-header">'
+        + '<div class="tracker-label">Request Status</div>'
+        + '<div style="display:flex;align-items:center;justify-content:flex-end;gap:2px;">'
+        + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+        + '<span style="font-size:14px;font-weight:700;font-family:DM Sans,sans-serif;color:var(--text-muted);">~15 min</span>'
+        + '</div></div>'
+        + '<div class="tracker-steps">' + steps + '</div>'
+        + '</div>'
+        + '<div class="tracker-eta" style="margin-top:4px;padding-left:calc(100%/3 * 0.5);" id="svc-msg-' + r.id + '"><div class="tracker-eta-dot"></div><span id="svc-txt-' + r.id + '" style="">Your request will be entertained soon</span></div>'
+        + modifyBtns
+      : '';
+
+    return '<div class="' + cardCls + '">'
+      + '<div class="order-card-head">'
+      + '<div class="order-card-meta">'
+      + '<div class="order-card-id">' + r.id + ' · ' + r.date + ' · ' + r.time + '</div>'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-top:4px;">'
+      + (r.items && Array.isArray(r.items)
+          ? r.items.map(function(it){ return '<span style="font-size:20px;margin-right:2px;">' + (it.icon||'🔔') + '</span>'; }).join('')
+          : '<span style="font-size:22px;">' + r.icon + '</span>')
+      + '<div><div style="font-size:16px;font-family:Cormorant Garamond,serif;color:var(--text);">'
+      + (r.items && Array.isArray(r.items)
+          ? r.items.map(function(it){ return it.type + (it.qty > 1 ? ' ×'+it.qty : ''); }).join(' · ')
+          : r.type + (r.qty ? ' <span style="color:var(--gold);font-size:14px;">×' + r.qty + '</span>' : ''))
+      + '</div>'
+      + (subtitle ? '<div style="font-size:12px;color:var(--text-muted);">' + subtitle + '</div>' : '')
+      + '</div></div>'
+      + '</div>'
+      + '<div class="order-status-pill ' + (svcCls[r.status]||'status-delivered') + '">' + pillDot + (svcLabel[r.status]||r.status) + '</div>'
+      + '</div>'
+      + trackerHtml
+      + '</div>';
   }
 
-  const active = serviceHistory.filter(r => r.status !== 'done');
-  const done   = serviceHistory.filter(r => r.status === 'done');
+  const active     = serviceHistory.filter(r => r.status !== 'done' && r.status !== 'cancelled');
+  const done       = serviceHistory.filter(r => r.status === 'done');
+  const cancelled  = serviceHistory.filter(r => r.status === 'cancelled');
 
   let html = '';
 
@@ -2353,7 +2789,7 @@ function renderServices() {
   if (active.length > 0) {
     const names = active.map(r => {
       let label = r.type;
-      if (r.qty) label += ` ×${r.qty}`;
+      if (r.qty && ['Water','Towels'].indexOf(r.type) > -1) label += ` ×${r.qty}`;
       return label;
     });
     const bannerText = active.length === 1
@@ -2374,8 +2810,209 @@ function renderServices() {
     html += `<div class="orders-section-label" style="margin-top:${active.length ? '20px' : '0'}">Completed</div>`;
     html += done.map(renderSvcCard).join('');
   }
+  if (cancelled.length > 0) {
+    html += `<div class="orders-section-label" style="margin-top:${(active.length||done.length) ? '20px' : '0'}">Cancelled</div>`;
+    html += cancelled.map(renderSvcCard).join('');
+  }
   body.innerHTML = html;
+  // Rotate status text for active requests
+  var svcMsgs = [
+    'Your request will be entertained soon',
+    'We love to serve you',
+    'Thanks for your patience'
+  ];
+  serviceHistory.filter(function(r){ return r.status !== 'done' && r.status !== 'cancelled'; }).forEach(function(r) {
+    var el = document.getElementById('svc-txt-' + r.id);
+    if (!el || el._rotating) return;
+    el._rotating = true;
+    var idx = 0;
+    el._rotateTimer = setInterval(function() {
+      var el2 = document.getElementById('svc-txt-' + r.id);
+      if (!el2) { clearInterval(el._rotateTimer); return; }
+      idx = (idx + 1) % svcMsgs.length;
+      el2.textContent = svcMsgs[idx];
+    }, 2000);
+  });
+  // Attach button listeners by ID after render
+  serviceHistory.forEach(function(r) {
+    var mb = document.getElementById('svc-mod-' + r.id);
+    var cb = document.getElementById('svc-can-' + r.id);
+    if (mb) mb.addEventListener('click', function(){ window.modifySvcRequest(r.id); });
+    if (cb) cb.addEventListener('click', function(){ window.cancelSvcRequest(r.id); });
+  });
 }
+
+// ── Service Modify/Cancel
+window.modifySvcRequest = function(reqId) {
+  var req = serviceHistory.find(function(r){ return r.id === reqId; });
+  if (!req) return;
+  if (req.status === 'assigned') {
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;';
+    ov.innerHTML = '<div style="background:var(--surface);border-radius:20px;padding:28px 24px;width:100%;max-width:320px;text-align:center;">'
+      + '<div style="font-family:Cormorant Garamond,serif;font-size:20px;color:var(--text);margin-bottom:10px;">Modify Request?</div>'
+      + '<div style="font-size:13px;color:var(--text-muted);margin-bottom:24px;">Request has been assigned. Please call reception to modify.</div>'
+      + '<button id="svc-mod-call" style="width:100%;padding:13px;background:rgba(201,169,110,0.1);border:1.5px solid rgba(201,169,110,0.4);border-radius:12px;color:var(--gold);font-family:DM Sans,sans-serif;font-size:15px;cursor:pointer;margin-bottom:10px;">📞 Call Reception</button>'
+      + '<button id="svc-mod-back" style="width:100%;padding:11px;background:transparent;border:none;color:var(--text-muted);font-family:DM Sans,sans-serif;font-size:14px;cursor:pointer;">Go Back</button>'
+      + '</div>';
+    document.body.appendChild(ov);
+    document.getElementById('svc-mod-call').addEventListener('click', function(){ callReception(); ov.remove(); });
+    document.getElementById('svc-mod-back').addEventListener('click', function(){ ov.remove(); });
+    return;
+  }
+  if (req.status !== 'received') return;
+
+  var typeIcons = { 'Water':'💧','Towels':'🧻','Room Cleaning':'🧹','Other':'🔧' };
+  var qtyTypes = ['Water','Towels'];
+  var allTypes = ['Water','Towels','Room Cleaning','Other'];
+
+  // Build initial items from existing request
+  var modItems = {};
+  if (req.items && Array.isArray(req.items)) {
+    req.items.forEach(function(it){ modItems[it.type] = it.qty || 1; });
+  } else if (req.type && req.type.indexOf(' + ') > -1) {
+    // Already combined type string
+    req.type.split(' + ').forEach(function(t){ modItems[t.trim()] = 1; });
+  } else {
+    modItems[req.type] = req.qty || 1;
+  }
+
+  function updateDisplay() {
+    allTypes.forEach(function(t) {
+      var qty = modItems[t] || 0;
+      var row = document.getElementById('svc-row-' + t.replace(/ /g,'_'));
+      if (!row) return;
+      var minusEl = row.querySelector('.svc-minus');
+      var qtyEl = row.querySelector('.svc-qty');
+      var plusEl = row.querySelector('.svc-plus');
+      var otherInput = document.getElementById('svc-other-input');
+      if (qty > 0) {
+        if (minusEl) minusEl.style.display = '';
+        if (qtyEl) qtyEl.textContent = qty;
+        if (qtyEl) qtyEl.style.display = '';
+        if (plusEl) { plusEl.style.background = 'var(--gold)'; plusEl.style.color = 'var(--dark)'; plusEl.style.borderColor = 'var(--gold)'; }
+      } else {
+        if (minusEl) minusEl.style.display = 'none';
+        if (qtyEl) qtyEl.style.display = 'none';
+        if (plusEl) { plusEl.style.background = 'var(--surface2)'; plusEl.style.color = 'var(--text-muted)'; plusEl.style.borderColor = 'var(--card-border)'; }
+      }
+      // Show Other text input when Other is selected
+      if (t === 'Other' && otherInput) {
+        otherInput.style.display = qty > 0 ? 'block' : 'none';
+      }
+    });
+    var summaryEl = document.getElementById('svc-summary');
+    if (summaryEl) {
+      var sel = Object.keys(modItems).filter(function(t){ return modItems[t]>0; });
+      summaryEl.textContent = sel.length
+        ? sel.map(function(t){ return (qtyTypes.indexOf(t)>-1 ? modItems[t]+'× ' : '') + t; }).join(' · ')
+        : 'Nothing selected';
+    }
+  }
+
+  var ov = document.getElementById('svc-modify-overlay');
+  if (ov) ov.remove();
+  var overlay = document.createElement('div');
+  overlay.id = 'svc-modify-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:flex-end;justify-content:center;';
+
+  var rows = allTypes.map(function(t) {
+    var qty = modItems[t] || 0;
+    var tid = t.replace(/ /g,'_');
+    return '<div id="svc-row-' + tid + '" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--card-border);">'
+      + '<div style="display:flex;align-items:center;gap:10px;">'
+      + '<span style="font-size:22px;">' + typeIcons[t] + '</span>'
+      + '<span style="font-size:14px;color:var(--text);">' + t + '</span>'
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:8px;">'
+      + '<button class="svc-minus" data-type="' + t + '" style="width:30px;height:30px;border-radius:50%;background:var(--surface2);border:1px solid var(--card-border);color:var(--text);font-size:18px;cursor:pointer;' + (qty===0?'display:none':'') + '">−</button>'
+      + '<span class="svc-qty" style="font-size:14px;color:var(--text);min-width:20px;text-align:center;' + (qty===0?'display:none':'') + '">' + qty + '</span>'
+      + '<button class="svc-plus" data-type="' + t + '" style="width:30px;height:30px;border-radius:50%;background:' + (qty>0?'var(--gold)':'var(--surface2)') + ';border:1px solid ' + (qty>0?'var(--gold)':'var(--card-border)') + ';color:' + (qty>0?'var(--dark)':'var(--text-muted)') + ';font-size:18px;cursor:pointer;">+</button>'
+      + '</div></div>';
+  }).join('');
+
+  var sel0 = Object.keys(modItems).filter(function(t){ return modItems[t]>0; });
+  var summary0 = sel0.length ? sel0.map(function(t){ return (qtyTypes.indexOf(t)>-1?modItems[t]+'× ':'')+t; }).join(' · ') : 'Nothing selected';
+
+  overlay.innerHTML = '<div style="background:var(--surface);border-radius:24px 24px 0 0;padding:24px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">'
+    + '<div style="font-family:Cormorant Garamond,serif;font-size:20px;color:var(--text);">Modify Request</div>'
+    + '<button id="svc-mod-close" style="background:var(--surface2);border:1px solid var(--card-border);border-radius:8px;width:30px;height:30px;color:var(--text-muted);font-size:18px;cursor:pointer;">×</button>'
+    + '</div>'
+    + rows
+    + '<input id="svc-other-input" type="text" placeholder="Describe what you need..." style="display:' + (modItems['Other']>0?'block':'none') + ';width:100%;margin-top:8px;padding:10px 12px;background:var(--surface2);border:1px solid var(--card-border);border-radius:10px;color:var(--text);font-size:14px;font-family:DM Sans,sans-serif;outline:none;box-sizing:border-box;" value="' + (req.otherNote||'') + '">'
+    + '<div id="svc-summary" style="font-size:12px;color:var(--text-muted);margin:12px 0 4px;padding-top:8px;border-top:1px solid var(--card-border);">' + summary0 + '</div>'
+    + '<button id="svc-mod-confirm" style="width:100%;margin-top:12px;padding:14px;background:var(--gold);border:none;border-radius:14px;color:var(--dark);font-family:DM Sans,sans-serif;font-size:15px;font-weight:600;cursor:pointer;">Update Request</button>'
+    + '</div>';
+
+  document.body.appendChild(overlay);
+
+  document.getElementById('svc-mod-close').addEventListener('click', function(){ overlay.remove(); });
+
+  overlay.querySelectorAll('.svc-plus').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var t = this.getAttribute('data-type');
+      modItems[t] = (modItems[t] || 0) + 1;
+      updateDisplay();
+    });
+  });
+  overlay.querySelectorAll('.svc-minus').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var t = this.getAttribute('data-type');
+      if (modItems[t] > 1) modItems[t]--;
+      else delete modItems[t];
+      updateDisplay();
+    });
+  });
+
+  document.getElementById('svc-mod-confirm').addEventListener('click', function(){
+    var selectedItems = Object.keys(modItems).filter(function(t){ return modItems[t]>0; });
+    if (!selectedItems.length) { overlay.remove(); return; }
+    var otherNote = document.getElementById('svc-other-input') ? document.getElementById('svc-other-input').value.trim() : '';
+    req.otherNote = otherNote;
+    req.items = selectedItems.map(function(t){ return {type:t, qty:modItems[t], icon:typeIcons[t], note:(t==='Other'?otherNote:null)}; });
+    req.type = selectedItems.join(' + ');
+    req.icon = selectedItems.map(function(t){ return typeIcons[t]; }).join('');
+    req.qty = null;
+    _saveHistory(); renderServices(); updateServicesBadge();
+    overlay.remove(); showGuestToast('Request updated!','green');
+    _waitDb().then(function(db){
+      if(db) db.collection('service_requests').doc(String(reqId)).update({items:req.items,type:req.type}).catch(function(){});
+    });
+  });
+};
+
+window.cancelSvcRequest = function(reqId) {
+  var req = serviceHistory.find(function(r){ return r.id === reqId; });
+  if (!req) return;
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;';
+  if (req.status === 'assigned') {
+    // Already assigned — must call reception
+    overlay.innerHTML = '<div style="background:var(--surface);border-radius:20px;padding:28px 24px;width:100%;max-width:320px;text-align:center;">'
+      + '<div style="font-family:Cormorant Garamond,serif;font-size:20px;color:var(--text);margin-bottom:10px;">Cancel Request?</div>'
+      + '<div style="font-size:13px;color:var(--text-muted);margin-bottom:24px;">Your request has been assigned. Please call reception to cancel.</div>'
+      + '<button id="svc-call-btn" style="width:100%;padding:13px;background:rgba(192,57,43,0.1);border:1.5px solid rgba(192,57,43,0.3);border-radius:12px;color:#C0392B;font-family:DM Sans,sans-serif;font-size:15px;cursor:pointer;margin-bottom:10px;">📞 Call Reception</button>'
+      + '<button id="svc-cancel-no" style="width:100%;padding:11px;background:transparent;border:none;color:var(--text-muted);font-family:DM Sans,sans-serif;font-size:14px;cursor:pointer;">Go Back</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
+    document.getElementById('svc-call-btn').addEventListener('click', function(){ callReception(); overlay.remove(); });
+  } else {
+    overlay.innerHTML = '<div style="background:var(--surface);border-radius:20px;padding:28px 24px;width:100%;max-width:320px;text-align:center;">'
+      + '<div style="font-family:Cormorant Garamond,serif;font-size:20px;color:var(--text);margin-bottom:10px;">Cancel Request?</div>'
+      + '<div style="font-size:13px;color:var(--text-muted);margin-bottom:24px;">Your request has not been assigned yet.</div>'
+      + '<button id="svc-cancel-yes" style="width:100%;padding:13px;background:rgba(192,57,43,0.1);border:1.5px solid rgba(192,57,43,0.3);border-radius:12px;color:#C0392B;font-family:DM Sans,sans-serif;font-size:15px;cursor:pointer;margin-bottom:10px;">Yes, cancel</button>'
+      + '<button id="svc-cancel-no" style="width:100%;padding:11px;background:transparent;border:none;color:var(--text-muted);font-family:DM Sans,sans-serif;font-size:14px;cursor:pointer;">No, keep</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
+    document.getElementById('svc-cancel-yes').addEventListener('click', function(){
+      req.status = 'cancelled'; _saveHistory(); renderServices(); updateServicesBadge();
+      overlay.remove(); showGuestToast('Request cancelled.','green');
+      _waitDb().then(function(db){ if(db) db.collection('service_requests').doc(String(reqId)).update({status:'cancelled'}).catch(function(){}); });
+    });
+  }
+  document.getElementById('svc-cancel-no').addEventListener('click', function(){ overlay.remove(); });
+};
 
 // ── Call
 function callReception() {
@@ -2469,7 +3106,6 @@ if (roomChannel) {
       // Add to our local order history so we see it in My Orders
       if (!orderHistory.find(o => o.id === msg.order.id)) {
         orderHistory.unshift({ ...msg.order, fromPeer: true });
-        _saveHistory();
         updateOrdersBadge();
         if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
       }
@@ -2538,17 +3174,27 @@ function go(screenId) {
 // Broadcast cart changes so peer sees real-time item count
 function updateCartBtn() {
   const btn = document.getElementById('cart-btn');
+  const stickyCall = document.getElementById('cart-sticky-call');
   const badge = document.getElementById('cart-badge');
   const label = document.getElementById('cart-label');
-  const total = Object.values(cart).reduce((s,i)=>s+i.qty,0);
-  const amt = Object.values(cart).reduce((s,i)=>s+i.qty*i.price,0);
+  // In modify mode, use _modifyItems totals
+  var total, amt;
+  if (window._addItemsForOrderId && window._modifyItems) {
+    total = window._modifyItems.filter(function(i){return i.qty>0;}).reduce(function(s,i){return s+i.qty;},0);
+    amt = window._modifyItems.filter(function(i){return i.qty>0;}).reduce(function(s,i){return s+i.qty*i.price;},0);
+  } else {
+    total = Object.values(cart).reduce((s,i)=>s+i.qty,0);
+    amt = Object.values(cart).reduce((s,i)=>s+i.qty*i.price,0);
+  }
   if (total > 0) {
     btn.classList.add('visible');
-    badge.textContent = `₹${amt}`;
-    label.textContent = `View Cart · ${total} item${total>1?'s':''}`;
-    broadcastActivity('carting');
+    if (stickyCall) stickyCall.classList.add('visible');
+    badge.textContent = '₹'+amt;
+    label.textContent = (window._addItemsForOrderId ? 'Update Order · ' : 'View Cart · ') + total + ' item'+(total>1?'s':'');
+    if (!window._addItemsForOrderId) broadcastActivity('carting');
   } else {
     btn.classList.remove('visible');
+    if (stickyCall) stickyCall.classList.remove('visible');
   }
 }
 
@@ -2579,7 +3225,7 @@ function showOrderNotification(order) {
   // Soft toast on the active screen — don't interrupt non-cart users
   const toast = document.createElement('div');
   toast.style.cssText = `
-    position:fixed;top:80px;left:50%;transform:translateX(-50%);
+    position:fixed;bottom:40px;left:50%;transform:translateX(-50%);
     background:var(--surface);border:1px solid var(--topbar-border);
     border-radius:14px;padding:12px 18px;z-index:250;
     font-size:14px;color:var(--text-muted);
@@ -2652,8 +3298,6 @@ function initTheme() {
   // Hotel name + logo from dashboard localStorage
   var hotelName = window.HOTEL_NAME || localStorage.getItem('hyatt_hotel_name') || 'Shakti Hotels';
   var initial = hotelName.trim().charAt(0).toUpperCase();
-  // Build order prefix from hotel name initials (up to 3 words)
-  window._hotelPrefix = hotelName.trim().split(/\s+/).slice(0,3).map(function(w){ return w.charAt(0).toUpperCase(); }).join('');
   // Update all hotel name elements
   document.querySelectorAll('.hotel-name').forEach(function(el){ el.textContent = hotelName; });
   // Update page title
@@ -2691,299 +3335,197 @@ function initTheme() {
 initTheme();
 
 // ══════════════════════════════════════════
-// ── FIREBASE DATABASE
+// ── FIREBASE
 // ══════════════════════════════════════════
-const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyAb1G6UATyCR0l_8kDyO3VpRgMwDJ5l7UI",
-  authDomain:        "roocan-16ea0.firebaseapp.com",
-  projectId:         "roocan-16ea0",
-  storageBucket:     "roocan-16ea0.firebasestorage.app",
-  messagingSenderId: "521412270728",
-  appId:             "1:521412270728:web:c2564cf45855e2a6961d3d"
-};
-var _fbDb = null; // var so it's hoisted — referenced by _syncStatusFromFirebase above
+var _db = null;
+function _initDb(){if(_db)return;if(typeof firebase==='undefined'||!firebase.firestore)return;try{var app=(firebase.apps&&firebase.apps.length)?firebase.app():firebase.initializeApp({apiKey:"AIzaSyAb1G6UATyCR0l_8kDyO3VpRgMwDJ5l7UI",authDomain:"roocan-16ea0.firebaseapp.com",projectId:"roocan-16ea0",storageBucket:"roocan-16ea0.firebasestorage.app",messagingSenderId:"521412270728",appId:"1:521412270728:web:c2564cf45855e2a6961d3d"});_db=firebase.firestore();}catch(e){console.warn('FB init:',e.message);}}
+document.addEventListener('DOMContentLoaded',function(){_initDb();});
+window.addEventListener('load',function(){_initDb();});
+setTimeout(function(){_initDb();},300);
+setTimeout(function(){_initDb();},1000);
+function _waitDb(){return new Promise(function(resolve){if(_db){resolve(_db);return;}var n=0,iv=setInterval(function(){_initDb();if(_db){clearInterval(iv);resolve(_db);}else if(++n>60){clearInterval(iv);resolve(null);}},200);});}
 
-function initFirebase() {
-  try {
-    if (typeof firebase === 'undefined' || typeof firebase.firestore === 'undefined') {
-      return; // SDK not loaded yet — waitForDb() will retry
-    }
-    if (_fbDb) return; // already initialized
-    // Initialize app only once — reuse existing if already created
-    var app = (!firebase.apps || !firebase.apps.length)
-      ? firebase.initializeApp(FIREBASE_CONFIG)
-      : firebase.app(); // get existing app
-    _fbDb = firebase.firestore(app);
-    window._guestFbDb = _fbDb; // expose globally for debug
-    console.log('Guest Firebase ready ✅ projectId:', FIREBASE_CONFIG.projectId);
-  } catch(e) { console.warn('Firebase init failed:', e && e.message || e); }
-}
-
-// Don't call initFirebase immediately — wait for SDK to load first
-document.addEventListener('DOMContentLoaded', function(){ if(!_fbDb) initFirebase(); });
-window.addEventListener('load', function(){ if(!_fbDb) initFirebase(); });
-// Also try after a short delay in case scripts load out of order
-setTimeout(function(){ if(!_fbDb) initFirebase(); }, 500);
-setTimeout(function(){ if(!_fbDb) initFirebase(); }, 1500);
-
-// Returns a promise that resolves when Firebase db is ready (max 10s wait)
-function waitForDb() {
-  return new Promise(function(resolve) {
-    if (_fbDb) { resolve(_fbDb); return; }
-    // Try to init now in case SDK loaded since last attempt
-    initFirebase();
-    var tries = 0;
-    var iv = setInterval(function() {
-      if (!_fbDb) initFirebase(); // keep trying
-      if (_fbDb) { clearInterval(iv); resolve(_fbDb); return; }
-      if (++tries > 100) { clearInterval(iv); resolve(null); } // 10s max
-    }, 100);
-  });
-}
-
-// Kept for any legacy references
-function waitForSupa() { return waitForDb(); }
-
-// ══════════════════════════════════════════
 // ── ENTRY SCREEN
 document.addEventListener('DOMContentLoaded', function() {
+  // Restore orders from localStorage on page load
+  try {
+    var raw = localStorage.getItem('hyatt_g_' + String(window.ROOM_NUM||'000'));
+    if (raw) {
+      var d = JSON.parse(raw);
+      if (d.ts && Date.now()-d.ts < 86400000) {
+        if (Array.isArray(d.orders)) orderHistory = d.orders;
+        if (Array.isArray(d.services)) serviceHistory = d.services;
+      }
+    }
+  } catch(e) {}
+  if (orderHistory.length) updateOrdersBadge();
+  if (serviceHistory.length) updateServicesBadge();
+
   var rn = window.ROOM_NUM;
   var sRoom = document.getElementById('splash-room-num');
   if (sRoom) sRoom.textContent = rn;
   document.querySelectorAll('.dyn-room').forEach(function(el){ el.textContent = 'Room ' + rn; });
-  var ss = document.getElementById('success-sub');
-  if (ss) ss.textContent = 'Room ' + rn + ' · Your food is being prepared';
-  var ms = document.getElementById('merge-sub');
-  if (ms) ms.textContent = 'Someone in Room ' + rn + ' just ordered. Want to add to it?';
-  setTimeout(function(){
+  var ss = document.getElementById('success-sub'); if(ss) ss.textContent = 'Room '+rn+' · Your food is being prepared';
+  var ms = document.getElementById('merge-sub'); if(ms) ms.textContent = 'Someone in Room '+rn+' just ordered. Want to add to it?';
+  // If name already saved, skip entry screen
+  var _savedName = '';
+  try { _savedName = localStorage.getItem('hyatt_guest_name') || ''; } catch(e) {}
+  if (_savedName) {
+    window.GUEST_NAME = _savedName;
     var inp = document.getElementById('guest-name-input');
-    if(inp) inp.focus();
-  }, 500);
-
-  // Re-subscribe to any active orders for this room (handles page refresh)
-  setTimeout(function() {
-    waitForDb().then(function(db) {
-      if (!db) return;
-      var room = String(window.ROOM_NUM || '000');
-      // Simple single-field query — no composite index needed
-      db.collection('orders')
-        .where('room', '==', room)
-        .get()
-        .then(function(snap) {
-          snap.docs.forEach(function(doc) {
-            var data = doc.data();
-            var orderId = doc.id;
-            // Skip completed orders — filter client-side
-            if (data.status === 'delivered' || data.status === 'cancelled') return;
-            // Check if already in orderHistory
-            var existing = orderHistory.find(function(o){ return o.id === orderId; });
-            if (!existing) {
-              // Add to history
-              var placedMs = data.placed_at ? new Date(data.placed_at).getTime() : Date.now();
-              var order = {
-                id: orderId,
-                time: new Date(placedMs).toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',hour12:true}),
-                date: new Date(placedMs).toLocaleDateString('en-IN', {day:'numeric',month:'short'}),
-                items: data.items || [],
-                total: data.total || 0,
-                status: data.status || 'new',
-                placedAt: placedMs,
-                eta: 25,
-                isMerge: false,
-                fromPeer: false
-              };
-              orderHistory.unshift(order);
-              _saveHistory();
-              existing = order;
-            }
-            // Re-subscribe — skip if already has an active listener from this session
-            if (window._guestListeners && window._guestListeners[orderId]) return;
-            if (!window._guestListeners) window._guestListeners = {};
-            var prevSt = null;
-            window._guestListeners[orderId] = db.collection('orders').doc(orderId).onSnapshot(function(d) {
-              if (!d.exists) return;
-              var docData = d.data();
-              var newStatus = docData.status;
-              var isFirstFire = (prevSt === null);
-              if (newStatus === prevSt) return;
-              prevSt = newStatus;
-              existing.status = newStatus;
-              if (newStatus === 'accepted' && !existing.acceptedAt) existing.acceptedAt = Date.now();
-              if (newStatus === 'preparing' && !existing.preparingAt) existing.preparingAt = Date.now();
-              if (newStatus === 'rejected') existing.rejection_reason = docData.rejection_reason || null;
-              _saveHistory();
-              updateOrdersBadge();
-              renderOrders(); // always re-render so tracker updates
-              if (newStatus === 'preparing') startBarTicker();
-              // Only show toast for real-time changes, not page-load sync
-              if (isFirstFire) return;
-              var msgs = {
-                accepted:  ['✓ Order accepted! Kitchen is getting started.', 'green'],
-                preparing: ['🍳 Your food is being prepared!', 'green'],
-                ready:     ['🛎 Your order is ready! Delivering now.', 'green'],
-                rejected:  ['Order not accepted: ' + (docData.rejection_reason||'contact reception'), 'red'],
-                delivered: ['✓ Your order has been delivered! Enjoy!', 'green']
-              };
-              if (msgs[newStatus]) showGuestToast(msgs[newStatus][0], msgs[newStatus][1]);
-            });
-          });
-          if (!snap.empty) {
-            _saveHistory();
-            updateOrdersBadge();
-            renderOrders();
-          }
-        }).catch(function(e){ console.warn('Room orders fetch:', e); });
-    });
-  }, 500); // try at 500ms — _syncStatusFromFirebase handles retries if not ready
+    if (inp) inp.value = _savedName;
+    go('home');
+  } else {
+    setTimeout(function(){ var inp=document.getElementById('guest-name-input'); if(inp) inp.focus(); }, 500);
+  }
+  if(orderHistory.length){updateOrdersBadge();}
+  if(serviceHistory.length){updateServicesBadge();}
 });
 
 function startOrdering() {
   var inp = document.getElementById('guest-name-input');
   var name = inp ? inp.value.trim() : '';
-  if (!name) {
-    if(inp){ inp.style.borderColor='rgba(192,57,43,0.6)'; inp.focus(); }
-    return;
-  }
+  if (!name) { if(inp){inp.style.borderColor='rgba(192,57,43,0.6)';inp.focus();} return; }
   window.GUEST_NAME = name;
+  try { localStorage.setItem('hyatt_guest_name', name); } catch(e) {}
   go('home');
 }
 
-// ── OVERRIDE placeOrder TO INSERT TO FIREBASE + SUBSCRIBE TO STATUS UPDATES
-const _origPlaceOrder = placeOrder;
+// ── localStorage
+function _saveHistory(){try{localStorage.setItem('hyatt_g_'+String(window.ROOM_NUM||'000'),JSON.stringify({orders:orderHistory,services:serviceHistory,ts:Date.now()}));}catch(e){}}
+(function(){try{var raw=localStorage.getItem('hyatt_g_'+String(window.ROOM_NUM||'000'));if(!raw)return;var d=JSON.parse(raw);if(!d.ts||Date.now()-d.ts>86400000)return;if(Array.isArray(d.orders))orderHistory=d.orders;if(Array.isArray(d.services))serviceHistory=d.services;}catch(e){}})();
+
+// ── OVERRIDE placeOrder
+var _origPlaceOrder = placeOrder;
 placeOrder = async function(isMerge) {
-  // Capture cart BEFORE _origPlaceOrder runs (it clears cart)
   var cartSnapshot;
+  try { cartSnapshot=JSON.parse(JSON.stringify(Object.entries(cart).map(function(e){var i=e[1];return{name:String(i.name||''),qty:Number(i.qty||1),price:Number(i.price||0),category:String(i.category||'')};}))); } catch(e){cartSnapshot=[];}
+  var totalSnapshot=cartSnapshot.reduce(function(s,i){return s+i.qty*i.price;},0);
+  var prefix=(window.HOTEL_NAME||'SH').trim().split(/\s+/).slice(0,3).map(function(w){return w[0].toUpperCase();}).join('');
+  var n=parseInt(localStorage.getItem('_hoc')||'0',10)+1; localStorage.setItem('_hoc',String(n));
+  var orderId=prefix+'-'+String(n).padStart(4,'0');
+  window._pendingOrderId=orderId; _origPlaceOrder(isMerge); window._pendingOrderId=null;
+  var db=await _waitDb(); if(!db){console.warn('Firebase not available');return;}
   try {
-    cartSnapshot = JSON.parse(JSON.stringify(
-      Object.entries(cart).map(function(entry) {
-        var item = entry[1];
-        return {
-          name: String(item.name || ''),
-          qty: Number(item.qty || 1),
-          price: Number(item.price || 0),
-          category: String(item.category || '')
-        };
-      })
-    ));
-  } catch(e) { cartSnapshot = []; }
-  const totalSnapshot = cartSnapshot.reduce(function(s,i){ return s + i.qty*i.price; }, 0);
-
-  // Generate ID before calling original so both use same ID
-  // Use same hotel-prefixed sequential ID
-  var _prefix = window._hotelPrefix || (window.HOTEL_NAME||'SH').trim().split(/\s+/).slice(0,3).map(function(w){return w.charAt(0).toUpperCase();}).join('');
-  var _counter_key = 'hyatt_order_counter';
-  var _n = parseInt(localStorage.getItem(_counter_key) || '0', 10) + 1;
-  localStorage.setItem(_counter_key, String(_n));
-  const orderId = _prefix + '-' + String(_n).padStart(4, '0');
-  window._pendingOrderId = orderId;
-  _origPlaceOrder(isMerge);
-  window._pendingOrderId = null;
-
-  const db = await waitForDb();
-  if (!db) { console.warn('Firebase not available — order saved locally only'); return; }
-
-  try {
-    const insertData = {
-      id: orderId,
-      room: String(window.ROOM_NUM || '000'),
-      guest: String(window.GUEST_NAME || 'Guest'),
-      items: cartSnapshot,
-      total: Number(totalSnapshot),
-      status: 'new',
-      placed_at: new Date().toISOString()
-    };
-
-    // Write to Firestore
-    await db.collection('orders').doc(orderId).set(insertData);
-
-    // Subscribe to live status updates for this order
-    if (!window._guestListeners) window._guestListeners = {};
-    var prevStatus = 'new';
-    window._guestListeners[orderId] = db.collection('orders').doc(orderId).onSnapshot(function(doc) {
-      if (!doc.exists) return;
-      var row = doc.data();
-      if (row.status === prevStatus) return;
-      prevStatus = row.status;
-
-      var order = orderHistory.find(function(o){ return o.id === orderId; });
-      if (order) {
-        order.status = row.status;
-        order.rejection_reason = row.rejection_reason || null;
-        if (row.status === 'accepted')  order.acceptedAt  = Date.now();
-        if (row.status === 'preparing') order.preparingAt = Date.now();
-        _saveHistory();
-        updateOrdersBadge();
-        renderOrders(); // always re-render regardless of screen
-      }
-
-      if (row.status === 'accepted') {
-        showGuestToast('✓ Order accepted! Kitchen is getting started.', 'green');
-      } else if (row.status === 'preparing') {
-        startBarTicker();
-        showGuestToast('🍳 Your food is being prepared!', 'green');
-      } else if (row.status === 'ready') {
-        showGuestToast('🛎 Your order is ready! Delivering now.', 'green');
-      } else if (row.status === 'rejected') {
-        var reason = row.rejection_reason || 'Please contact reception';
-        showGuestToast('Order not accepted: ' + reason, 'red');
-      } else if (row.status === 'delivered') {
-        showGuestToast('✓ Your order has been delivered! Enjoy!', 'green');
-        broadcastActivity('idle');
-      }
+    await db.collection('orders').doc(orderId).set({id:orderId,room:String(window.ROOM_NUM||'000'),guest:String(window.GUEST_NAME||'Guest'),items:cartSnapshot,total:Number(totalSnapshot),status:'new',placed_at:new Date().toISOString()});
+    var prevStatus=null;
+    db.collection('orders').doc(orderId).onSnapshot(function(doc){
+      if(!doc.exists)return; var row=doc.data(); if(row.status===prevStatus)return; prevStatus=row.status;
+      var order=orderHistory.find(function(o){return o.id===orderId;}); if(!order)return;
+      order.status=row.status; order.rejection_reason=row.rejection_reason||null;
+      if(row.status==='accepted'){order.acceptedAt=Date.now(); if(row.eta)order.eta=row.eta;}
+      if(row.status==='delivered')order.deliveredAt=Date.now();
+      _saveHistory(); updateOrdersBadge(); renderOrders();
+      if(row.status==='accepted')showGuestToast('Kitchen has started preparing your order','green');
+      else if(row.status==='rejected')showGuestToast('Not accepted: '+(row.rejection_reason||'contact reception'),'red');
+      else if(row.status==='delivered'){showGuestToast('Your order has been delivered · Enjoy your meal','green');broadcastActivity('idle');}
     });
-
-  } catch(e) { console.error('Firebase order insert failed:', e && e.message || e); }
+  } catch(e){console.error('Order insert failed:',e&&e.message||e);}
 };
 
-// ── Polling fallback: check Firebase every 5s for status updates
-var _pollInterval = null;
-function _startPolling() {
-  if (_pollInterval) return;
-  _pollInterval = setInterval(function() {
-    if (!_fbDb) return;
-    var active = orderHistory.filter(function(o){
-      return o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'rejected';
-    });
-    if (!active.length) { clearInterval(_pollInterval); _pollInterval = null; return; }
-    var updated = false;
-    var done = 0;
-    active.forEach(function(order) {
-      _fbDb.collection('orders').doc(String(order.id)).get().then(function(doc) {
-        done++;
-        if (doc.exists) {
-          var d = doc.data();
-          if (d.status && d.status !== order.status) {
-            order.status = d.status;
-            if (d.status === 'accepted' && !order.acceptedAt) order.acceptedAt = Date.now();
-            if (d.status === 'preparing' && !order.preparingAt) order.preparingAt = Date.now();
-            if (d.rejection_reason) order.rejection_reason = d.rejection_reason;
-            updated = true;
-          }
-        }
-        if (done === active.length && updated) {
-          _saveHistory();
-          updateOrdersBadge();
-          renderOrders();
-        }
-      }).catch(function(){done++;});
-    });
-  }, 5000);
-}
-// Start polling when page loads
-setTimeout(_startPolling, 2000);
+// ── Service request
+var _origSubmitService=submitService;
+submitService=function(){
+  _origSubmitService();
+  var req=serviceHistory[0]; if(!req)return;
+  _waitDb().then(function(db){
+    if(!db)return;
+    db.collection('service_requests').doc(String(req.id)).set({id:req.id,room:String(window.ROOM_NUM||'000'),guest:String(window.GUEST_NAME||'Guest'),type:req.type,icon:req.icon||'',qty:req.qty||null,note:req.note||null,status:'received',placed_at:new Date().toISOString()}).then(function(){
+      db.collection('service_requests').doc(String(req.id)).onSnapshot(function(doc){
+        if(!doc.exists)return; var r=serviceHistory.find(function(x){return x.id===req.id;}); if(!r||doc.data().status===r.status)return;
+        r.status=doc.data().status; _saveHistory(); updateServicesBadge();
+        if(document.getElementById('screen-services').classList.contains('active'))renderServices();
+      });
+    }).catch(function(e){console.warn('Service insert:',e.message);});
+  });
+};
 
-function showGuestToast(msg, color) {
-  var toast = document.createElement('div');
-  var bg = color === 'red' ? 'rgba(192,57,43,0.95)' : 'rgba(76,175,125,0.95)';
-  toast.style.cssText = 'position:fixed;top:24px;left:50%;transform:translateX(-50%);'+
-    'background:'+bg+';color:white;border-radius:14px;padding:14px 20px;z-index:999;'+
-    'font-size:14px;font-family:DM Sans,sans-serif;text-align:center;'+
-    'max-width:320px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3);';
-  toast.textContent = msg;
-  document.body.appendChild(toast);
-  setTimeout(function(){ toast.remove(); }, 5000);
+// ── Re-attach listeners on refresh
+window.addEventListener('load',function(){
+  setTimeout(function(){
+    _waitDb().then(function(db){
+      if(!db)return;
+      db.collection('orders').where('room','==',String(window.ROOM_NUM||'000')).get().then(function(snap){
+        snap.docs.forEach(function(doc){
+          var data=doc.data(); if(data.status==='delivered'||data.status==='cancelled')return;
+          var order=orderHistory.find(function(o){return o.id===doc.id;}); if(!order)return;
+          if(data.status!==order.status){order.status=data.status;if(data.status==='accepted'&&!order.acceptedAt)order.acceptedAt=Date.now();if(data.eta)order.eta=data.eta;_saveHistory();}
+          var prev=data.status;
+          db.collection('orders').doc(doc.id).onSnapshot(function(d){
+            if(!d.exists)return; var ns=d.data().status; if(ns===prev)return; prev=ns;
+            order.status=ns; if(ns==='accepted'&&!order.acceptedAt)order.acceptedAt=Date.now(); if(d.data().eta)order.eta=d.data().eta;
+            _saveHistory(); updateOrdersBadge(); renderOrders();
+            if(ns==='accepted')showGuestToast('Kitchen has started preparing your order','green');
+            else if(ns==='delivered')showGuestToast('Your order has been delivered · Enjoy your meal','green');
+          });
+        });
+        updateOrdersBadge(); renderOrders();
+      }).catch(function(e){console.warn('Load sync:',e.message);});
+    });
+  },1000);
+});
+
+// ── Poll every 8s
+setInterval(function(){
+  if(!_db)return;
+  orderHistory.forEach(function(o){
+    if(o.status==='delivered'||o.status==='cancelled'||o.status==='rejected')return;
+    _db.collection('orders').doc(String(o.id)).get().then(function(doc){
+      if(!doc.exists)return; var ns=doc.data().status; if(ns&&ns!==o.status){o.status=ns;if(ns==='accepted'&&!o.acceptedAt)o.acceptedAt=Date.now();if(doc.data().eta)o.eta=doc.data().eta;_saveHistory();updateOrdersBadge();renderOrders();}
+    }).catch(function(){});
+  });
+},8000);
+
+function editGuestName() {
+  var current = window.GUEST_NAME || '';
+  var overlay = document.createElement('div');
+  overlay.id = 'name-edit-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;';
+  overlay.innerHTML = '<div style="background:var(--surface);border-radius:20px;padding:28px 24px;width:100%;max-width:320px;text-align:center;">'
+    + '<div style="font-family:Cormorant Garamond,serif;font-size:20px;color:var(--text);margin-bottom:16px;">Your Name</div>'
+    + '<input id="name-edit-input" value="' + current + '" style="width:100%;background:var(--surface2);border:1px solid rgba(201,169,110,0.4);border-radius:10px;padding:11px 14px;color:var(--text);font-size:15px;font-family:DM Sans,sans-serif;outline:none;text-align:center;box-sizing:border-box;" />'
+    + '<button id="name-edit-confirm" style="width:100%;margin-top:14px;padding:13px;background:var(--gold);border:none;border-radius:12px;color:var(--dark);font-family:DM Sans,sans-serif;font-size:15px;font-weight:600;cursor:pointer;">Save</button>'
+    + '<button id="name-edit-cancel" style="width:100%;margin-top:8px;padding:11px;background:transparent;border:none;color:var(--text-muted);font-family:DM Sans,sans-serif;font-size:14px;cursor:pointer;">Cancel</button>'
+    + '</div>';
+  document.body.appendChild(overlay);
+  var cancelBtn = document.getElementById('name-edit-cancel');
+  if (cancelBtn) cancelBtn.addEventListener('click', function(){ document.getElementById('name-edit-overlay').remove(); });
+  var confirmBtn = document.getElementById('name-edit-confirm');
+  if (confirmBtn) confirmBtn.addEventListener('click', function() {
+    var val = document.getElementById('name-edit-input').value.trim();
+    if (!val) return;
+    window.GUEST_NAME = val;
+    try { localStorage.setItem('hyatt_guest_name', val); } catch(e) {}
+    // Update name on all existing orders so cards reflect new name
+    orderHistory.forEach(function(o){ o.guest = val; });
+    serviceHistory.forEach(function(s){ s.guest = val; });
+    _saveHistory();
+    document.getElementById('name-edit-overlay').remove();
+    renderOrders();
+  });
+  setTimeout(function(){ var i=document.getElementById('name-edit-input'); if(i){i.focus();i.select();} }, 100);
 }
+window.editGuestName = editGuestName;
+
+function showGuestToast(msg,color){var toast=document.createElement('div');var bg=color==='red'?'rgba(192,57,43,0.95)':'rgba(76,175,125,0.95)';toast.style.cssText='position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:'+bg+';color:white;border-radius:14px;padding:14px 20px;z-index:999;font-size:14px;font-family:DM Sans,sans-serif;text-align:center;max-width:320px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3);';toast.textContent=msg;document.body.appendChild(toast);setTimeout(function(){if(toast.parentNode)toast.remove();},1000);}
+
+// ── cancel/modify Firebase updates
+window.cancelOrder=cancelOrder; window.modifyOrder=modifyOrder;
+window.confirmModify=function(orderId){
+  var order=orderHistory.find(function(o){return o.id===orderId;}); if(!order)return;
+  // Use _editItems from modal if available, otherwise use order.items directly (menu-add flow)
+  var items=window._editItems || order.items;
+  var finalItems=items.filter(function(i){return i.qty>0;});
+  if(!finalItems.length){showGuestToast('Cannot remove all items. Cancel instead.','red');return;}
+  var newTotal=finalItems.reduce(function(s,i){return s+i.qty*i.price;},0);
+  order.items=finalItems; order.total=newTotal; _saveHistory();
+  window._editItems=null;
+  var mo=document.getElementById('modify-overlay'); if(mo)mo.remove();
+  go('orders');
+  renderOrders(); updateOrdersBadge();
+  showGuestToast('Order updated!','green');
+  _waitDb().then(function(db){ if(db)db.collection('orders').doc(String(orderId)).update({items:finalItems,total:newTotal}).catch(function(){}); });
+};
 
 </script>
 </body>
-</html>
