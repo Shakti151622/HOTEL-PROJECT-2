@@ -2135,8 +2135,9 @@ function renderOrders() {
   const statusClass = { new: 'status-live', accepted: 'status-live', preparing: 'status-live', ready: 'status-live', delivered: 'status-delivered-green', rejected: 'status-rejected', cancelled: 'status-cancelled-red' };
 
   const stepsDef = ['Placed', 'Accepted', 'Delivered'];
+  const STATUS_TO_STEP = { new:0, accepted:1, preparing:1, ready:1, delivered:2 };
   function stepIndex(status) {
-    var _m={new:0,accepted:1,preparing:1,ready:1,delivered:2,rejected:-1}; return _m[status]!==undefined?_m[status]:0;
+    return STATUS_TO_STEP[status] !== undefined ? STATUS_TO_STEP[status] : 0;
   }
   function getEtaHtml(o) {
     if(o.status==='rejected'||o.status==='cancelled') return '';
@@ -2186,10 +2187,17 @@ function renderOrders() {
       : isCancelled
       ? '<div style="font-size:12px;color:var(--text-muted);padding:4px 0;">Order cancelled</div>'
       : stepsDef.map((s, i) => {
-          // For accepted/preparing/ready: step 1 is done (ticked), not just active
-          var isAcceptedStep = (i===1 && si===1);
-          var cls = (i<si || isAcceptedStep)?'done':(i===si&&!isAcceptedStep?'active':'');
-          var tick = (i<si || isAcceptedStep)?checkSvgGreen:'';
+          var cls = '';
+          if (i < si || i === 0) {
+            cls = 'done';                        // always tick Placed (step 0)
+          } else if (i === si && i > 0) {
+            if (o.status === 'new') {
+              cls = 'active';                    // step 1 blinks while waiting
+            } else {
+              cls = 'done';                      // step 1 ticks once accepted onwards
+            }
+          }
+          var tick = (cls === 'done') ? checkSvgGreen : '';
           var anim='';
           if(i===1 && si===0){
             // Dot centered on Accepted circle while waiting for acceptance
@@ -2703,8 +2711,17 @@ function renderServices() {
     var isDone = r.status === 'done' || r.status === 'cancelled';
     var checkSvgGreen = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
     var steps = svcStepsDef.map(function(s, i) {
-      var cls = (i === 0 || i < si) ? 'done' : (i === si ? 'active' : '');
-      var tick = (i === 0 || i < si) ? checkSvgGreen : '';
+      var cls = '';
+      if (i < si) {
+        cls = 'done';
+      } else if (i === si) {
+        if (r.status === 'received') {
+          cls = 'active';
+        } else {
+          cls = 'done';
+        }
+      }
+      var tick = (cls === 'done') ? checkSvgGreen : '';
       var anim = '';
       if (i === 1 && si === 0) {
         anim = '<div style="position:absolute;top:6px;left:calc(50% - 5px);width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
@@ -3415,8 +3432,7 @@ placeOrder = async function(isMerge) {
       if(!doc.exists)return; var row=doc.data(); if(row.status===prevStatus)return; prevStatus=row.status;
       var order=orderHistory.find(function(o){return o.id===orderId;}); if(!order)return;
       order.status=row.status; order.rejection_reason=row.rejection_reason||null;
-      if((row.status==='accepted'||row.status==='preparing'||row.status==='ready')&&!order.acceptedAt){order.acceptedAt=(row.accepted_at?new Date(row.accepted_at).getTime():Date.now());}
-      if((row.status==='accepted'||row.status==='preparing'||row.status==='ready')&&row.eta)order.eta=row.eta;
+      if(['accepted','preparing','ready'].includes(row.status)){order.acceptedAt=row.accepted_at||order.acceptedAt||Date.now(); if(row.eta)order.eta=row.eta;}
       if(row.status==='delivered')order.deliveredAt=Date.now();
       _saveHistory(); updateOrdersBadge(); renderOrders();
       if(row.status==='accepted')showGuestToast('Kitchen has started preparing your order','green');
@@ -3450,23 +3466,15 @@ window.addEventListener('load',function(){
       if(!db)return;
       db.collection('orders').where('room','==',String(window.ROOM_NUM||'000')).get().then(function(snap){
         snap.docs.forEach(function(doc){
-          var data=doc.data(); if(data.status==='delivered'||data.status==='cancelled'||data.status==='rejected')return;
+          var data=doc.data(); if(data.status==='delivered'||data.status==='cancelled')return;
           var order=orderHistory.find(function(o){return o.id===doc.id;}); if(!order)return;
-          // Always sync Firebase state on page load (source of truth)
-          if(data.status!==order.status||((data.status==='accepted'||data.status==='preparing'||data.status==='ready')&&!order.acceptedAt)){
-            order.status=data.status;
-            if((data.status==='accepted'||data.status==='preparing'||data.status==='ready')&&!order.acceptedAt)order.acceptedAt=(data.accepted_at?new Date(data.accepted_at).getTime():Date.now());
-            if(data.eta)order.eta=data.eta;
-            _saveHistory();
-          }
-          var prev=null; // null so first onSnapshot always processes forward changes
+          if(data.status!==order.status){order.status=data.status;if(['accepted','preparing','ready'].includes(data.status)&&!order.acceptedAt){order.acceptedAt=data.accepted_at||order.acceptedAt||Date.now();}if(data.eta)order.eta=data.eta;_saveHistory();}
+          var prev=data.status;
           db.collection('orders').doc(doc.id).onSnapshot(function(d){
             if(!d.exists)return; var ns=d.data().status; if(ns===prev)return; prev=ns;
-            order.status=ns; if((ns==='accepted'||ns==='preparing'||ns==='ready')&&!order.acceptedAt)order.acceptedAt=(d.data().accepted_at?new Date(d.data().accepted_at).getTime():Date.now()); if((ns==='accepted'||ns==='preparing'||ns==='ready')&&d.data().eta)order.eta=d.data().eta;
+            order.status=ns; if(['accepted','preparing','ready'].includes(ns)&&!order.acceptedAt){order.acceptedAt=d.data().accepted_at||order.acceptedAt||Date.now();} if(d.data().eta)order.eta=d.data().eta;
             _saveHistory(); updateOrdersBadge(); renderOrders();
-            if(ns==='accepted')showGuestToast('Order accepted — kitchen is on it!','green');
-            else if(ns==='preparing')showGuestToast('Kitchen is preparing your order','green');
-            else if(ns==='rejected')showGuestToast('Not accepted: '+(d.data().rejection_reason||'contact reception'),'red');
+            if(ns==='accepted')showGuestToast('Kitchen has started preparing your order','green');
             else if(ns==='delivered')showGuestToast('Your order has been delivered · Enjoy your meal','green');
           });
         });
@@ -3482,7 +3490,7 @@ setInterval(function(){
   orderHistory.forEach(function(o){
     if(o.status==='delivered'||o.status==='cancelled'||o.status==='rejected')return;
     _db.collection('orders').doc(String(o.id)).get().then(function(doc){
-      if(!doc.exists)return; var ns=doc.data().status; if(ns&&ns!==o.status){o.status=ns;if((ns==='accepted'||ns==='preparing'||ns==='ready')&&!o.acceptedAt)o.acceptedAt=(doc.data().accepted_at?new Date(doc.data().accepted_at).getTime():Date.now());if((ns==='accepted'||ns==='preparing'||ns==='ready')&&doc.data().eta)o.eta=doc.data().eta;_saveHistory();updateOrdersBadge();renderOrders();}
+      if(!doc.exists)return; var ns=doc.data().status; if(ns&&ns!==o.status){o.status=ns;if(['accepted','preparing','ready'].includes(ns)&&!o.acceptedAt){o.acceptedAt=doc.data().accepted_at||o.acceptedAt||Date.now();}if(doc.data().eta)o.eta=doc.data().eta;_saveHistory();updateOrdersBadge();renderOrders();}
     }).catch(function(){});
   });
 },8000);
@@ -3518,7 +3526,7 @@ function editGuestName() {
 }
 window.editGuestName = editGuestName;
 
-function showGuestToast(msg,color){var toast=document.createElement('div');var bg=color==='red'?'rgba(192,57,43,0.95)':'rgba(76,175,125,0.95)';toast.style.cssText='position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:'+bg+';color:white;border-radius:14px;padding:14px 20px;z-index:999;font-size:14px;font-family:DM Sans,sans-serif;text-align:center;max-width:320px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3);';toast.textContent=msg;document.body.appendChild(toast);setTimeout(function(){if(toast.parentNode)toast.remove();},3000);}
+function showGuestToast(msg,color){var toast=document.createElement('div');var bg=color==='red'?'rgba(192,57,43,0.95)':'rgba(76,175,125,0.95)';toast.style.cssText='position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:'+bg+';color:white;border-radius:14px;padding:14px 20px;z-index:999;font-size:14px;font-family:DM Sans,sans-serif;text-align:center;max-width:320px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3);';toast.textContent=msg;document.body.appendChild(toast);setTimeout(function(){if(toast.parentNode)toast.remove();},1000);}
 
 // ── cancel/modify Firebase updates
 window.cancelOrder=cancelOrder; window.modifyOrder=modifyOrder;
