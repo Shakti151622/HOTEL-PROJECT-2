@@ -3413,10 +3413,15 @@ placeOrder = async function(isMerge) {
       if(!doc.exists)return; var row=doc.data(); if(row.status===prevStatus)return; prevStatus=row.status;
       var order=orderHistory.find(function(o){return o.id===orderId;}); if(!order)return;
       order.status=row.status; order.rejection_reason=row.rejection_reason||null;
-      if(row.status==='accepted'){order.acceptedAt=Date.now(); if(row.eta)order.eta=row.eta;}
+      if(row.status==='accepted'){
+        // Use Firestore accepted_at timestamp so the timer is accurate even across sessions
+        if(row.accepted_at){var ats=new Date(row.accepted_at).getTime();order.acceptedAt=isNaN(ats)?Date.now():ats;}
+        else{order.acceptedAt=Date.now();}
+        if(row.eta)order.eta=row.eta;
+      }
       if(row.status==='delivered')order.deliveredAt=Date.now();
       _saveHistory(); updateOrdersBadge(); renderOrders();
-      if(row.status==='accepted')showGuestToast('Kitchen has started preparing your order','green');
+      if(row.status==='accepted')showGuestToast('Kitchen has started preparing your order ✅','green');
       else if(row.status==='rejected')showGuestToast('Not accepted: '+(row.rejection_reason||'contact reception'),'red');
       else if(row.status==='delivered'){showGuestToast('Your order has been delivered · Enjoy your meal','green');broadcastActivity('idle');}
     });
@@ -3449,13 +3454,35 @@ window.addEventListener('load',function(){
         snap.docs.forEach(function(doc){
           var data=doc.data(); if(data.status==='delivered'||data.status==='cancelled')return;
           var order=orderHistory.find(function(o){return o.id===doc.id;}); if(!order)return;
-          if(data.status!==order.status){order.status=data.status;if(data.status==='accepted'&&!order.acceptedAt)order.acceptedAt=Date.now();if(data.eta)order.eta=data.eta;_saveHistory();}
-          var prev=data.status;
+
+          // ── Apply current Firestore state immediately (even if already accepted) ──
+          function _applyAcceptedAt(d){
+            // Parse accepted_at from Firestore accurately so timer is correct
+            if(d.accepted_at){var ms=new Date(d.accepted_at).getTime();if(!isNaN(ms))return ms;}
+            return Date.now();
+          }
+          if(data.status!==order.status||data.status==='accepted'){
+            order.status=data.status;
+            if((data.status==='accepted'||data.status==='preparing'||data.status==='ready')&&!order.acceptedAt){
+              order.acceptedAt=_applyAcceptedAt(data);
+            }
+            if(data.eta)order.eta=data.eta;
+            _saveHistory();
+          }
+
+          // ── Real-time listener: use '' as prev so snapshot always fires on any new change ──
+          var prev='__init__';
           db.collection('orders').doc(doc.id).onSnapshot(function(d){
-            if(!d.exists)return; var ns=d.data().status; if(ns===prev)return; prev=ns;
-            order.status=ns; if(ns==='accepted'&&!order.acceptedAt)order.acceptedAt=Date.now(); if(d.data().eta)order.eta=d.data().eta;
+            if(!d.exists)return;
+            var row=d.data(); var ns=row.status;
+            if(ns===prev)return; prev=ns;
+            order.status=ns;
+            if((ns==='accepted'||ns==='preparing'||ns==='ready')&&!order.acceptedAt){
+              order.acceptedAt=_applyAcceptedAt(row);
+            }
+            if(row.eta)order.eta=row.eta;
             _saveHistory(); updateOrdersBadge(); renderOrders();
-            if(ns==='accepted')showGuestToast('Kitchen has started preparing your order','green');
+            if(ns==='accepted')showGuestToast('Kitchen has started preparing your order ✅','green');
             else if(ns==='delivered')showGuestToast('Your order has been delivered · Enjoy your meal','green');
           });
         });
@@ -3471,7 +3498,18 @@ setInterval(function(){
   orderHistory.forEach(function(o){
     if(o.status==='delivered'||o.status==='cancelled'||o.status==='rejected')return;
     _db.collection('orders').doc(String(o.id)).get().then(function(doc){
-      if(!doc.exists)return; var ns=doc.data().status; if(ns&&ns!==o.status){o.status=ns;if(ns==='accepted'&&!o.acceptedAt)o.acceptedAt=Date.now();if(doc.data().eta)o.eta=doc.data().eta;_saveHistory();updateOrdersBadge();renderOrders();}
+      if(!doc.exists)return;
+      var row=doc.data(); var ns=row.status;
+      if(ns&&ns!==o.status){
+        o.status=ns;
+        if((ns==='accepted'||ns==='preparing'||ns==='ready')&&!o.acceptedAt){
+          if(row.accepted_at){var ms=new Date(row.accepted_at).getTime();o.acceptedAt=isNaN(ms)?Date.now():ms;}
+          else{o.acceptedAt=Date.now();}
+        }
+        if(row.eta)o.eta=row.eta;
+        _saveHistory();updateOrdersBadge();renderOrders();
+        if(ns==='accepted')showGuestToast('Kitchen has started preparing your order ✅','green');
+      }
     }).catch(function(){});
   });
 },8000);
