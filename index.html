@@ -2510,85 +2510,135 @@ function renderOrders() {
     return;
   }
 
-  const active = orderHistory.filter(o => o.status !== 'delivered');
-  const past   = orderHistory.filter(o => o.status === 'delivered' || o.status === 'rejected');
+  const active = orderHistory.filter(o => o.status !== 'delivered' && o.status !== 'rejected' && o.status !== 'cancelled');
+  const past   = orderHistory.filter(o => o.status === 'delivered' || o.status === 'rejected' || o.status === 'cancelled');
 
-  const statusLabel = { new: 'Order Placed', accepted: 'Accepted', preparing: 'Preparing', ready: 'Ready!', delivered: 'Delivered', rejected: 'Declined ❌' };
-  const statusClass = { new: 'status-new', accepted: 'status-accepted', preparing: 'status-preparing', ready: 'status-active', delivered: 'status-delivered', rejected: 'status-rejected' };
+  // ── GUEST TRACKER ──
+  // 3 steps only: Placed · Accepted · Delivered
+  // accepted covers: accepted + preparing + ready (all show step 2 ticked, timer running)
+  // delivered ticks step 3
+  // rejected shows decline message, no tracker
+  const GUEST_STEPS = ['Placed', 'Accepted', 'Delivered'];
 
-  // 5-step tracker: Placed → Accepted → Preparing → Ready → Delivered
-  const stepsDef = ['Placed', 'Accepted', 'Preparing', 'Ready', 'Delivered'];
-  function stepIndex(status) {
-    var idx = { new: 0, accepted: 1, preparing: 2, ready: 3, delivered: 4 }[status];
-    return idx !== undefined ? idx : 0;
+  function guestStepIndex(status) {
+    if (status === 'new')                              return 0; // step 1 active
+    if (status === 'accepted' || status === 'preparing' || status === 'ready') return 1; // step 2 active
+    if (status === 'delivered')                        return 2; // step 3 done
+    return 0;
+  }
+
+  // Rotating messages shown under tracker while kitchen is working
+  const MSG_NEW      = ['Waiting for kitchen confirmation…', 'Your order will be confirmed shortly', 'Thank you for your patience'];
+  const MSG_ACCEPTED = ['Your order is being prepared', 'Kitchen is working on it', 'Thanks for your patience', 'Almost there — hang on!'];
+  const MSG_READY    = ['Your order is on its way!', 'Being delivered to your room', 'Almost at your door'];
+
+  function guestMsgs(status) {
+    if (status === 'new')                              return MSG_NEW;
+    if (status === 'accepted' || status === 'preparing') return MSG_ACCEPTED;
+    if (status === 'ready')                            return MSG_READY;
+    return [];
+  }
+
+  // Timer display: elapsed since accepted_at, shown for accepted/preparing/ready
+  function guestTimerHtml(o) {
+    if (!o.acceptedAt && !o.accepted_at) return '';
+    var accepted = o.acceptedAt || (o.accepted_at ? new Date(o.accepted_at).getTime() : null);
+    if (!accepted) return '';
+    var elapsedMs  = Date.now() - accepted;
+    var elapsedMin = Math.floor(elapsedMs / 60000);
+    var elapsedSec = Math.floor((elapsedMs % 60000) / 1000);
+    var eta        = o.eta || 25;
+    var remaining  = Math.max(0, eta - elapsedMin);
+    var pct        = Math.min(100, Math.round((elapsedMs / (eta * 60000)) * 100));
+    var barCol     = pct < 70 ? 'var(--green)' : pct < 90 ? '#E0A800' : 'var(--red)';
+    var timeStr    = (elapsedMin > 0 ? elapsedMin + 'm ' : '') + (elapsedMin < 60 ? elapsedSec + 's' : '');
+    return '<div style="padding:12px 18px 8px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+        + '<span style="font-size:11px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;">Time elapsed</span>'
+        + '<span style="font-size:13px;font-weight:600;color:' + barCol + ';">'
+          + timeStr
+          + (remaining > 0 ? ' · ~' + remaining + ' min remaining' : ' · Almost ready!')
+        + '</span>'
+      + '</div>'
+      + '<div style="height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;">'
+        + '<div style="height:100%;width:' + pct + '%;background:' + barCol + ';border-radius:2px;transition:width 1s linear;"></div>'
+      + '</div>'
+    + '</div>';
   }
 
   function renderCard(o) {
-    const si = stepIndex(o.status);
-    const steps = stepsDef.map((s, i) => {
-      // done = past step (tick), active = current step (tick), '' = future (empty dot)
-      const cls = i <= si ? (i < si ? 'done' : 'active') : '';
-      const showTick = i <= si; // show tick for current AND all past steps
-      const checkSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:${showTick ? 'block' : 'none'}"><polyline points="20 6 9 17 4 12"/></svg>`;
-      return `<div class="tracker-step ${cls}">
-        <div class="tracker-dot">${checkSvg}</div>
-        <div class="tracker-step-name">${s}</div>
-      </div>`;
+    var si = guestStepIndex(o.status);
+    var isRejected  = o.status === 'rejected' || o.status === 'cancelled';
+    var isDelivered = o.status === 'delivered';
+    var isActive    = !isRejected && !isDelivered;
+    var checkSvg = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+    var steps = GUEST_STEPS.map(function(s, i) {
+      var done   = i < si || (isDelivered && i === 2);
+      var active = i === si && !isDelivered;
+      var cls    = done ? 'done' : (active ? 'active' : '');
+      return '<div class="tracker-step ' + cls + '">'
+        + '<div class="tracker-dot">' + (done ? checkSvg : '') + '</div>'
+        + '<div class="tracker-step-name">' + s + '</div>'
+      + '</div>';
     }).join('');
 
-    // ETA progress bar: shown while preparing (green fill) or ready (full green)
-    const etaMinutes = o.eta || 25;
-    const elapsedMs  = o.acceptedAt ? (Date.now() - o.acceptedAt) : 0;
-    const elapsedMin = Math.min(elapsedMs / 60000, etaMinutes);
-    const pct        = o.status === 'preparing' ? Math.min(Math.round((elapsedMin / etaMinutes) * 85) + 5, 90) : (o.status === 'ready' ? 100 : 0);
-    const etaBlock   = o.status === 'preparing' ? `
-      <div class="eta-row" style="padding:10px 18px 4px;">
-        <span style="font-size:12px;color:var(--text-muted);">Est. ready in</span>
-        <span style="font-size:12px;color:var(--gold);font-weight:600;">${Math.max(1, etaMinutes - Math.round(elapsedMin))} min</span>
-        <div class="eta-bar-wrap" style="margin:0 10px;">
-          <div class="eta-bar-fill" style="width:${pct}%;background:var(--green);transition:width 1s linear;"></div>
-        </div>
-      </div>` : (o.status === 'ready' ? `
-      <div style="padding:10px 18px 4px;display:flex;align-items:center;gap:8px;">
-        <div class="eta-bar-wrap" style="margin:0;flex:1;">
-          <div class="eta-bar-fill" style="width:100%;background:var(--green);"></div>
-        </div>
-        <span style="font-size:12px;color:var(--green);font-weight:600;">Ready! 🛎</span>
-      </div>` : '');
+    // Status pill: guest only sees Live / Preparing / Delivered / Declined
+    var pillLabel = { new:'Order Placed', accepted:'Kitchen Confirmed', preparing:'Preparing', ready:'Almost Ready', delivered:'Delivered', rejected:'Declined', cancelled:'Cancelled' }[o.status] || o.status;
+    var pillClass = { new:'status-new', accepted:'status-accepted', preparing:'status-preparing', ready:'status-preparing', delivered:'status-delivered', rejected:'status-rejected', cancelled:'status-rejected' }[o.status] || '';
 
-    return `<div class="order-card">
-      <div class="order-card-head">
-        <div class="order-card-meta">
-          <div class="order-card-id">${o.id} · ${o.date}${o.fromPeer ? ' <span class="order-device-tag">Roommate</span>' : ''}${o.isMerge ? ' <span class="order-device-tag">Merged</span>' : ''}</div>
-          <div class="order-card-time">${o.time}</div>
-        </div>
-        <div class="order-status-pill ${statusClass[o.status] || ''}">${statusLabel[o.status] || o.status}</div>
-      </div>
-      <div class="order-card-items">
-        ${o.items.map(i => `
-          <div class="order-item-row">
-            <div><span class="order-item-qty">×${i.qty}</span>${i.name}</div>
-            <div class="order-item-price">₹${i.qty * i.price}</div>
-          </div>`).join('')}
-      </div>
-      ${o.status === 'rejected' ? `
-      <div style="padding:12px 18px;display:flex;align-items:center;gap:10px;background:rgba(192,57,43,0.06);border-top:1px solid rgba(192,57,43,0.15);">
-        <span style="font-size:20px;">❌</span>
-        <div>
-          <div style="font-size:13px;color:var(--red);font-weight:500;">Order Declined</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${o.rejection_reason || 'Please contact reception for details.'}</div>
-        </div>
-      </div>` : o.status !== 'delivered' ? `
-      <div class="order-tracker">
-        <div class="tracker-label">Order Status</div>
-        <div class="tracker-steps">${steps}</div>
-      </div>
-      ${etaBlock}` : ''}
-      <div class="order-card-footer">
-        <div class="order-total-label">Total Paid</div>
-        <div class="order-total-amt">₹${o.total}</div>
-      </div>
-    </div>`;
+    // Timer block (only while kitchen is working)
+    var timerBlock = (o.status === 'accepted' || o.status === 'preparing' || o.status === 'ready')
+      ? guestTimerHtml(o) : '';
+
+    // Rotating message
+    var msgs = guestMsgs(o.status);
+    var msgHtml = msgs.length
+      ? '<div style="padding:0 18px 12px;display:flex;align-items:center;gap:6px;">'
+          + '<div style="width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse-badge 1.5s infinite;"></div>'
+          + '<span id="gmsg-' + o.id + '" style="font-size:12px;color:var(--text-muted);">' + msgs[0] + '</span>'
+        + '</div>'
+      : '';
+
+    return '<div class="order-card" id="ocard-' + o.id + '">'
+      + '<div class="order-card-head">'
+        + '<div class="order-card-meta">'
+          + '<div class="order-card-id">' + o.id + ' · ' + o.date
+            + (o.fromPeer ? ' <span class="order-device-tag">Roommate</span>' : '')
+            + (o.isMerge  ? ' <span class="order-device-tag">Merged</span>'   : '')
+          + '</div>'
+          + '<div class="order-card-time">' + o.time + '</div>'
+        + '</div>'
+        + '<div class="order-status-pill ' + pillClass + '">' + pillLabel + '</div>'
+      + '</div>'
+      + '<div class="order-card-items">'
+        + o.items.map(function(i) {
+            return '<div class="order-item-row">'
+              + '<div><span class="order-item-qty">×' + i.qty + '</span>' + i.name + '</div>'
+              + '<div class="order-item-price">₹' + (i.qty * i.price) + '</div>'
+            + '</div>';
+          }).join('')
+      + '</div>'
+      + (isRejected
+          ? '<div style="padding:12px 18px;display:flex;align-items:center;gap:10px;background:rgba(192,57,43,0.06);border-top:1px solid rgba(192,57,43,0.15);">'
+              + '<span style="font-size:20px;">❌</span>'
+              + '<div>'
+                + '<div style="font-size:13px;color:var(--red);font-weight:500;">Order Declined</div>'
+                + '<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">' + (o.rejection_reason || 'Please contact reception for details.') + '</div>'
+              + '</div>'
+            + '</div>'
+          : '<div class="order-tracker">'
+              + '<div class="tracker-label">Order Status</div>'
+              + '<div class="tracker-steps">' + steps + '</div>'
+            + '</div>'
+            + timerBlock
+            + msgHtml
+        )
+      + '<div class="order-card-footer">'
+        + '<div class="order-total-label">Total</div>'
+        + '<div class="order-total-amt">₹' + o.total + '</div>'
+      + '</div>'
+    + '</div>';
   }
 
   let html = '';
@@ -2601,6 +2651,40 @@ function renderOrders() {
     html += past.map(renderCard).join('');
   }
   body.innerHTML = html;
+
+  // ── Rotating messages for active orders
+  setTimeout(function() {
+    orderHistory.forEach(function(o) {
+      if (o.status === 'delivered' || o.status === 'rejected' || o.status === 'cancelled') return;
+      var msgEl = document.getElementById('gmsg-' + o.id);
+      if (!msgEl || msgEl._rotating) return;
+      msgEl._rotating = true;
+      var msgs = guestMsgs(o.status);
+      if (msgs.length > 1) {
+        var idx = 0;
+        msgEl._rotateTimer = setInterval(function() {
+          var el2 = document.getElementById('gmsg-' + o.id);
+          if (!el2) { clearInterval(msgEl._rotateTimer); return; }
+          idx = (idx + 1) % msgs.length;
+          el2.textContent = msgs[idx];
+        }, 3500);
+      }
+    });
+  }, 100);
+}
+
+// ── Live timer refresh: re-render orders every 15s while kitchen is working
+if (!window._guestTimerInterval) {
+  window._guestTimerInterval = setInterval(function() {
+    var hasActive = orderHistory.some(function(o) {
+      return (o.status === 'accepted' || o.status === 'preparing' || o.status === 'ready' || o.status === 'new');
+    });
+    if (hasActive) {
+      updateOrdersBadge();
+      var screen = document.getElementById('screen-orders');
+      if (screen && screen.classList.contains('active')) renderOrders();
+    }
+  }, 15000);
 }
 
 // ── Service
@@ -2680,86 +2764,181 @@ function renderServices() {
     return;
   }
 
-  const svcStepsDef  = ['Received', 'Assigned', 'In Progress', 'Done'];
-  const svcStepIndex = { received: 0, assigned: 1, inprogress: 2, done: 3 };
-  const svcStatusLabel = { received: 'Received', assigned: 'Assigned', inprogress: 'In Progress', done: 'Done ✓' };
-  const svcStatusClass = { received: 'status-new', assigned: 'status-accepted', inprogress: 'status-preparing', done: 'status-delivered' };
+  // ── SERVICE TRACKER ──
+  // 3 steps: Received · Assigned · Done
+  // 'inprogress' (en route) maps to step 2 — same as assigned, timer keeps running
+  const SVC_STEPS = ['Received', 'Assigned', 'Done'];
 
-  function renderSvcCard(r) {
-    const si = svcStepIndex[r.status] !== undefined ? svcStepIndex[r.status] : 0;
-    const steps = svcStepsDef.map((s, i) => {
-      const cls = i <= si ? (i < si ? 'done' : 'active') : '';
-      const showTick = i <= si; // tick on current AND all past steps
-      const checkSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:${showTick ? 'block' : 'none'}"><polyline points="20 6 9 17 4 12"/></svg>`;
-      return `<div class="tracker-step ${cls}">
-        <div class="tracker-dot">${checkSvg}</div>
-        <div class="tracker-step-name">${s}</div>
-      </div>`;
-    }).join('');
-
-    // Build subtitle: qty + note
-    let subtitle = '';
-    if (r.qty) {
-      const unit = r.type === 'Water'
-        ? (r.qty > 1 ? `${r.qty} bottles` : '1 bottle')
-        : (r.qty > 1 ? `${r.qty} towels` : '1 towel');
-      subtitle += unit;
-    }
-    if (r.note) subtitle += (subtitle ? ' · ' : '') + `"${r.note}"`;
-
-    return `<div class="order-card">
-      <div class="svc-card-head">
-        <div class="svc-type-icon">${r.icon}</div>
-        <div class="svc-card-meta">
-          <div class="svc-card-name">${r.type}${r.qty ? ` <span style="color:var(--gold);font-size:14px;font-weight:400">×${r.qty}</span>` : ''}</div>
-          ${subtitle ? `<div class="svc-card-note">${subtitle}</div>` : ''}
-          <div class="svc-card-time">${r.id} · ${r.date} · ${r.time}</div>
-        </div>
-        <div class="order-status-pill ${svcStatusClass[r.status]}">${svcStatusLabel[r.status]}</div>
-      </div>
-      ${r.status !== 'done' ? `
-      <div class="order-tracker">
-        <div class="tracker-label">Request Status</div>
-        <div class="tracker-steps">${steps}</div>
-      </div>` : `
-      <div style="padding:12px 18px;display:flex;align-items:center;gap:8px">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-        <span style="font-size:13px;color:var(--green)">Completed</span>
-      </div>`}
-    </div>`;
+  function svcStepIndex(status) {
+    if (status === 'received')                          return 0;
+    if (status === 'assigned' || status === 'inprogress') return 1;
+    if (status === 'done')                              return 2;
+    return 0;
   }
 
-  const active = serviceHistory.filter(r => r.status !== 'done');
-  const done   = serviceHistory.filter(r => r.status === 'done');
+  const svcStatusLabel = { received:'Received', assigned:'Staff Assigned', inprogress:'En Route', done:'Done ✓', cancelled:'Cancelled' };
+  const svcStatusClass = { received:'status-new', assigned:'status-accepted', inprogress:'status-preparing', done:'status-delivered', cancelled:'status-rejected' };
+
+  // Rotating messages
+  const SVC_MSG_RECEIVED = ["Request received · Awaiting assignment", "We'll get to you shortly", "Thank you for your patience"];
+  const SVC_MSG_ASSIGNED = ["Staff has been assigned", "On their way to your room", "Thanks for your patience"];
+  const SVC_MSG_ENROUTE  = ["Staff is on the way!", "Almost at your door", "Be there shortly"];
+
+  function svcMsgs(status) {
+    if (status === 'received')   return SVC_MSG_RECEIVED;
+    if (status === 'assigned')   return SVC_MSG_ASSIGNED;
+    if (status === 'inprogress') return SVC_MSG_ENROUTE;
+    return [];
+  }
+
+  // Timer: elapsed since assigned_at
+  function svcTimerHtml(r) {
+    var assigned = r.assignedAt || (r.assigned_at ? new Date(r.assigned_at).getTime() : null);
+    if (!assigned) return '';
+    var elapsedMs  = Date.now() - assigned;
+    var elapsedMin = Math.floor(elapsedMs / 60000);
+    var elapsedSec = Math.floor((elapsedMs % 60000) / 1000);
+    var eta        = r.eta || 15;
+    var remaining  = Math.max(0, eta - elapsedMin);
+    var pct        = Math.min(100, Math.round((elapsedMs / (eta * 60000)) * 100));
+    var barCol     = pct < 70 ? 'var(--green)' : pct < 90 ? '#E0A800' : 'var(--red)';
+    var timeStr    = (elapsedMin > 0 ? elapsedMin + 'm ' : '') + (elapsedMin < 60 ? elapsedSec + 's' : '');
+    return '<div style="padding:12px 18px 8px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+        + '<span style="font-size:11px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;">Time elapsed</span>'
+        + '<span style="font-size:13px;font-weight:600;color:' + barCol + ';">'
+          + timeStr + (remaining > 0 ? ' · ~' + remaining + ' min' : ' · Almost there!')
+        + '</span>'
+      + '</div>'
+      + '<div style="height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;">'
+        + '<div style="height:100%;width:' + pct + '%;background:' + barCol + ';border-radius:2px;transition:width 1s linear;"></div>'
+      + '</div>'
+    + '</div>';
+  }
+
+  function renderSvcCard(r) {
+    var si          = svcStepIndex(r.status);
+    var isDone      = r.status === 'done';
+    var isCancelled = r.status === 'cancelled';
+    var checkSvg    = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+    var steps = SVC_STEPS.map(function(s, i) {
+      var done   = i < si || (isDone && i === 2);
+      var active = i === si && !isDone;
+      var cls    = done ? 'done' : (active ? 'active' : '');
+      return '<div class="tracker-step ' + cls + '">'
+        + '<div class="tracker-dot">' + (done ? checkSvg : '') + '</div>'
+        + '<div class="tracker-step-name">' + s + '</div>'
+      + '</div>';
+    }).join('');
+
+    var subtitle = '';
+    if (r.qty) {
+      var unit = r.type === 'Water'
+        ? (r.qty > 1 ? r.qty + ' bottles' : '1 bottle')
+        : (r.qty > 1 ? r.qty + ' towels' : '1 towel');
+      subtitle += unit;
+    }
+    if (r.note) subtitle += (subtitle ? ' · ' : '') + '"' + r.note + '"';
+
+    var timerBlock = (r.status === 'assigned' || r.status === 'inprogress') ? svcTimerHtml(r) : '';
+
+    var msgs    = svcMsgs(r.status);
+    var msgHtml = msgs.length
+      ? '<div style="padding:0 18px 12px;display:flex;align-items:center;gap:6px;">'
+          + '<div style="width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse-badge 1.5s infinite;"></div>'
+          + '<span id="svmsg-' + r.id + '" style="font-size:12px;color:var(--text-muted);">' + msgs[0] + '</span>'
+        + '</div>'
+      : '';
+
+    return '<div class="order-card">'
+      + '<div class="svc-card-head">'
+        + '<div class="svc-type-icon">' + r.icon + '</div>'
+        + '<div class="svc-card-meta">'
+          + '<div class="svc-card-name">' + r.type + (r.qty ? ' <span style="color:var(--gold);font-size:14px;font-weight:400">\u00d7' + r.qty + '</span>' : '') + '</div>'
+          + (subtitle ? '<div class="svc-card-note">' + subtitle + '</div>' : '')
+          + '<div class="svc-card-time">' + r.id + ' \u00b7 ' + r.date + ' \u00b7 ' + r.time + '</div>'
+        + '</div>'
+        + '<div class="order-status-pill ' + (svcStatusClass[r.status] || '') + '">' + (svcStatusLabel[r.status] || r.status) + '</div>'
+      + '</div>'
+      + (isDone
+          ? '<div style="padding:12px 18px;display:flex;align-items:center;gap:8px;">'
+              + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>'
+              + '<span style="font-size:13px;color:var(--green);">Completed \u2713</span>'
+            + '</div>'
+          : isCancelled
+          ? '<div style="padding:12px 18px;font-size:13px;color:var(--text-muted);">Request cancelled</div>'
+          : '<div class="order-tracker"><div class="tracker-label">Request Status</div>'
+              + '<div class="tracker-steps">' + steps + '</div>'
+            + '</div>'
+            + timerBlock + msgHtml
+        )
+    + '</div>';
+  }
+
+  const active    = serviceHistory.filter(function(r){ return r.status !== 'done' && r.status !== 'cancelled'; });
+  const done      = serviceHistory.filter(function(r){ return r.status === 'done'; });
+  const cancelled = serviceHistory.filter(function(r){ return r.status === 'cancelled'; });
 
   let html = '';
 
-  // In-progress banner at top when active requests exist
   if (active.length > 0) {
-    const names = active.map(r => {
-      let label = r.type;
-      if (r.qty) label += ` ×${r.qty}`;
-      return label;
-    });
     const bannerText = active.length === 1
-      ? `${names[0]} — on the way`
-      : `${active.length} requests in progress`;
+      ? active[0].type + (active[0].qty ? ' \u00d7' + active[0].qty : '') + ' \u2014 on the way'
+      : active.length + ' requests in progress';
     html += '<div class="svc-active-banner" onclick="var el=document.getElementById(\'in-progress-section\');if(el)el.scrollIntoView();">'
       + '<div class="svc-banner-dot"></div>'
       + '<div class="svc-banner-text">' + bannerText + '</div>'
-      + '<div class="svc-banner-arrow">↓</div>'
+      + '<div class="svc-banner-arrow">\u2193</div>'
       + '</div>';
   }
-
   if (active.length > 0) {
-    html += `<div class="orders-section-label" id="in-progress-section">In Progress</div>`;
+    html += '<div class="orders-section-label" id="in-progress-section">In Progress</div>';
     html += active.map(renderSvcCard).join('');
   }
   if (done.length > 0) {
-    html += `<div class="orders-section-label" style="margin-top:${active.length ? '20px' : '0'}">Completed</div>`;
+    html += '<div class="orders-section-label" style="margin-top:' + (active.length ? '20px' : '0') + '">Completed</div>';
     html += done.map(renderSvcCard).join('');
   }
+  if (cancelled.length > 0) {
+    html += '<div class="orders-section-label" style="margin-top:' + ((active.length||done.length) ? '20px' : '0') + '">Cancelled</div>';
+    html += cancelled.map(renderSvcCard).join('');
+  }
   body.innerHTML = html;
+
+  // Rotating messages
+  setTimeout(function() {
+    serviceHistory.forEach(function(r) {
+      if (r.status === 'done' || r.status === 'cancelled') return;
+      var msgEl = document.getElementById('svmsg-' + r.id);
+      if (!msgEl || msgEl._rotating) return;
+      msgEl._rotating = true;
+      var msgs = svcMsgs(r.status);
+      if (msgs.length > 1) {
+        var idx = 0;
+        msgEl._rotateTimer = setInterval(function() {
+          var el2 = document.getElementById('svmsg-' + r.id);
+          if (!el2) { clearInterval(msgEl._rotateTimer); return; }
+          idx = (idx + 1) % msgs.length;
+          el2.textContent = msgs[idx];
+        }, 3500);
+      }
+    });
+  }, 100);
+}
+
+// Live timer refresh for service requests
+if (!window._svcTimerInterval) {
+  window._svcTimerInterval = setInterval(function() {
+    var hasActive = serviceHistory.some(function(r){
+      return r.status === 'assigned' || r.status === 'inprogress' || r.status === 'received';
+    });
+    if (hasActive) {
+      updateServicesBadge();
+      var screen = document.getElementById('screen-services');
+      if (screen && screen.classList.contains('active')) renderServices();
+    }
+  }, 15000);
 }
 
 // ── Call
@@ -3488,6 +3667,14 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
       </div>
       <div class="time-display" id="clock">--:--:--</div>
     </div>
+    <!-- Order History -->
+    <div class="settings-row" onclick="closeSettings();switchView('orders',document.getElementById('bnav-orders'));setTimeout(ohShowHistory,50);" style="cursor:pointer;">
+      <div class="settings-label">
+        <div class="settings-label-title">Order History</div>
+        <div class="settings-label-sub" id="oh-settings-sub">Last 7 days · tap to view</div>
+      </div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
   </div>
 </div>
 
@@ -3510,6 +3697,11 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
     <button onclick="switchView('analytics',this)" id="desk-nav-analytics" style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;border:none;background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
       Analytics
+    </button>
+    <button onclick="switchView('menu',this)" id="desk-nav-menu" style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;border:none;background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+      Food Menu
+      <span id="desk-menu-badge" style="margin-left:auto;background:var(--gold);color:var(--dark);font-size:9px;font-weight:600;padding:1px 6px;border-radius:10px;display:none;">!</span>
     </button>
   </div>
   <div style="padding:16px 12px;border-top:1px solid var(--topbar-border);display:flex;flex-direction:column;gap:8px;">
@@ -3584,16 +3776,53 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
           <span class="strip-label">Oldest</span>
         </div>
       </div>
-      <div class="ops-filters"><div class="ops-filter-row">
-        <button class="ops-tab active" onclick="setTypeFilter('all',this)">All</button>
-        <button class="ops-tab" onclick="setTypeFilter('food',this)">Food</button>
-        <button class="ops-tab" onclick="setTypeFilter('service',this)">Service</button>
-        <button class="ops-tab" onclick="setTypeFilter('new',this)">New</button>
-        <button class="ops-tab" onclick="setTypeFilter('preparing',this)">Preparing</button>
-        <button class="ops-tab" onclick="setTypeFilter('ready',this)">Ready</button>
-        <button class="ops-tab" onclick="setTypeFilter('rejected',this)">Rejected</button>
-      </div></div>
+      <div id="ops-filters-wrap">
+        <div class="ops-filters" id="ops-filters-row"><div class="ops-filter-row">
+          <button class="ops-tab active" id="filter-tab-all" onclick="setTypeFilter('all',this)">All</button>
+          <button class="ops-tab" id="filter-tab-food" onclick="setTypeFilter('food',this)">Food</button>
+          <button class="ops-tab" id="filter-tab-service" onclick="setTypeFilter('service',this)">Service</button>
+          <button class="ops-tab" id="filter-tab-new" onclick="setTypeFilter('new',this)">New</button>
+          <button class="ops-tab" id="filter-tab-preparing" onclick="setTypeFilter('preparing',this)">Preparing</button>
+          <button class="ops-tab" id="filter-tab-ready" onclick="setTypeFilter('ready',this)">Ready</button>
+          <button class="ops-tab" id="filter-tab-rejected" onclick="setTypeFilter('rejected',this)">Rejected</button>
+        </div></div>
+        <div id="history-tab-row" style="display:none;padding:8px 0 10px;">
+          <button id="filter-tab-history" style="padding:8px 18px;border-radius:100px;border:1.5px solid var(--gold);background:rgba(201,169,110,0.12);color:var(--gold);font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+            🗂 Order History
+          </button>
+          <button onclick="ohHideHistory()" style="margin-left:8px;padding:8px 14px;border-radius:100px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:var(--text-muted);font-family:DM Sans,sans-serif;font-size:12px;cursor:pointer;">
+            ← Back to Tasks
+          </button>
+        </div>
+      </div>
       <div id="task-grid"></div>
+
+      <!-- ORDER HISTORY PANEL (slides over task-grid) -->
+      <div id="oh-panel" style="display:none;">
+        <!-- Food / Service type toggle -->
+        <div style="display:flex;gap:6px;padding:10px 0 6px;">
+          <button id="oh-type-food" onclick="ohSetType('food')" style="flex:1;padding:8px 12px;border-radius:9px;border:1.5px solid var(--gold);background:rgba(201,169,110,0.12);color:var(--gold);font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">🍽 Food Orders</button>
+          <button id="oh-type-svc" onclick="ohSetType('service')" style="flex:1;padding:8px 12px;border-radius:9px;border:1.5px solid rgba(107,159,191,0.3);background:transparent;color:var(--text-muted);font-family:DM Sans,sans-serif;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">🛎 Service</button>
+        </div>
+        <!-- Search + sort bar -->
+        <div style="display:flex;gap:8px;padding:4px 0 8px;flex-wrap:wrap;align-items:center;">
+          <input id="oh-search" oninput="ohRender()" placeholder="Room, name, amount…" style="flex:1;min-width:140px;background:var(--surface);border:1px solid var(--topbar-border);border-radius:9px;padding:8px 12px;color:var(--text);font-family:DM Sans,sans-serif;font-size:13px;outline:none;">
+          <select id="oh-sort" onchange="ohRender()" style="background:var(--surface);border:1px solid var(--topbar-border);border-radius:9px;padding:8px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;cursor:pointer;">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="room">Room No.</option>
+            <option value="name">Guest Name</option>
+            <option value="amount_desc">Amount ↓</option>
+            <option value="amount_asc">Amount ↑</option>
+          </select>
+        </div>
+        <!-- Day picker tabs -->
+        <div id="oh-days" style="display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:8px;"></div>
+        <!-- Summary row -->
+        <div id="oh-summary" style="display:flex;gap:0;background:var(--surface);border:1px solid var(--topbar-border);border-radius:10px;margin-bottom:10px;overflow:hidden;"></div>
+        <!-- History list -->
+        <div id="oh-list" style="display:flex;flex-direction:column;gap:10px;padding-bottom:80px;"></div>
+      </div>
     </div>
 
     <!-- ── SERVICE VIEW ── -->
@@ -3961,17 +4190,26 @@ async function loadOrdersFromSupabase(){
   var db = getDb();
   if (!db) { setConnBadge('disconnected','Error'); return; }
   try {
-    // Simple query — no composite index needed
-    var yesterday = new Date(Date.now() - 24*60*60*1000).toISOString();
-    var snap = await db.collection('orders')
-      .limit(300)
-      .get();
+    var snap = await db.collection('orders').limit(300).get();
     var _sRank = {new:0,accepted:1,preparing:2,ready:3,delivered:4,rejected:5,cancelled:5};
+    // Today's midnight in ms — only show today's active orders
+    var todayMidnight = new Date(); todayMidnight.setHours(0,0,0,0);
+    var todayMs = todayMidnight.getTime();
+    var terminal = ['delivered','rejected','cancelled'];
     var fetched = snap.docs.map(function(doc){
       var d = doc.data(); d.id = doc.id; return rowToOrder(d);
-    // Filter out completed orders client-side (avoids not-in index requirement)
     }).filter(function(o){
-      return o.status !== 'delivered' && o.status !== 'cancelled';
+      // Archive terminal orders into history regardless of date
+      if (terminal.indexOf(o.status) !== -1) {
+        if (typeof ohArchive === 'function') ohArchive(o);
+        return false; // never show in active list
+      }
+      // Only show orders placed today
+      if (o.placedAt && o.placedAt < todayMs) {
+        if (typeof ohArchive === 'function') ohArchive(o);
+        return false;
+      }
+      return true;
     });
     fetched.forEach(function(dbO){
       var loc = orders.find(function(o){ return o.id===dbO.id; });
@@ -4009,6 +4247,18 @@ function subscribeRealtime(){
         // During initial load, 'added' = existing doc — just sync, no alert/beep
         if (_ordersInitialLoad && change.type === 'added') {
           var o = rowToOrder(d);
+          // Skip terminal statuses — archive and don't show
+          var _terminal = ['delivered','rejected','cancelled'];
+          if (_terminal.indexOf(o.status) !== -1) {
+            if (typeof ohArchive === 'function') ohArchive(o);
+            return;
+          }
+          // Skip orders from before today
+          var _todayMid = new Date(); _todayMid.setHours(0,0,0,0);
+          if (o.placedAt && o.placedAt < _todayMid.getTime()) {
+            if (typeof ohArchive === 'function') ohArchive(o);
+            return;
+          }
           if (!orders.find(function(x){ return x.id===o.id; })) {
             orders.unshift(o);
           }
@@ -4099,10 +4349,17 @@ function rowToService(row){
     else if (row.placed_at.toDate) placedAt = row.placed_at.toDate().getTime();
     else if (row.placed_at.seconds) placedAt = row.placed_at.seconds * 1000;
   }
+  var assignedAt = null;
+  if (row.assigned_at) {
+    if (typeof row.assigned_at === 'string') assignedAt = new Date(row.assigned_at).getTime();
+    else if (row.assigned_at.toDate) assignedAt = row.assigned_at.toDate().getTime();
+    else if (row.assigned_at.seconds) assignedAt = row.assigned_at.seconds * 1000;
+  }
   return {id:row.id, room:String(row.room), guest:row.guest||'Guest',
     type:row.type, icon:row.icon||'🔔', qty:row.qty||null,
     note:row.note||'', status:row.status||'received',
-    placedAt:placedAt, fromSupa:true};
+    placedAt:placedAt, assignedAt:assignedAt, assigned_at:row.assigned_at||null,
+    fromSupa:true};
 }
 
 function handleSvcRealtimeEvent(payload){
@@ -4140,10 +4397,21 @@ async function loadServicesFromSupabase(){
   try {
     var snap = await db.collection('service_requests').limit(200).get();
     if (!snap.empty) {
+      var _todayMidSvc = new Date(); _todayMidSvc.setHours(0,0,0,0);
+      var _todayMsSvc = _todayMidSvc.getTime();
       services = snap.docs.map(function(doc){
         var d=doc.data(); d.id=doc.id; return rowToService(d);
-      // Filter done client-side — avoids composite index
-      }).filter(function(s){ return s.status !== 'done'; });
+      }).filter(function(s){
+        if (s.status === 'done') {
+          if (typeof ohArchiveSvc === 'function') ohArchiveSvc(s);
+          return false;
+        }
+        if (s.placedAt && s.placedAt < _todayMsSvc) {
+          if (typeof ohArchiveSvc === 'function') ohArchiveSvc(s);
+          return false;
+        }
+        return true;
+      });
     }
     renderServices(); updateUrgencyStrip();
   } catch(err){ console.warn('Services load error:', err&&err.message||err); }
@@ -4179,13 +4447,20 @@ function handleRealtimeEvent(payload){
       announceNewOrder(o.room);
     }
   } else if(evt==='UPDATE'){
+    var _updO = rowToOrder(row);
+    var _termStatuses = ['delivered','rejected','cancelled'];
+    if (_termStatuses.indexOf(_updO.status) !== -1) {
+      // Archive into history and remove from active list immediately
+      if (typeof ohArchive === 'function') ohArchive(_updO);
+      orders = orders.filter(function(x){ return x.id !== _updO.id; });
+      stopAlertBeep(_updO.id);
+      renderOrders(); updateStats(); return;
+    }
     var idx=orders.findIndex(function(x){return x.id===row.id;});
-    if(idx!==-1) orders[idx]=rowToOrder(row);
-    else orders.unshift(rowToOrder(row));
+    if(idx!==-1) orders[idx]=_updO;
+    else orders.unshift(_updO);
     renderOrders();updateStats();
-    // Stop new-order beep once actioned
     if(row.status!=='new') stopAlertBeep(row.id);
-    // Step 4: Ready = delivery queue alert
     if(row.status==='ready'){
       showToast('service','🚀 Ready to Deliver — Room '+row.room,'Send to room now');
       playBeep('order');
@@ -4238,7 +4513,11 @@ async function confirmReject(){
   stopAlertBeep(_rejectOrderId);
   showToast('service','Order Rejected — Room '+order.room,fullReason);
   var db=getDb();
-  if(db){ db.collection('orders').doc(String(_rejectOrderId)).update({status:'rejected',rejection_reason:fullReason}).catch(function(e){console.warn('Reject error:',e);}); }
+  if(db){ db.collection('orders').doc(String(_rejectOrderId)).update({
+    status:'rejected',
+    rejection_reason: fullReason || 'Order rejected by kitchen',
+    rejected_at: new Date().toISOString()
+  }).catch(function(e){console.warn('Reject error:',e);}); }
 }
 
 // Legacy advanceOrder — superseded by advanceOrderWithUndo below (kept for safety)
@@ -4434,11 +4713,11 @@ function switchView(name,el){
   if(view) view.classList.add('active');
   var bnavEl=document.getElementById('bnav-'+name);
   if(bnavEl) bnavEl.classList.add('active');
-  ['orders','rooms','analytics'].forEach(function(v){
+  ['orders','rooms','analytics','menu'].forEach(function(v){
     var btn=document.getElementById('desk-nav-'+v);
     if(!btn)return;
-    if(v===name){ btn.style.background='rgba(201,169,110,0.1)'; btn.style.color='var(--gold)'; }
-    else{ btn.style.background='transparent'; btn.style.color='var(--text-muted)'; }
+    if(v===name){ btn.style.background='rgba(201,169,110,0.1)'; btn.style.color='var(--gold)'; btn.style.fontWeight='500'; }
+    else{ btn.style.background='transparent'; btn.style.color='var(--text-muted)'; btn.style.fontWeight='400'; }
   });
   var t=viewTitles[name];
   if(t){
@@ -4692,8 +4971,11 @@ async function acceptOrder(id) {
   // Firebase sync in background
   var db = getDb();
   if (db) {
-    db.collection('orders').doc(String(id)).update({status:'accepted', accepted_at:now})
-      .catch(function(e){ console.warn('Accept Firebase sync error:', e); });
+    db.collection('orders').doc(String(id)).update({
+      status: 'accepted',
+      accepted_at: now,
+      eta: order.eta || 25   // write eta so guest can show countdown
+    }).catch(function(e){ console.warn('Accept Firebase sync error:', e); });
   }
 }
 window.acceptOrder = acceptOrder;
@@ -4713,7 +4995,11 @@ async function advanceOrderWithUndo(id, toStatus) {
   order.status = newStatus;
   if (newStatus === 'accepted') order.acceptedAt = Date.now();
   stopAlertBeep(id);
-  if (newStatus === 'delivered') { orders = orders.filter(function(o){ return o.id!==id; }); }
+  if (['delivered','rejected','cancelled'].indexOf(newStatus) !== -1) {
+    var _archO = orders.find(function(o){ return o.id===id; });
+    if (_archO && typeof ohArchive === 'function') { var _snap = JSON.parse(JSON.stringify(_archO)); _snap.status = newStatus; ohArchive(_snap); }
+    orders = orders.filter(function(o){ return o.id!==id; });
+  }
   if (typeof renderTasks==='function') renderTasks(); else renderOrders();
   updateStats();
   var label = {
@@ -4728,9 +5014,24 @@ async function advanceOrderWithUndo(id, toStatus) {
   var db = getDb();
   if (db) {
     var updateData = {status: newStatus};
-    if(newStatus==='accepted')  updateData.accepted_at  = new Date().toISOString();
-    if(newStatus==='ready')     updateData.ready_at     = new Date().toISOString();
-    if(newStatus==='delivered') updateData.delivered_at = new Date().toISOString();
+    var _iso = new Date().toISOString();
+    if (newStatus === 'accepted') {
+      updateData.accepted_at   = _iso;
+      updateData.eta           = order.eta || 25;
+    }
+    if (newStatus === 'preparing') {
+      updateData.preparing_at  = _iso;
+      // Also write accepted_at if not already set (in case acceptOrder was skipped)
+      if (!order.accepted_at)  updateData.accepted_at = _iso;
+      updateData.eta           = order.eta || 25;
+    }
+    if (newStatus === 'ready') {
+      updateData.ready_at      = _iso;
+      updateData.eta           = order.eta || 25;
+    }
+    if (newStatus === 'delivered') {
+      updateData.delivered_at  = _iso;
+    }
     db.collection('orders').doc(String(id)).update(updateData)
       .catch(function(e){ console.warn('Firebase sync error:', e); });
   }
@@ -4743,13 +5044,25 @@ async function advanceSvcWithUndo(id, status) {
   var prevStatus = svc ? svc.status : 'received';
   pushUndo(id, prevStatus, {});
   // ── OPTIMISTIC: update UI instantly ──
-  for (var i=0; i<services.length; i++) { if(services[i].id===id){ services[i].status=status; break; } }
+  for (var i=0; i<services.length; i++) {
+    if(services[i].id===id){
+      services[i].status=status;
+      if(status==='assigned' && !services[i].assignedAt) services[i].assignedAt = Date.now();
+      if(status==='inprogress' && !services[i].assignedAt) services[i].assignedAt = Date.now();
+      break;
+    }
+  }
   if (typeof renderTasks==='function') renderTasks();
   renderServices(); updateUrgencyStrip(); updateStats();
   // Background sync to Firebase
   var db = getDb();
   if (db) {
-    db.collection('service_requests').doc(String(id)).update({status:status})
+    var _svcUpdate = {status: status};
+    var _svcIso = new Date().toISOString();
+    if (status === 'assigned')    _svcUpdate.assigned_at   = _svcIso;
+    if (status === 'inprogress')  _svcUpdate.inprogress_at = _svcIso;
+    if (status === 'done')        _svcUpdate.done_at       = _svcIso;
+    db.collection('service_requests').doc(String(id)).update(_svcUpdate)
       .catch(function(e){ console.warn('Svc Firebase sync error:', e); });
   }
   var label = {
@@ -5975,6 +6288,8 @@ function fmInit(){
   // Show/hide badge on nav
   var badge = document.getElementById('menu-badge');
   if(badge) badge.style.display = isSetup ? 'none' : 'block';
+  var dbadge = document.getElementById('desk-menu-badge');
+  if(dbadge) dbadge.style.display = isSetup ? 'none' : 'inline';
 
   if(!isSetup){
     document.getElementById('fm-setup').style.display = 'block';
@@ -6506,7 +6821,466 @@ window.fmSaveToGuest=fmSaveToGuest; window.fmInit=fmInit;
   var isSetup = localStorage.getItem('shakti_fm_setup')==='1';
   if(!isSetup){ try{ var m=localStorage.getItem('shakti_menu'); if(m&&Object.keys(JSON.parse(m)).length)isSetup=true; }catch(e){} }
   var b=document.getElementById('menu-badge'); if(b) b.style.display=isSetup?'none':'block';
+  var db=document.getElementById('desk-menu-badge'); if(db) db.style.display=isSetup?'none':'inline';
 })();
+</script>
+
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// ORDER HISTORY ENGINE  — Food & Service separate
+// ═══════════════════════════════════════════════════════════════════
+
+var OH = {
+  LS_FOOD:   'shakti_oh_food_v1',
+  LS_SVC:    'shakti_oh_svc_v1',
+  MAX_DAYS:  7,
+  _food:     {},   // { 'YYYY-MM-DD': [order, …] }
+  _svc:      {},   // { 'YYYY-MM-DD': [request, …] }
+  _activeDay: null,
+  _type:     'food',   // 'food' | 'service'
+  _histOpen:  false,
+};
+
+// ── Date helpers ────────────────────────────────────────────────────
+function ohDateKey(msOrDate) {
+  var d = msOrDate ? new Date(msOrDate) : new Date();
+  return d.getFullYear() + '-'
+    + String(d.getMonth()+1).padStart(2,'0') + '-'
+    + String(d.getDate()).padStart(2,'0');
+}
+function ohDayLabel(key) {
+  var today     = ohDateKey();
+  var yesterday = ohDateKey(Date.now() - 86400000);
+  if (key === today)     return 'Today';
+  if (key === yesterday) return 'Yesterday';
+  var d = new Date(key + 'T00:00:00');
+  return d.toLocaleDateString('en-IN', {weekday:'short', day:'numeric', month:'short'});
+}
+
+// ── Load / Save ─────────────────────────────────────────────────────
+function ohLoad() {
+  try { var r = localStorage.getItem(OH.LS_FOOD); OH._food = r ? JSON.parse(r) : {}; } catch(e) { OH._food = {}; }
+  try { var r = localStorage.getItem(OH.LS_SVC);  OH._svc  = r ? JSON.parse(r) : {}; } catch(e) { OH._svc  = {}; }
+  ohPrune();
+}
+function ohSave() {
+  try { localStorage.setItem(OH.LS_FOOD, JSON.stringify(OH._food)); } catch(e) {}
+  try { localStorage.setItem(OH.LS_SVC,  JSON.stringify(OH._svc));  } catch(e) {}
+  ohUpdateSettingsSub();
+}
+function ohPrune() {
+  var cutoff = ohDateKey(Date.now() - OH.MAX_DAYS * 86400000);
+  [OH._food, OH._svc].forEach(function(store) {
+    Object.keys(store).sort().forEach(function(k) { if (k < cutoff) delete store[k]; });
+  });
+}
+
+// ── Active store by current type ─────────────────────────────────────
+function ohStore() { return OH._type === 'service' ? OH._svc : OH._food; }
+
+// ── Archive food order ───────────────────────────────────────────────
+function ohArchive(order) {
+  if (!order || !order.id) return;
+  var key = ohDateKey(order.placedAt || Date.now());
+  if (!OH._food[key]) OH._food[key] = [];
+  if (!OH._food[key].find(function(o) { return o.id === order.id; })) {
+    OH._food[key].push({
+      id:         order.id,
+      type:       'food',
+      room:       String(order.room || ''),
+      guest:      order.guest || 'Guest',
+      items:      order.items || [],
+      total:      order.total || 0,
+      status:     order.status || 'delivered',
+      placedAt:   order.placedAt || Date.now(),
+      archivedAt: Date.now()
+    });
+    ohSave();
+  }
+}
+
+// ── Archive service request ──────────────────────────────────────────
+function ohArchiveSvc(svc) {
+  if (!svc || !svc.id) return;
+  var key = ohDateKey(svc.placedAt || Date.now());
+  if (!OH._svc[key]) OH._svc[key] = [];
+  if (!OH._svc[key].find(function(s) { return s.id === svc.id; })) {
+    OH._svc[key].push({
+      id:         svc.id,
+      type:       'service',
+      room:       String(svc.room || ''),
+      guest:      svc.guest || 'Guest',
+      svcType:    svc.type || '',
+      icon:       svc.icon || '🛎',
+      qty:        svc.qty || null,
+      note:       svc.note || '',
+      status:     svc.status || 'done',
+      placedAt:   svc.placedAt || Date.now(),
+      archivedAt: Date.now()
+    });
+    ohSave();
+  }
+}
+
+// ── Midnight reset ───────────────────────────────────────────────────
+var _ohLastDay = ohDateKey();
+function ohMidnightCheck() {
+  var today = ohDateKey();
+  if (today === _ohLastDay) return;
+  _ohLastDay = today;
+  var ord = (typeof orders   !== 'undefined') ? orders   : [];
+  var svc = (typeof services !== 'undefined') ? services : [];
+  ord.forEach(function(o) { ohArchive(o); });
+  svc.forEach(function(s) { ohArchiveSvc(s); });
+  if (typeof orders   !== 'undefined') orders   = [];
+  if (typeof services !== 'undefined') services = [];
+  if (typeof renderTasks === 'function') renderTasks();
+  ohUpdateSettingsSub();
+}
+setInterval(ohMidnightCheck, 60000);
+
+// ── Intercept advanceOrder (food) ────────────────────────────────────
+(function() {
+  var _orig = window.advanceOrder;
+  window.advanceOrder = function(id, newStatus) {
+    if (newStatus === 'delivered' || newStatus === 'rejected' || newStatus === 'cancelled') {
+      var ord = (typeof orders !== 'undefined') ? orders : [];
+      var o = ord.find(function(x) { return x.id === id; });
+      if (o) { var snap = JSON.parse(JSON.stringify(o)); snap.status = newStatus; setTimeout(function(){ ohArchive(snap); }, 500); }
+    }
+    if (_orig) return _orig.apply(this, arguments);
+  };
+})();
+
+// ── Intercept advanceSvc (service) ───────────────────────────────────
+(function() {
+  var _orig = window.advanceSvc;
+  window.advanceSvc = function(id, newStatus) {
+    if (newStatus === 'done') {
+      var svc = (typeof services !== 'undefined') ? services : [];
+      var s = svc.find(function(x) { return x.id === id; });
+      if (s) { var snap = JSON.parse(JSON.stringify(s)); snap.status = 'done'; setTimeout(function(){ ohArchiveSvc(snap); }, 500); }
+    }
+    if (_orig) return _orig.apply(this, arguments);
+  };
+})();
+
+// Periodic cleanup sweep — archive anything already terminal
+setInterval(function() {
+  var ord = (typeof orders !== 'undefined') ? orders : [];
+  ord.forEach(function(o) {
+    if (o.status === 'delivered' || o.status === 'rejected' || o.status === 'cancelled') ohArchive(o);
+  });
+  var svc = (typeof services !== 'undefined') ? services : [];
+  svc.forEach(function(s) { if (s.status === 'done') ohArchiveSvc(s); });
+}, 10000);
+
+// ── Type toggle ──────────────────────────────────────────────────────
+function ohSetType(t) {
+  OH._type = t;
+  var fb = document.getElementById('oh-type-food');
+  var sb = document.getElementById('oh-type-svc');
+  if (fb) {
+    var isFood = t === 'food';
+    fb.style.border      = isFood ? '1.5px solid var(--gold)' : '1.5px solid rgba(255,255,255,0.1)';
+    fb.style.background  = isFood ? 'rgba(201,169,110,0.12)' : 'transparent';
+    fb.style.color       = isFood ? 'var(--gold)' : 'var(--text-muted)';
+    fb.style.fontWeight  = isFood ? '600' : '400';
+    sb.style.border      = !isFood ? '1.5px solid rgba(107,159,191,0.5)' : '1.5px solid rgba(255,255,255,0.1)';
+    sb.style.background  = !isFood ? 'rgba(107,159,191,0.1)' : 'transparent';
+    sb.style.color       = !isFood ? 'var(--blue)' : 'var(--text-muted)';
+    sb.style.fontWeight  = !isFood ? '600' : '400';
+  }
+  // Reset search on switch
+  var s = document.getElementById('oh-search'); if (s) s.value = '';
+  ohRenderDayTabs();
+  ohRender();
+}
+
+// ── Show / hide history panel ────────────────────────────────────────
+function ohShowHistory() {
+  OH._histOpen = true;
+  // Hide live task UI
+  var strip = document.getElementById('smart-strip');
+  if (strip) strip.style.display = 'none';
+  document.getElementById('task-grid').style.display = 'none';
+  // Swap filter row → history tab row
+  var fr = document.getElementById('ops-filters-row');
+  var hr = document.getElementById('history-tab-row');
+  if (fr) fr.style.display = 'none';
+  if (hr) hr.style.display = 'block';
+  // Show history panel
+  document.getElementById('oh-panel').style.display = 'block';
+  ohLoad();
+  OH._type = 'food';
+  ohSetType('food');
+  var days = Object.keys(ohStore()).sort().reverse();
+  OH._activeDay = days[0] || ohDateKey();
+  ohRenderDayTabs();
+  ohRender();
+}
+function ohHideHistory() {
+  OH._histOpen = false;
+  // Restore live task UI
+  var strip = document.getElementById('smart-strip');
+  if (strip) strip.style.display = '';
+  document.getElementById('task-grid').style.display = '';
+  // Swap back
+  var fr = document.getElementById('ops-filters-row');
+  var hr = document.getElementById('history-tab-row');
+  if (fr) fr.style.display = '';
+  if (hr) hr.style.display = 'none';
+  // Hide history panel
+  document.getElementById('oh-panel').style.display = 'none';
+}
+
+// ── Patch setTypeFilter ──────────────────────────────────────────────
+(function() {
+  var _orig = window.setTypeFilter;
+  window.setTypeFilter = function(f, el) {
+    ohHideHistory();
+    var ht = document.getElementById('filter-tab-history');
+    if (ht) ht.style.color = '';
+    if (_orig) return _orig.apply(this, arguments);
+  };
+})();
+
+// ── Day tabs ─────────────────────────────────────────────────────────
+function ohRenderDayTabs() {
+  var wrap = document.getElementById('oh-days');
+  if (!wrap) return;
+  var store = ohStore();
+  var days  = Object.keys(store).sort().reverse();
+  if (!days.length) {
+    wrap.innerHTML = '<div style="font-size:12px;color:var(--text-dim);padding:6px 0;">No history yet for this category</div>';
+    return;
+  }
+  var accentCol = OH._type === 'service' ? 'var(--blue)' : 'var(--gold)';
+  var accentBg  = OH._type === 'service' ? 'rgba(107,159,191,0.12)' : 'rgba(201,169,110,0.12)';
+  // Build buttons via DOM to avoid any quote escaping issues
+  wrap.innerHTML = '';
+  days.forEach(function(key) {
+    var count    = store[key] ? store[key].length : 0;
+    var isActive = key === OH._activeDay;
+    var btn = document.createElement('button');
+    btn.style.cssText = 'padding:6px 12px;border-radius:100px;border:1px solid '
+      + (isActive ? accentCol : 'rgba(255,255,255,0.1)') + ';background:'
+      + (isActive ? accentBg  : 'transparent') + ';color:'
+      + (isActive ? accentCol : 'var(--text-muted)')
+      + ';font-family:DM Sans,sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:5px;';
+    btn.dataset.day = key;
+    btn.addEventListener('click', function() { ohSelectDay(this.dataset.day); });
+    // Label
+    var lbl = document.createElement('span');
+    lbl.textContent = ohDayLabel(key);
+    btn.appendChild(lbl);
+    // Count badge
+    var badge = document.createElement('span');
+    badge.style.cssText = 'font-size:10px;background:' + accentBg + ';color:' + accentCol + ';border-radius:8px;padding:1px 6px;';
+    badge.textContent = count;
+    btn.appendChild(badge);
+    // Delete button
+    var del = document.createElement('button');
+    del.textContent = '✕';
+    del.title = 'Delete this day';
+    del.style.cssText = 'background:rgba(192,57,43,0.1);border:none;border-radius:6px;color:var(--red);font-size:11px;padding:1px 5px;cursor:pointer;line-height:1.2;';
+    del.dataset.day = key;
+    del.addEventListener('click', function(e) { e.stopPropagation(); ohConfirmDeleteDay(this.dataset.day); });
+    btn.appendChild(del);
+    wrap.appendChild(btn);
+  });
+}
+
+function ohSelectDay(key) {
+  OH._activeDay = key;
+  ohRenderDayTabs();
+  ohRender();
+}
+
+function ohConfirmDeleteDay(key) {
+  var label = ohDayLabel(key);
+  var store = ohStore();
+  var count = store[key] ? store[key].length : 0;
+  var typeLbl = OH._type === 'service' ? 'service requests' : 'food orders';
+  if (!confirm('Delete all ' + count + ' ' + typeLbl + ' from ' + label + '?\nThis cannot be undone.')) return;
+  delete store[key];
+  ohSave();
+  var days = Object.keys(store).sort().reverse();
+  OH._activeDay = days[0] || ohDateKey();
+  ohRenderDayTabs();
+  ohRender();
+}
+
+// ── Main render ──────────────────────────────────────────────────────
+function ohRender() {
+  var listEl    = document.getElementById('oh-list');
+  var summaryEl = document.getElementById('oh-summary');
+  if (!listEl) return;
+  var store   = ohStore();
+  var dayData = store[OH._activeDay] || [];
+  var search  = (document.getElementById('oh-search').value || '').trim().toLowerCase();
+  var sort    = (document.getElementById('oh-sort').value || 'newest');
+  var isFood  = OH._type === 'food';
+
+  // Filter
+  var filtered = dayData.filter(function(o) {
+    if (!search) return true;
+    return String(o.room).toLowerCase().includes(search)
+      || (o.guest  || '').toLowerCase().includes(search)
+      || String(o.total || o.qty || '').includes(search)
+      || (o.svcType|| '').toLowerCase().includes(search)
+      || (o.id     || '').toLowerCase().includes(search);
+  });
+
+  // Sort — amount sort skipped for service (no total)
+  filtered.sort(function(a, b) {
+    if (sort === 'oldest')      return (a.placedAt||0) - (b.placedAt||0);
+    if (sort === 'room')        return String(a.room).localeCompare(String(b.room), undefined, {numeric:true});
+    if (sort === 'name')        return (a.guest||'').localeCompare(b.guest||'');
+    if (sort === 'amount_desc') return (b.total||0) - (a.total||0);
+    if (sort === 'amount_asc')  return (a.total||0) - (b.total||0);
+    return (b.placedAt||0) - (a.placedAt||0);
+  });
+
+  // ── Summary ──────────────────────────────────────────────────────
+  var accentCol = isFood ? 'var(--gold)' : 'var(--blue)';
+  if (isFood) {
+    var totalAmt  = filtered.reduce(function(s,o){ return s+(o.total||0); }, 0);
+    var delivered = filtered.filter(function(o){ return o.status==='delivered'; }).length;
+    var rejected  = filtered.filter(function(o){ return o.status==='rejected'||o.status==='cancelled'; }).length;
+    var stats = [
+      {label:'Orders',    val: filtered.length,              col: 'var(--text)'},
+      {label:'Revenue',   val: '₹'+totalAmt.toLocaleString('en-IN'), col: 'var(--gold)'},
+      {label:'Delivered', val: delivered,                    col: 'var(--green)'},
+      {label:'Rejected',  val: rejected,                     col: 'var(--red)'},
+    ];
+  } else {
+    var done     = filtered.filter(function(o){ return o.status==='done'; }).length;
+    var pending  = filtered.length - done;
+    var stats = [
+      {label:'Requests', val: filtered.length, col: 'var(--text)'},
+      {label:'Completed',val: done,            col: 'var(--green)'},
+      {label:'Pending',  val: pending,         col: 'var(--gold)'},
+      {label:'Rooms',    val: [...new Set(filtered.map(function(o){return o.room;}))].length, col: 'var(--blue)'},
+    ];
+  }
+  summaryEl.innerHTML = stats.map(function(s) {
+    return '<div style="flex:1;text-align:center;padding:10px 6px;">'
+      + '<div style="font-family:Cormorant Garamond,serif;font-size:18px;font-weight:500;color:'+s.col+';">'+s.val+'</div>'
+      + '<div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);margin-top:1px;">'+s.label+'</div>'
+      + '</div>';
+  }).join('<div style="width:1px;background:var(--topbar-border);margin:10px 0;"></div>');
+
+  // ── Empty state ────────────────────────────────────────────────────
+  if (!dayData.length) {
+    listEl.innerHTML = '<div style="padding:48px 20px;text-align:center;">'
+      + '<div style="font-size:36px;opacity:.2;margin-bottom:10px;">' + (isFood ? '🍽️' : '🛎') + '</div>'
+      + '<div style="font-family:Cormorant Garamond,serif;font-size:18px;color:var(--text-muted);">No ' + (isFood?'food orders':'service requests') + ' for this day</div>'
+      + '<div style="font-size:12px;color:var(--text-dim);margin-top:5px;">' + (isFood?'Orders are archived when delivered or rejected':'Requests are archived when marked Done') + '</div>'
+      + '</div>';
+    return;
+  }
+  if (!filtered.length) {
+    listEl.innerHTML = '<div style="padding:32px 20px;text-align:center;color:var(--text-muted);font-size:13px;">No results matching "' + (document.getElementById('oh-search').value||'') + '"</div>';
+    return;
+  }
+
+  // ── Cards ──────────────────────────────────────────────────────────
+  listEl.innerHTML = filtered.map(function(o) {
+    var t       = new Date(o.placedAt||o.archivedAt||Date.now());
+    var timeStr = t.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+    var stCol   = (o.status==='delivered'||o.status==='done') ? 'var(--green)'
+                : (o.status==='rejected'||o.status==='cancelled') ? 'var(--red)'
+                : 'var(--gold)';
+    var stLbl   = (o.status||'').replace('_',' ').toUpperCase();
+    var leftBorder = isFood ? '4px solid rgba(201,169,110,0.3)' : '4px solid rgba(107,159,191,0.4)';
+
+    var bodyHtml = isFood
+      // Food: item list + total
+      ? '<div style="padding:8px 14px;border-bottom:1px solid var(--card-border);">'
+          + (o.items||[]).map(function(i) {
+              return '<div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-muted);padding:2px 0;">'
+                + '<span><span style="color:var(--text-dim);">&times;'+i.qty+' </span>'+i.name+'</span>'
+                + '<span>₹'+(i.qty*i.price)+'</span>'
+                + '</div>';
+            }).join('')
+        + '</div>'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 14px;background:rgba(0,0,0,0.04);">'
+          + '<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);">Total</div>'
+          + '<div style="font-family:Cormorant Garamond,serif;font-size:16px;color:var(--gold);">₹'+(o.total||0)+'</div>'
+        + '</div>'
+      // Service: type + qty + note
+      : '<div style="padding:8px 14px;border-bottom:1px solid var(--card-border);display:flex;align-items:center;gap:10px;">'
+          + '<div style="font-size:22px;">'+(o.icon||'🛎')+'</div>'
+          + '<div>'
+            + '<div style="font-size:13px;color:var(--text);">'+(o.svcType||'Service')+(o.qty?' &times;'+o.qty:'')+'</div>'
+            + (o.note ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">"'+o.note+'"</div>' : '')
+          + '</div>'
+        + '</div>';
+
+    // Right-side header value
+    var rightVal = isFood
+      ? '<div style="font-family:Cormorant Garamond,serif;font-size:18px;color:var(--gold);">₹'+(o.total||0)+'</div>'
+      : '<div style="font-size:20px;">'+(o.icon||'🛎')+'</div>';
+
+    return '<div style="background:var(--surface);border:1px solid var(--card-border);border-left:'+leftBorder+';border-radius:12px;overflow:hidden;">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--card-border);">'
+        + '<div>'
+          + '<div style="font-family:Cormorant Garamond,serif;font-size:20px;font-weight:600;color:var(--gold);">Room '+o.room+'</div>'
+          + '<div style="font-size:12px;color:var(--text);margin-top:1px;">'+(o.guest||'Guest')+'</div>'
+          + '<div style="font-size:10px;color:var(--text-dim);margin-top:1px;">'+(o.id||'')+' · '+timeStr+'</div>'
+        + '</div>'
+        + '<div style="text-align:right;">'
+          + rightVal
+          + '<div style="font-size:9px;font-weight:600;letter-spacing:.08em;color:'+stCol+';margin-top:3px;">'+stLbl+'</div>'
+        + '</div>'
+      + '</div>'
+      + bodyHtml
+      + '</div>';
+  }).join('');
+}
+
+// ── Settings sub-label ───────────────────────────────────────────────
+function ohUpdateSettingsSub() {
+  var sub = document.getElementById('oh-settings-sub');
+  if (!sub) return;
+  var foodTotal = 0, svcTotal = 0, days = 0;
+  var allDays = new Set(Object.keys(OH._food).concat(Object.keys(OH._svc)));
+  allDays.forEach(function(k) {
+    days++;
+    foodTotal += (OH._food[k]||[]).length;
+    svcTotal  += (OH._svc[k]||[]).length;
+  });
+  sub.textContent = foodTotal + ' food · ' + svcTotal + ' service · ' + days + ' day' + (days!==1?'s':'') + ' · tap to view';
+}
+
+// ── Init ─────────────────────────────────────────────────────────────
+(function ohInit() {
+  ohLoad();
+  ohUpdateSettingsSub();
+  setTimeout(function() {
+    // Archive any terminal orders already in arrays on load
+    var ord = (typeof orders   !== 'undefined') ? orders   : [];
+    var svc = (typeof services !== 'undefined') ? services : [];
+    ord.forEach(function(o) {
+      if (o.status==='delivered'||o.status==='rejected'||o.status==='cancelled') ohArchive(o);
+    });
+    svc.forEach(function(s) { if (s.status==='done') ohArchiveSvc(s); });
+    if (typeof orders !== 'undefined')
+      orders = orders.filter(function(o){ return o.status!=='delivered'&&o.status!=='cancelled'; });
+  }, 2000);
+})();
+
+// Expose
+window.ohShowHistory      = ohShowHistory;
+window.ohHideHistory      = ohHideHistory;
+window.ohSelectDay        = ohSelectDay;
+window.ohConfirmDeleteDay = ohConfirmDeleteDay;
+window.ohRender           = ohRender;
+window.ohSetType          = ohSetType;
+window.ohArchive          = ohArchive;
+window.ohArchiveSvc       = ohArchiveSvc;
 </script>
 
 </body>
