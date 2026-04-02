@@ -3312,8 +3312,81 @@ function showGuestNotif(title, msg, type, onClick) {
     guestSb = firebase.firestore();
     window._guestDbReady = true;
     console.log('Guest Firebase ready');
+    // Re-subscribe all active orders from localStorage on connect
+    setTimeout(guestResubscribeAll, 500);
   } catch(e) { console.warn('Guest Firebase init error:', e); }
 })();
+
+// ── Re-subscribe all active orders + service requests from orderHistory
+// Called after Firebase connects AND after page load
+function guestResubscribeAll() {
+  if (!guestSb) return;
+  // Orders
+  orderHistory.forEach(function(o) {
+    if (o.status === 'delivered' || o.status === 'rejected' || o.status === 'cancelled') return;
+    if (guestRtChannels[o.id]) return; // already subscribed
+    subscribeGuestOrderUpdates(o.id, o);
+  });
+  // Service requests
+  serviceHistory.forEach(function(r) {
+    if (r.status === 'done' || r.status === 'cancelled') return;
+    if (guestRtChannels['svc_' + r.id]) return;
+    subscribeGuestServiceUpdates(r.id, r);
+  });
+  // Also fetch current status from Firebase in case we missed changes while offline
+  guestSyncCurrentStatuses();
+}
+
+// ── Fetch latest status for all active orders from Firebase (handles offline gaps)
+function guestSyncCurrentStatuses() {
+  if (!guestSb) return;
+  var roomNum = String(window.ROOM_NUM || '203');
+  // Sync orders
+  orderHistory.forEach(function(o) {
+    if (o.status === 'delivered' || o.status === 'rejected' || o.status === 'cancelled') return;
+    guestSb.collection('orders').doc(o.id).get().then(function(doc) {
+      if (!doc.exists) return;
+      var data = doc.data();
+      var ns = data.status;
+      if (!ns || ns === o.status) return;
+      var prev = o.status;
+      o.status = ns;
+      o.rejection_reason = data.rejection_reason || null;
+      if ((ns === 'accepted' || ns === 'preparing') && !o.acceptedAt) {
+        o.acceptedAt = data.accepted_at ? new Date(data.accepted_at).getTime() : Date.now();
+      }
+      if (data.eta) o.eta = data.eta;
+      if (ns === 'delivered') o.deliveredAt = Date.now();
+      updateOrdersBadge();
+      renderOrders();
+      // Notify if moved forward
+      if (ns === 'accepted' && prev === 'new')
+        showGuestNotif('Order Accepted! ✅', 'Kitchen is getting started.', 'accepted', function(){ go('orders'); });
+      else if (ns === 'delivered')
+        showGuestNotif('Delivered! Enjoy your meal 🏁', 'Hope you enjoy it.', 'delivered', function(){ go('orders'); });
+      else if (ns === 'rejected')
+        showGuestNotif('Order Declined ❌', data.rejection_reason || 'Contact reception.', 'rejected', function(){ go('orders'); });
+    }).catch(function(e){ console.warn('guestSyncCurrentStatuses order error:', e); });
+  });
+  // Sync service requests
+  serviceHistory.forEach(function(r) {
+    if (r.status === 'done' || r.status === 'cancelled') return;
+    guestSb.collection('service_requests').doc(r.id).get().then(function(doc) {
+      if (!doc.exists) return;
+      var data = doc.data();
+      var ns = data.status;
+      if (!ns || ns === r.status) return;
+      r.status = ns;
+      if ((ns === 'assigned' || ns === 'inprogress') && !r.assignedAt && data.assigned_at) {
+        r.assignedAt = new Date(data.assigned_at).getTime();
+      }
+      updateServicesBadge();
+      renderServices();
+    }).catch(function(e){ console.warn('guestSyncCurrentStatuses svc error:', e); });
+  });
+}
+window.guestResubscribeAll = guestResubscribeAll;
+window.guestSyncCurrentStatuses = guestSyncCurrentStatuses;
 
 // ── Supabase-aware placeOrder (overwrites the local-only version above)
 async function placeOrder(isMerge) {
@@ -3370,11 +3443,15 @@ async function placeOrder(isMerge) {
       });
       // Subscribe to live status changes for this order
       subscribeGuestOrderUpdates(orderId, order);
+      // Immediately fetch current status — dashboard may have already acted
+      setTimeout(function() {
+        if (typeof guestSyncCurrentStatuses === 'function') guestSyncCurrentStatuses();
+      }, 2000);
     } catch(err) {
       console.warn('Guest Firebase insert failed:', err.message || err);
     }
   }
-  _doFirebaseInsert(10); // retry up to 10 times (3 seconds total)
+  _doFirebaseInsert(30); // retry up to 30 times (9 seconds total)
 }
 
 // ── Supabase-aware submitService (overwrites local-only version above)
@@ -3452,23 +3529,38 @@ function subscribeGuestOrderUpdates(orderId, localOrder) {
     delete guestRtChannels[orderId];
   }
 
-  var prevStatus = localOrder ? localOrder.status : 'new';
+  // Use null so the FIRST snapshot always syncs current status from Firebase
+  // (avoids the bug where first snapshot = current status = prevStatus → silently skipped)
+  var prevStatus = null;
 
   guestRtChannels[orderId] = guestSb
     .collection('orders').doc(orderId)
     .onSnapshot(function(doc) {
       if (!doc.exists) return;
-      var newStatus = doc.data().status;
-      if (!newStatus || newStatus === prevStatus) return;
-      prevStatus = newStatus;
+      var data = doc.data();
+      var newStatus = data.status;
+      if (!newStatus) return;
 
       var found = orderHistory.find(function(o) { return o.id === orderId; });
       if (found) {
+        // Always sync current Firebase status to local (handles page refresh)
+        var changed = newStatus !== found.status;
         found.status = newStatus;
-        if (newStatus === 'accepted') found.acceptedAt = Date.now();
-        if (document.getElementById('screen-orders').classList.contains('active')) renderOrders();
+        found.rejection_reason = data.rejection_reason || null;
+        if ((newStatus === 'accepted' || newStatus === 'preparing') && !found.acceptedAt) {
+          found.acceptedAt = data.accepted_at ? new Date(data.accepted_at).getTime() : Date.now();
+        }
+        if (data.eta) found.eta = data.eta;
+        if (newStatus === 'delivered' && !found.deliveredAt) found.deliveredAt = Date.now();
         updateOrdersBadge();
+        renderOrders();
+
+        // Only show notification if status actually changed forward
+        if (!changed || newStatus === prevStatus) { prevStatus = newStatus; return; }
       }
+
+      if (newStatus === prevStatus) { prevStatus = newStatus; return; }
+      prevStatus = newStatus;
 
       if (newStatus === 'accepted') {
         showGuestNotif('Order Accepted! ✅','Your order is confirmed — kitchen is getting started.','accepted',function(){ if(typeof go==='function')go('orders'); });
@@ -3493,18 +3585,37 @@ function subscribeGuestOrderUpdates(orderId, localOrder) {
 // ── Subscribe to real-time service request status changes for the guest
 function subscribeGuestServiceUpdates(reqId, localReq) {
   if (!guestSb) return;
-  var prevSvcStatus = localReq ? localReq.status : 'received';
+  // Track in guestRtChannels so guestResubscribeAll knows it's active
+  var _svcKey = 'svc_' + reqId;
+  if (guestRtChannels[_svcKey]) {
+    try { guestRtChannels[_svcKey](); } catch(e) {}
+  }
+  var prevSvcStatus = null; // null so first snapshot always syncs
 
-  guestSb
+  var _unsub = guestSb
     .collection('service_requests').doc(reqId)
     .onSnapshot(function(doc) {
       if (!doc.exists) return;
-      var newStatus = doc.data().status;
-      if (!newStatus || newStatus === prevSvcStatus) return;
-      prevSvcStatus = newStatus;
+      var data = doc.data();
+      var newStatus = data.status;
+      if (!newStatus) return;
+
+      // Always sync current status to local
+      var req = serviceHistory.find(function(r) { return r.id === reqId; });
+      if (req) {
+        req.status = newStatus;
+        if ((newStatus === 'assigned' || newStatus === 'inprogress') && !req.assignedAt && data.assigned_at) {
+          req.assignedAt = new Date(data.assigned_at).getTime();
+        }
+        if (document.getElementById('screen-services').classList.contains('active')) renderServices();
+        updateServicesBadge();
+        if (newStatus === prevSvcStatus) { prevSvcStatus = newStatus; return; }
+      }
+
+      if (!localReq) { prevSvcStatus = newStatus; return; }
       localReq.status = newStatus;
-      if (document.getElementById('screen-services').classList.contains('active')) renderServices();
-      updateServicesBadge();
+      if (newStatus === prevSvcStatus) { prevSvcStatus = newStatus; return; }
+      prevSvcStatus = newStatus;
 
       var svcName = localReq.type || 'Your request';
       if (newStatus === 'assigned') {
@@ -3529,7 +3640,8 @@ function subscribeGuestServiceUpdates(reqId, localReq) {
           function() { if (typeof go === 'function') go('services'); }
         );
       }
-    });
+    }, function(err){ console.warn('Guest svc snapshot error:', err); });
+  guestRtChannels[_svcKey] = _unsub; // track so guestResubscribeAll can skip already-subscribed
 }
 
 // BroadcastChannel already initialized above with dynamic ROOM_ID
@@ -4601,8 +4713,14 @@ function startConnHealthCheck(){
 // Reconnect when tab becomes visible again (phone wake / tab switch)
 document.addEventListener('visibilitychange',function(){
   if(document.visibilityState==='visible'){
-    if(!sbClient||!realtimeInited) autoConnect();
-    else{ loadOrdersFromSupabase().catch(function(){}); loadServicesFromSupabase().catch(function(){}); }
+    // Guest: re-sync current statuses in case we missed changes while backgrounded
+    if (window.APP_MODE === 'guest' && typeof guestSyncCurrentStatuses === 'function') {
+      guestSyncCurrentStatuses();
+    }
+    if(window.APP_MODE !== 'guest'){
+      if(!sbClient||!realtimeInited) autoConnect();
+      else{ loadOrdersFromSupabase().catch(function(){}); loadServicesFromSupabase().catch(function(){}); }
+    }
   }
 });
 // Reconnect when network comes back
@@ -6136,6 +6254,11 @@ if (document.readyState === 'complete') {
     // Init guest theme
     if(typeof initTheme === 'function') initTheme();
     if(typeof _navigate === 'function') _navigate('entry');
+    // Re-subscribe all active orders/services from localStorage after Firebase connects
+    // This handles the page-refresh case where listeners are lost
+    setTimeout(function() {
+      if (typeof guestResubscribeAll === 'function') guestResubscribeAll();
+    }, 1500);
   } else {
     document.getElementById('guest-root').style.display = 'none';
   }
