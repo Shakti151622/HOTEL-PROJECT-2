@@ -3898,13 +3898,9 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
           <button class="ops-tab" id="filter-tab-ready" onclick="setTypeFilter('ready',this)">Ready</button>
           <button class="ops-tab" id="filter-tab-rejected" onclick="setTypeFilter('rejected',this)">Rejected</button>
         </div></div>
-        <div id="history-tab-row" style="display:none;padding:8px 0 10px;">
-          <button id="filter-tab-history" style="padding:8px 18px;border-radius:100px;border:1.5px solid var(--gold);background:rgba(201,169,110,0.12);color:var(--gold);font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
-            🗂 Order History
-          </button>
-          <button onclick="ohHideHistory()" style="margin-left:8px;padding:8px 14px;border-radius:100px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:var(--text-muted);font-family:DM Sans,sans-serif;font-size:12px;cursor:pointer;">
-            ← Back to Tasks
-          </button>
+        <div id="history-tab-row" style="display:none;padding:6px 0 10px;align-items:center;gap:10px;">
+          <span style="font-size:13px;font-weight:600;color:var(--gold);letter-spacing:0.04em;">🗂 Order History</span>
+          <button onclick="ohHideHistory()" style="padding:6px 14px;border-radius:100px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:var(--text-muted);font-family:DM Sans,sans-serif;font-size:12px;cursor:pointer;">← Back to Tasks</button>
         </div>
       </div>
       <div id="task-grid"></div>
@@ -3912,9 +3908,9 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
       <!-- ORDER HISTORY PANEL (slides over task-grid) -->
       <div id="oh-panel" style="display:none;">
         <!-- Food / Service type toggle -->
-        <div style="display:flex;gap:6px;padding:10px 0 6px;">
-          <button id="oh-type-food" onclick="ohSetType('food')" style="flex:1;padding:8px 12px;border-radius:9px;border:1.5px solid var(--gold);background:rgba(201,169,110,0.12);color:var(--gold);font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">🍽 Food Orders</button>
-          <button id="oh-type-svc" onclick="ohSetType('service')" style="flex:1;padding:8px 12px;border-radius:9px;border:1.5px solid rgba(107,159,191,0.3);background:transparent;color:var(--text-muted);font-family:DM Sans,sans-serif;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">🛎 Service</button>
+        <div style="padding:6px 0 4px;display:flex;align-items:center;gap:8px;">
+          <span style="font-size:12px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;">All activity · sorted by time</span>
+          <span id="oh-count-badge" style="font-size:11px;color:var(--gold);background:rgba(201,169,110,0.12);border:1px solid rgba(201,169,110,0.3);border-radius:6px;padding:2px 8px;"></span>
         </div>
         <!-- Search + sort bar -->
         <div style="display:flex;gap:8px;padding:4px 0 8px;flex-wrap:wrap;align-items:center;">
@@ -5095,6 +5091,13 @@ async function acceptOrder(id) {
       eta: order.eta || 25   // write eta so guest can show countdown
     }).catch(function(e){ console.warn('Accept Firebase sync error:', e); });
   }
+  // Auto-advance to 'preparing' after 1s — removes need for manual "Start Preparing"
+  setTimeout(function() {
+    var o2 = orders.find(function(x){ return x.id === id; });
+    if (o2 && o2.status === 'accepted') {
+      advanceOrderWithUndo(id, 'preparing');
+    }
+  }, 1000);
 }
 window.acceptOrder = acceptOrder;
 
@@ -5149,6 +5152,17 @@ async function advanceOrderWithUndo(id, toStatus) {
     }
     if (newStatus === 'delivered') {
       updateData.delivered_at  = _iso;
+    }
+    // Auto-deliver 10 min after Ready if staff doesn't do it manually
+    if (newStatus === 'ready') {
+      (function(_id) {
+        setTimeout(function() {
+          var _o = orders.find(function(x){ return x.id === _id; });
+          if (_o && _o.status === 'ready') {
+            advanceOrderWithUndo(_id, 'delivered');
+          }
+        }, 10 * 60 * 1000); // 10 minutes
+      })(id);
     }
     db.collection('orders').doc(String(id)).update(updateData)
       .catch(function(e){ console.warn('Firebase sync error:', e); });
@@ -5955,7 +5969,7 @@ function renderTasks() {
          + '<button data-id="'+id+'" onclick="openRejectModal(this.dataset.id)" style="flex:1;padding:14px 8px;border-radius:10px;background:rgba(192,57,43,0.12);color:var(--red);border:1px solid rgba(192,57,43,0.25);font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">&#10005; Reject</button>'
          + cb;
     else if (o.status==='accepted')
-      ac = '<button data-id="'+id+'" data-s="preparing" onclick="advanceOrder(this.dataset.id,this.dataset.s)" style="flex:1;padding:14px 8px;border-radius:10px;background:rgba(201,169,110,0.15);color:var(--gold);border:1px solid rgba(201,169,110,0.3);font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">Start Preparing</button>' + undoBtn + cb;
+      ac = undoBtn + cb; // auto-advances to preparing — no manual step
     else if (o.status==='preparing')
       ac = '<button data-id="'+id+'" data-s="ready" onclick="advanceOrder(this.dataset.id,this.dataset.s)" style="flex:1;padding:14px 8px;border-radius:10px;background:rgba(76,175,125,0.15);color:var(--green);border:1px solid rgba(76,175,125,0.3);font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">&#9654; Mark Ready</button>' + undoBtn + cb;
     else if (o.status==='ready')
@@ -7132,7 +7146,7 @@ function ohShowHistory() {
   var fr = document.getElementById('ops-filters-row');
   var hr = document.getElementById('history-tab-row');
   if (fr) fr.style.display = 'none';
-  if (hr) hr.style.display = 'block';
+  if (hr) hr.style.display = 'flex';
   // Show history panel
   document.getElementById('oh-panel').style.display = 'block';
   ohLoad();

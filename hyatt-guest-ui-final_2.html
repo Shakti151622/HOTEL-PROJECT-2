@@ -2106,18 +2106,11 @@ function updateOrdersBadge() {
   const active = orderHistory.filter(o => o.status !== 'delivered' && o.status !== 'rejected' && o.status !== 'cancelled');
   if (active.length > 0) {
     badge.style.display = 'inline-block';
-    if (active.length === 1) {
-      var _o=active[0],_st=_o.status,_sub='';
-      if(_st==='new'){_sub='Waiting for confirmation · '+(_o.eta||25)+' min est.';}
-      else if(_st==='accepted'||_st==='preparing'||_st==='ready'){
-        var _lbl=_st==='ready'?'Almost ready':(_st==='preparing'?'Preparing':'Accepted – Kitchen is on it');
-        if(_o.acceptedAt){var _el=Math.floor((Date.now()-_o.acceptedAt)/60000);var _rem=Math.max(0,(_o.eta||25)-_el);_sub=_lbl+' · '+(_rem>0?_rem+' min remaining':'Ready soon!');}
-        else{_sub=_lbl+' · '+(_o.eta||25)+' min est.';}
-      } else {_sub='In progress';}
-      desc.textContent=_sub;
-    } else {
-      desc.textContent=active.length+' orders in progress';
-    }
+    // Guest visibility mapping: ready is hidden (shows as Preparing per spec)
+    const statusText = { new: 'Waiting for confirmation', accepted: 'Accepted · being prepared', preparing: 'Being prepared', ready: 'Being prepared' };
+    desc.textContent = active.length === 1
+      ? (statusText[active[0].status] || 'In progress') + ' · ' + active[0].eta + ' min est.'
+      : active.length + ' orders in progress';
   } else {
     badge.style.display = 'none';
     desc.textContent = `${orderHistory.length} order${orderHistory.length > 1 ? 's' : ''} placed today`;
@@ -2138,184 +2131,170 @@ function renderOrders() {
   const active = orderHistory.filter(o => o.status !== 'delivered' && o.status !== 'rejected' && o.status !== 'cancelled');
   const past   = orderHistory.filter(o => o.status === 'delivered' || o.status === 'rejected' || o.status === 'cancelled');
 
-  const statusLabel = { new: 'LIVE', accepted: 'LIVE', preparing: 'LIVE', ready: 'LIVE', delivered: 'Delivered', rejected: 'Rejected', cancelled: 'Cancelled' };
-  const statusClass = { new: 'status-live', accepted: 'status-live', preparing: 'status-live', ready: 'status-live', delivered: 'status-delivered-green', rejected: 'status-rejected', cancelled: 'status-cancelled-red' };
+  // ── GUEST 3-STEP TRACKER
+  // Placed → Accepted → Delivered
+  // accepted/preparing/ready all = step 2 (timer running)
+  const GUEST_STEPS = ['Placed', 'Accepted', 'Delivered'];
 
-  const stepsDef = ['Placed', 'Accepted', 'Delivered'];
-  function stepIndex(status) {
-    var _m={new:0,accepted:1,preparing:1,ready:1,delivered:2,rejected:-1}; return _m[status]!==undefined?_m[status]:0;
-  }
-  function getEtaHtml(o) {
-    if(o.status==='rejected'||o.status==='cancelled') return '';
-    var eta = o.eta || 25;
-    var acceptedAt = o.acceptedAt || null;
-    var now = Date.now();
-    // Colour: grey before accepted, then green/orange/red based on lateness
-    var col, num;
-    if(!acceptedAt || o.status==='new') {
-      col = 'var(--text-muted)';
-      num = eta+' min';
-    } else {
-      var elapsedMin = Math.floor((now - acceptedAt) / 60000);
-      var overMin = elapsedMin - eta;
-      var remaining = Math.max(0, eta - elapsedMin);
-      col = overMin >= 20 ? '#C0392B' : overMin >= 10 ? '#E67E22' : 'var(--green)';
-      if(o.status==='delivered') {
-        var deliveredAt = o.deliveredAt || now;
-        num = (Math.round((deliveredAt - acceptedAt)/60000))+' min';
-      } else {
-        num = remaining > 0 ? remaining+' min' : 'Ready!';
-      }
-    }
-    var _clock='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="'+col+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
-    return '<div style="text-align:right;display:flex;align-items:center;justify-content:flex-end;gap:2px;">'
-      + _clock
-      + '<span style="font-size:15px;font-weight:700;font-family:DM Sans,sans-serif;color:'+col+';">'+num+'</span>'
-      + '</div>';
+  function guestStepIndex(status) {
+    if (status === 'new')                                              return 0;
+    if (status === 'accepted'||status === 'preparing'||status === 'ready') return 1;
+    if (status === 'delivered')                                        return 2;
+    return 0;
   }
 
-  function getStatusText(o) {
-    if(o.status==='new') return 'Order received · Awaiting confirmation';
-    if(o.status==='accepted') return 'Kitchen is on it';
-    if(o.status==='preparing'||o.status==='ready') return 'Kitchen is on it';
-    if(o.status==='delivered') return 'Delivered · Enjoy your meal';
-    return '';
+  const MSG_NEW      = ['Waiting for kitchen confirmation…', 'Your order will be confirmed shortly', 'Thank you for your patience'];
+  const MSG_ACCEPTED = ['Your order is being prepared', 'Kitchen is working on it', 'Thanks for your patience', 'Almost there — hang on!'];
+  const MSG_READY    = ['Your order is on its way!', 'Being delivered to your room', 'Almost at your door'];
+
+  function guestMsgs(status) {
+    if (status === 'new')                               return MSG_NEW;
+    if (status === 'accepted'||status === 'preparing')  return MSG_ACCEPTED;
+    if (status === 'ready')                             return MSG_READY;
+    return [];
   }
+
+  function guestTimerHtml(o) {
+    var accepted = o.acceptedAt || (o.accepted_at ? new Date(o.accepted_at).getTime() : null);
+    if (!accepted) return '';
+    var elapsedMs  = Date.now() - accepted;
+    var elapsedMin = Math.floor(elapsedMs / 60000);
+    var elapsedSec = Math.floor((elapsedMs % 60000) / 1000);
+    var eta        = o.eta || 25;
+    var remaining  = Math.max(0, eta - elapsedMin);
+    var pct        = Math.min(100, Math.round((elapsedMs / (eta * 60000)) * 100));
+    var barCol     = pct < 70 ? 'var(--green)' : pct < 90 ? '#E0A800' : 'var(--red)';
+    var timeStr    = (elapsedMin > 0 ? elapsedMin + 'm ' : '') + (elapsedMin < 60 ? elapsedSec + 's' : '');
+    return '<div style="padding:12px 18px 8px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+        + '<span style="font-size:11px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;">Time elapsed</span>'
+        + '<span style="font-size:13px;font-weight:600;color:' + barCol + ';">'
+          + timeStr + (remaining > 0 ? ' · ~' + remaining + ' min remaining' : ' · Almost ready!')
+        + '</span>'
+      + '</div>'
+      + '<div style="height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;">'
+        + '<div style="height:100%;width:' + pct + '%;background:' + barCol + ';border-radius:2px;transition:width 1s linear;"></div>'
+      + '</div>'
+    + '</div>';
+  }
+
+  const active = orderHistory.filter(function(o){ return o.status!=='delivered'&&o.status!=='rejected'&&o.status!=='cancelled'; });
+  const past   = orderHistory.filter(function(o){ return o.status==='delivered'||o.status==='rejected'||o.status==='cancelled'; });
+
+  var checkSvgGreen = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  var pillLabel = { new:'Order Placed', accepted:'Kitchen Confirmed', preparing:'Preparing', ready:'Almost Ready!', delivered:'Delivered', rejected:'Declined', cancelled:'Cancelled' };
+  var pillClass = { new:'status-new', accepted:'status-accepted', preparing:'status-preparing', ready:'status-preparing', delivered:'status-delivered', rejected:'status-rejected', cancelled:'status-rejected' };
 
   function renderCard(o) {
-    const si = stepIndex(o.status);
-    const isRejected = o.status === 'rejected';
-    const isCancelled = o.status === 'cancelled';
-    const etaHtml = getEtaHtml(o);
-    const checkSvgGreen = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-    const steps = isRejected
-      ? '<div style="font-size:12px;color:#C0392B;padding:4px 0;">✕ Order was not accepted</div>'
-      : isCancelled
-      ? '<div style="font-size:12px;color:var(--text-muted);padding:4px 0;">Order cancelled</div>'
-      : stepsDef.map((s, i) => {
-          // si=0:new  si=1:accepted/preparing/ready  si=2:delivered
-          var cls='',tick='',anim='';
-          if(i===0){
-            // Placed — always done
-            cls='done'; tick=checkSvgGreen;
-          } else if(i===1){
-            if(si===0){
-              // Waiting for acceptance — pulse ring, no tick
-              cls='active';
-            } else {
-              // Accepted/Preparing/Ready — GREEN TICK on Accepted dot
-              cls='done'; tick=checkSvgGreen;
-              // Grey overlay hides the CSS ::before line (which would turn green due to 'done' class)
-              // so the Accepted->Delivered segment stays grey until delivered
-              var _grey='<div style="position:absolute;top:10px;left:50%;right:-50%;height:2px;background:var(--surface2);z-index:1;pointer-events:none;"></div>';
-              // Animated green progress bar growing from Accepted dot toward Delivered
-              var _e2=o.eta||25; var _s2=o.acceptedAt||Date.now(); var _ms2=Date.now()-_s2;
-              var _late=_ms2>_e2*60000; var _col=_late?'#E67E22':'var(--green)';
-              var _tgt=Math.max(1000,(_e2-1)*60000); var _p=Math.min(50,(_ms2/_tgt)*50);
-              var _r=Math.max(0,_tgt-_ms2); var _tr=_r>0?'transition:width '+_r+'ms linear;':'';
-              var _fl=_late?'animation:_flash 0.8s ease-in-out infinite;':'';
-              var _tip='<div style="position:absolute;right:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:'+_col+';filter:drop-shadow(0 0 6px rgba(76,175,125,0.9));animation:line-tip-pulse 1s ease-in-out infinite;z-index:4;"></div>';
-              anim=_grey+'<div style="position:absolute;top:10px;left:50%;height:2px;background:'+_col+';z-index:2;width:'+_p.toFixed(1)+'%;'+_tr+_fl+'">'+_tip+'</div>';
-            }
-          } else if(i===2){
-            cls=si>=2?'done':''; tick=si>=2?checkSvgGreen:'';
-          }
-          return '<div class="tracker-step '+cls+'">'+anim+'<div class="tracker-dot">'+tick+'</div><div class="tracker-step-name">'+s+'</div></div>';
-        }).join('');
+    var si          = guestStepIndex(o.status);
+    var isRejected  = o.status === 'rejected' || o.status === 'cancelled';
+    var isDelivered = o.status === 'delivered';
 
-    // Cancel/Modify: always for 'new', within 10 mins for 'accepted'
-    const minsElapsed = o.acceptedAt ? (Date.now() - o.acceptedAt) / 60000 : 0;
-    const canModify = o.status === 'new' || o.status === 'accepted';
-    const canCancel = o.status === 'new' || o.status === 'accepted';
-    const isNew = o.status === 'new';
-    const modifyBtns = (canModify || canCancel) ? `
-      <div style="display:flex;gap:10px;padding:10px 0 4px;">
-        ${canModify ? `<button onclick="modifyOrder('${o.id}')" style="flex:1;padding:10px;background:transparent;border:1px solid rgba(201,169,110,0.4);border-radius:10px;color:var(--gold);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;letter-spacing:0.02em;">Modify</button>` : ''}
-        <button onclick="cancelOrder('${o.id}')" style="flex:1;padding:10px;background:transparent;border:1px solid rgba(192,57,43,0.25);border-radius:10px;color:#C0392B;font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;letter-spacing:0.02em;">Cancel</button>
-      </div>` : '';
+    var steps = GUEST_STEPS.map(function(s, i) {
+      var done   = i < si || (isDelivered && i === 2);
+      var active = i === si && !isDelivered;
+      var cls    = done ? 'done' : (active ? 'active' : '');
+      return '<div class="tracker-step ' + cls + '">'
+        + '<div class="tracker-dot">' + (done ? checkSvgGreen : '') + '</div>'
+        + '<div class="tracker-step-name">' + s + '</div>'
+      + '</div>';
+    }).join('');
 
-    return `<div class="order-card" id="ocard-${o.id}">
-      <div class="order-card-head">
-        <div class="order-card-meta">
-          <div class="order-card-id">${o.id} · ${o.date} · ${o.time}${o.fromPeer ? ' <span class="order-device-tag">Roommate</span>' : ''}${o.isMerge ? ' <span class="order-device-tag">Merged</span>' : ''}</div>
-          ${o.guest ? '<div class="order-card-time" style="display:flex;align-items:center;gap:4px;">' + o.guest + '<span onclick="editGuestName()" style="font-size:10px;color:var(--gold);opacity:0.7;cursor:pointer;margin-left:4px;">✏</span></div>' : ''}
-        </div>
-        <div class="order-status-pill ${statusClass[o.status]||'status-delivered'}">
-          ${(o.status==='new'||o.status==='accepted'||o.status==='preparing'||o.status==='ready') ? '<span class="pill-dot pill-dot-green"></span>' : o.status==='rejected' ? '<span class="pill-dot pill-dot-red"></span>' : ''}
-          ${statusLabel[o.status]||o.status}
-        </div>
-      </div>
-      ${o.status === 'rejected' && o.rejection_reason ? `
-      <div style="margin:8px 0;padding:10px 12px;background:rgba(192,57,43,0.1);border-radius:10px;font-size:13px;color:var(--red);">
-        Reason: ${o.rejection_reason}
-      </div>` : ''}
-      <div class="order-card-items">
-        ${o.items.map(i => `
-          <div class="order-item-row">
-            <div><span class="order-item-qty">×${i.qty}</span>${i.name}</div>
-            <div class="order-item-price">₹${i.qty * i.price}</div>
-          </div>`).join('')}
-      </div>
-      <div class="order-card-footer">
-        <div class="order-total-label">Total</div>
-        <div class="order-total-amt">₹${o.total}</div>
-      </div>
-      ${o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'rejected' ? `
-      <div class="order-tracker">
-        <div class="tracker-header">
-          <div class="tracker-label">Order Status</div>
-          ${etaHtml}
-        </div>
-        <div class="tracker-steps">${steps}</div>
-        <div class="tracker-eta" style="margin-top:10px;padding-left:calc(100%/3*0.5 - 11px);" id="status-text-${o.id}">
-          <div class="tracker-eta-dot"></div>
-          <span id="status-msg-${o.id}">${getStatusText(o)}</span>
-        </div>
-      </div>` : ''}
-      ${modifyBtns}
-    </div>`;
+    var timerBlock = (o.status==='accepted'||o.status==='preparing'||o.status==='ready') ? guestTimerHtml(o) : '';
+
+    var msgs    = guestMsgs(o.status);
+    var msgHtml = msgs.length
+      ? '<div style="padding:0 18px 12px;display:flex;align-items:center;gap:6px;">'
+          + '<div style="width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse-badge 1.5s infinite;"></div>'
+          + '<span id="gmsg-' + o.id + '" style="font-size:12px;color:var(--text-muted);">' + msgs[0] + '</span>'
+        + '</div>'
+      : '';
+
+    // Modify/Cancel buttons
+    var canModify = o.status === 'new' || o.status === 'accepted';
+    var canCancel = o.status === 'new' || o.status === 'accepted';
+    var modifyBtns = (canModify || canCancel)
+      ? '<div style="display:flex;gap:10px;padding:10px 0 4px;">'
+          + (canModify ? '<button onclick="modifyOrder(''+o.id+'')" style="flex:1;padding:10px;background:transparent;border:1px solid rgba(201,169,110,0.4);border-radius:10px;color:var(--gold);font-size:13px;font-family:DM Sans,sans-serif;cursor:pointer;">Modify</button>' : '')
+          + '<button onclick="cancelOrder(''+o.id+'')" style="flex:1;padding:10px;background:transparent;border:1px solid rgba(192,57,43,0.25);border-radius:10px;color:#C0392B;font-size:13px;font-family:DM Sans,sans-serif;cursor:pointer;">Cancel</button>'
+        + '</div>'
+      : '';
+
+    return '<div class="order-card" id="ocard-' + o.id + '">'
+      + '<div class="order-card-head">'
+        + '<div class="order-card-meta">'
+          + '<div class="order-card-id">' + o.id + ' · ' + o.date + ' · ' + o.time
+            + (o.fromPeer ? ' <span class="order-device-tag">Roommate</span>' : '')
+            + (o.isMerge  ? ' <span class="order-device-tag">Merged</span>'   : '')
+          + '</div>'
+          + (o.guest ? '<div class="order-card-time" style="display:flex;align-items:center;gap:4px;">' + o.guest + '<span onclick="editGuestName()" style="font-size:10px;color:var(--gold);opacity:0.7;cursor:pointer;margin-left:4px;">✏</span></div>' : '')
+        + '</div>'
+        + '<div class="order-status-pill ' + (pillClass[o.status]||'') + '">' + (pillLabel[o.status]||o.status) + '</div>'
+      + '</div>'
+      + (o.status==='rejected'&&o.rejection_reason
+          ? '<div style="padding:10px 18px;background:rgba(192,57,43,0.06);border-top:1px solid rgba(192,57,43,0.15);font-size:13px;color:var(--red);">Reason: '+o.rejection_reason+'</div>'
+          : ''
+        )
+      + '<div class="order-card-items">'
+        + o.items.map(function(i){
+            return '<div class="order-item-row"><div><span class="order-item-qty">×'+i.qty+'</span>'+i.name+'</div><div class="order-item-price">₹'+(i.qty*i.price)+'</div></div>';
+          }).join('')
+      + '</div>'
+      + '<div class="order-card-footer"><div class="order-total-label">Total</div><div class="order-total-amt">₹'+o.total+'</div></div>'
+      + (isRejected ? '' :
+          '<div class="order-tracker"><div class="tracker-label">Order Status</div>'
+          + '<div class="tracker-steps">' + steps + '</div></div>'
+          + timerBlock + msgHtml
+        )
+      + modifyBtns
+    + '</div>';
   }
 
   let html = '';
   if (active.length > 0) {
-    html += `<div class="orders-section-label">Active Orders</div>`;
+    html += '<div class="orders-section-label">Active Orders</div>';
     html += active.map(renderCard).join('');
   }
-  // Start rotating status text for 'new' and 'accepted' orders after DOM is updated
+
+  // Rotating messages
   setTimeout(function() {
-    var newMsgs = [
-      'Order received · Awaiting confirmation',
-      'Your order will be accepted shortly',
-      'Thanks for your patience'
-    ];
-    var acceptedMsgs = [
-      'Kitchen is preparing your order',
-      'Love to serve you delicious food',
-      'Thanks for your patience',
-      'You will receive your order soon'
-    ];
     orderHistory.forEach(function(o) {
-      if (o.status !== 'new' && o.status !== 'accepted' && o.status !== 'preparing' && o.status !== 'ready') return;
-      var el = document.getElementById('status-msg-' + o.id);
-      if (!el || el._rotating) return;
-      el._rotating = true;
-      var msgs = (o.status === 'new') ? newMsgs : acceptedMsgs;
-      var idx = 0;
-      el._rotateTimer = setInterval(function() {
-        var el2 = document.getElementById('status-msg-' + o.id);
-        if (!el2) { clearInterval(el._rotateTimer); return; }
-        idx = (idx + 1) % msgs.length;
-        el2.textContent = msgs[idx];
-      }, 3000);
+      if (o.status==='delivered'||o.status==='rejected'||o.status==='cancelled') return;
+      var msgEl = document.getElementById('gmsg-' + o.id);
+      if (!msgEl || msgEl._rotating) return;
+      msgEl._rotating = true;
+      var msgs = guestMsgs(o.status);
+      if (msgs.length > 1) {
+        var idx = 0;
+        msgEl._rotateTimer = setInterval(function() {
+          var el2 = document.getElementById('gmsg-' + o.id);
+          if (!el2) { clearInterval(msgEl._rotateTimer); return; }
+          idx = (idx + 1) % msgs.length;
+          el2.textContent = msgs[idx];
+        }, 3500);
+      }
     });
   }, 100);
+
   if (past.length > 0) {
-    html += `<div class="orders-section-label" style="margin-top:${active.length?'20px':'0'}">Past Orders</div>`;
-    html += past.map(function(o) {
-      return renderCard(o).replace('<div class="order-card"', '<div class="order-card past-card"');
-    }).join('');
+    html += '<div class="orders-section-label" style="margin-top:' + (active.length?'20px':'0') + '">Past Orders</div>';
+    html += past.map(function(o){ return renderCard(o).replace('<div class="order-card"', '<div class="order-card past-card"'); }).join('');
   }
   body.innerHTML = html;
+}
+
+// Live timer refresh every 15s while orders are active
+if (!window._guestTimerInterval) {
+  window._guestTimerInterval = setInterval(function() {
+    var hasActive = orderHistory.some(function(o){
+      return o.status==='accepted'||o.status==='preparing'||o.status==='ready'||o.status==='new';
+    });
+    if (hasActive) {
+      updateOrdersBadge();
+      var screen = document.getElementById('screen-orders');
+      if (screen && screen.classList.contains('active')) renderOrders();
+    }
+  }, 15000);
 }
 
 // ── CANCEL / MODIFY ORDER
@@ -3405,58 +3384,6 @@ function startOrdering() {
 function _saveHistory(){try{localStorage.setItem('hyatt_g_'+String(window.ROOM_NUM||'000'),JSON.stringify({orders:orderHistory,services:serviceHistory,ts:Date.now()}));}catch(e){}}
 (function(){try{var raw=localStorage.getItem('hyatt_g_'+String(window.ROOM_NUM||'000'));if(!raw)return;var d=JSON.parse(raw);if(!d.ts||Date.now()-d.ts>86400000)return;if(Array.isArray(d.orders))orderHistory=d.orders;if(Array.isArray(d.services))serviceHistory=d.services;}catch(e){}})();
 
-// ══════════════════════════════════════════
-// FIREBASE SYNC — Guest UI
-// Single source of truth: Firestore
-// One listener per order, registry prevents duplicates
-// Terminal orders (delivered/rejected/cancelled) update locally then stay in history
-// ══════════════════════════════════════════
-var _gListeners = {}; // orderId -> true, prevents duplicate onSnapshot
-
-function _parseAcceptedMs(row) {
-  if (row.accepted_at) { var ms = new Date(row.accepted_at).getTime(); if (!isNaN(ms)) return ms; }
-  return null;
-}
-
-// Apply Firestore row to local order. Returns true if something changed.
-function _applyRow(order, row) {
-  var changed = false;
-  if (row.status && row.status !== order.status) { order.status = row.status; changed = true; }
-  if (row.rejection_reason !== undefined) order.rejection_reason = row.rejection_reason || null;
-  if ((row.status==='accepted'||row.status==='preparing'||row.status==='ready') && !order.acceptedAt) {
-    order.acceptedAt = _parseAcceptedMs(row) || Date.now(); changed = true;
-  }
-  if (row.status === 'delivered' && !order.deliveredAt) { order.deliveredAt = Date.now(); changed = true; }
-  if (row.eta && !order.eta) { order.eta = row.eta; changed = true; }
-  return changed;
-}
-
-// Attach ONE real-time listener per order. Safe to call multiple times.
-function _listenOrder(db, orderId) {
-  if (_gListeners[orderId]) return;
-  _gListeners[orderId] = true;
-  db.collection('orders').doc(String(orderId)).onSnapshot(function(doc) {
-    if (!doc.exists) return;
-    var row = doc.data();
-    var order = orderHistory.find(function(o){ return o.id === orderId; });
-    if (!order) return;
-    var prevStatus = order.status;
-    var changed = _applyRow(order, row);
-    if (!changed) return;
-    _saveHistory();
-    updateOrdersBadge();
-    renderOrders();
-    if (row.status === 'accepted' && prevStatus !== 'accepted')
-      showGuestToast('Kitchen has started preparing your order ✅', 'green');
-    else if (row.status === 'rejected' && prevStatus !== 'rejected')
-      showGuestToast('Not accepted: ' + (row.rejection_reason || 'contact reception'), 'red');
-    else if (row.status === 'delivered' && prevStatus !== 'delivered') {
-      showGuestToast('Your order has been delivered · Enjoy your meal', 'green');
-      if (typeof broadcastActivity === 'function') broadcastActivity('idle');
-    }
-  });
-}
-
 // ── OVERRIDE placeOrder
 var _origPlaceOrder = placeOrder;
 placeOrder = async function(isMerge) {
@@ -3470,7 +3397,18 @@ placeOrder = async function(isMerge) {
   var db=await _waitDb(); if(!db){console.warn('Firebase not available');return;}
   try {
     await db.collection('orders').doc(orderId).set({id:orderId,room:String(window.ROOM_NUM||'000'),guest:String(window.GUEST_NAME||'Guest'),items:cartSnapshot,total:Number(totalSnapshot),status:'new',placed_at:new Date().toISOString()});
-    _listenOrder(db, orderId);
+    var prevStatus=null;
+    db.collection('orders').doc(orderId).onSnapshot(function(doc){
+      if(!doc.exists)return; var row=doc.data(); if(row.status===prevStatus)return; prevStatus=row.status;
+      var order=orderHistory.find(function(o){return o.id===orderId;}); if(!order)return;
+      order.status=row.status; order.rejection_reason=row.rejection_reason||null;
+      if(row.status==='accepted'){order.acceptedAt=Date.now(); if(row.eta)order.eta=row.eta;}
+      if(row.status==='delivered')order.deliveredAt=Date.now();
+      _saveHistory(); updateOrdersBadge(); renderOrders();
+      if(row.status==='accepted')showGuestToast('Kitchen has started preparing your order','green');
+      else if(row.status==='rejected')showGuestToast('Not accepted: '+(row.rejection_reason||'contact reception'),'red');
+      else if(row.status==='delivered'){showGuestToast('Your order has been delivered · Enjoy your meal','green');broadcastActivity('idle');}
+    });
   } catch(e){console.error('Order insert failed:',e&&e.message||e);}
 };
 
@@ -3482,64 +3420,50 @@ submitService=function(){
   _waitDb().then(function(db){
     if(!db)return;
     db.collection('service_requests').doc(String(req.id)).set({id:req.id,room:String(window.ROOM_NUM||'000'),guest:String(window.GUEST_NAME||'Guest'),type:req.type,icon:req.icon||'',qty:req.qty||null,note:req.note||null,status:'received',placed_at:new Date().toISOString()}).then(function(){
-      // Service listener — simple, no registry needed for services
       db.collection('service_requests').doc(String(req.id)).onSnapshot(function(doc){
-        if(!doc.exists)return;
-        var r=serviceHistory.find(function(x){return x.id===req.id;}); if(!r)return;
-        var ns=doc.data().status; if(ns===r.status)return;
-        r.status=ns; _saveHistory(); updateServicesBadge();
+        if(!doc.exists)return; var r=serviceHistory.find(function(x){return x.id===req.id;}); if(!r||doc.data().status===r.status)return;
+        r.status=doc.data().status; _saveHistory(); updateServicesBadge();
         if(document.getElementById('screen-services').classList.contains('active'))renderServices();
       });
     }).catch(function(e){console.warn('Service insert:',e.message);});
   });
 };
 
-// ── On page load: sync current Firestore state into existing local orders
-// IMPORTANT: Only updates orders already in orderHistory (placed this session/day).
-// Never injects new orders from Firestore (avoids ghost orders).
-// Terminal orders get their status updated locally then renderOrders moves them to Past.
-window.addEventListener('load', function() {
-  setTimeout(function() {
-    _waitDb().then(function(db) {
-      if (!db) return;
-      // For each order in local history, fetch latest status from Firestore
-      var pending = orderHistory.filter(function(o){
-        return o.status !== 'rejected' && o.status !== 'cancelled';
-      });
-      if (!pending.length) { updateOrdersBadge(); renderOrders(); return; }
-      pending.forEach(function(order) {
-        db.collection('orders').doc(String(order.id)).get().then(function(doc) {
-          if (!doc.exists) return;
-          var row = doc.data();
-          var changed = _applyRow(order, row);
-          if (changed) _saveHistory();
-          // Attach live listener only for non-terminal orders
-          if (order.status !== 'delivered' && order.status !== 'rejected' && order.status !== 'cancelled') {
-            _listenOrder(db, order.id);
-          }
-          updateOrdersBadge();
-          renderOrders();
-        }).catch(function(e){ console.warn('Sync order', order.id, e.message); });
-      });
+// ── Re-attach listeners on refresh
+window.addEventListener('load',function(){
+  setTimeout(function(){
+    _waitDb().then(function(db){
+      if(!db)return;
+      db.collection('orders').where('room','==',String(window.ROOM_NUM||'000')).get().then(function(snap){
+        snap.docs.forEach(function(doc){
+          var data=doc.data(); if(data.status==='delivered'||data.status==='cancelled')return;
+          var order=orderHistory.find(function(o){return o.id===doc.id;}); if(!order)return;
+          if(data.status!==order.status){order.status=data.status;if(data.status==='accepted'&&!order.acceptedAt)order.acceptedAt=Date.now();if(data.eta)order.eta=data.eta;_saveHistory();}
+          var prev=data.status;
+          db.collection('orders').doc(doc.id).onSnapshot(function(d){
+            if(!d.exists)return; var ns=d.data().status; if(ns===prev)return; prev=ns;
+            order.status=ns; if(ns==='accepted'&&!order.acceptedAt)order.acceptedAt=Date.now(); if(d.data().eta)order.eta=d.data().eta;
+            _saveHistory(); updateOrdersBadge(); renderOrders();
+            if(ns==='accepted')showGuestToast('Kitchen has started preparing your order','green');
+            else if(ns==='delivered')showGuestToast('Your order has been delivered · Enjoy your meal','green');
+          });
+        });
+        updateOrdersBadge(); renderOrders();
+      }).catch(function(e){console.warn('Load sync:',e.message);});
     });
-  }, 800);
+  },1000);
 });
 
-// ── Fallback poll every 10s (catches any missed snapshots)
+// ── Poll every 8s
 setInterval(function(){
-  if(!_db) return;
+  if(!_db)return;
   orderHistory.forEach(function(o){
-    if(o.status==='rejected'||o.status==='cancelled'||o.status==='delivered') return;
+    if(o.status==='delivered'||o.status==='cancelled'||o.status==='rejected')return;
     _db.collection('orders').doc(String(o.id)).get().then(function(doc){
-      if(!doc.exists) return;
-      var row=doc.data();
-      var changed=_applyRow(o, row);
-      if(changed){ _saveHistory(); updateOrdersBadge(); renderOrders();
-        if(o.status==='accepted') showGuestToast('Kitchen has started preparing your order ✅','green');
-      }
+      if(!doc.exists)return; var ns=doc.data().status; if(ns&&ns!==o.status){o.status=ns;if(ns==='accepted'&&!o.acceptedAt)o.acceptedAt=Date.now();if(doc.data().eta)o.eta=doc.data().eta;_saveHistory();updateOrdersBadge();renderOrders();}
     }).catch(function(){});
   });
-}, 10000);
+},8000);
 
 function editGuestName() {
   var current = window.GUEST_NAME || '';
@@ -3572,7 +3496,27 @@ function editGuestName() {
 }
 window.editGuestName = editGuestName;
 
-function showGuestToast(msg,color){var toast=document.createElement('div');var bg=color==='red'?'rgba(192,57,43,0.95)':'rgba(76,175,125,0.95)';toast.style.cssText='position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:'+bg+';color:white;border-radius:14px;padding:14px 20px;z-index:999;font-size:14px;font-family:DM Sans,sans-serif;text-align:center;max-width:320px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3);';toast.textContent=msg;document.body.appendChild(toast);setTimeout(function(){if(toast.parentNode)toast.remove();},1000);}
+function showGuestNotif(title, msg, type, onClick) {
+  var old = document.getElementById('guest-notif-banner');
+  if (old) old.remove();
+  var banner = document.createElement('div');
+  banner.id = 'guest-notif-banner';
+  var bg   = type==='ready'?'var(--green)':type==='accepted'?'var(--gold)':type==='delivered'?'#555':type==='rejected'?'var(--red)':'var(--gold)';
+  var icon = type==='ready'?'🛎':type==='accepted'?'✅':type==='delivered'?'🏁':type==='rejected'?'❌':'🔔';
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:'+bg+';color:#0D0D0D;display:flex;align-items:center;justify-content:space-between;padding:14px 18px;font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 4px 24px rgba(0,0,0,0.3);animation:fadeIn 0.3s ease;';
+  banner.innerHTML = '<div style="display:flex;align-items:center;gap:10px;"><span style="font-size:20px;">'+icon+'</span><div><div>'+title+'</div><div style="font-size:12px;font-weight:400;opacity:0.8;">'+msg+'</div></div></div><span style="font-size:20px;opacity:0.6;">×</span>';
+  banner.querySelector('span:last-child').onclick = function(e){ e.stopPropagation(); banner.remove(); };
+  if (onClick) banner.addEventListener('click', function(){ onClick(); banner.remove(); });
+  document.body.appendChild(banner);
+  // Play chime
+  try {
+    var ctx = new (window.AudioContext||window.webkitAudioContext)();
+    var freqs = type==='ready'?[784,1047]:[659,880];
+    freqs.forEach(function(freq,i){ var osc=ctx.createOscillator(),gain=ctx.createGain();osc.connect(gain);gain.connect(ctx.destination);osc.type='sine';osc.frequency.value=freq;gain.gain.setValueAtTime(0,ctx.currentTime+i*0.18);gain.gain.linearRampToValueAtTime(0.25,ctx.currentTime+i*0.18+0.02);gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+i*0.18+0.5);osc.start(ctx.currentTime+i*0.18);osc.stop(ctx.currentTime+i*0.18+0.55); });
+  } catch(e){}
+  setTimeout(function(){ if(banner.parentElement) banner.remove(); }, 8000);
+}
+function showGuestToast(msg,color){var toast=document.createElement('div');var bg=color==='red'?'rgba(192,57,43,0.95)':'rgba(76,175,125,0.95)';toast.style.cssText='position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:'+bg+';color:white;border-radius:14px;padding:14px 20px;z-index:999;font-size:14px;font-family:DM Sans,sans-serif;text-align:center;max-width:320px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3);';toast.textContent=msg;document.body.appendChild(toast);setTimeout(function(){if(toast.parentNode)toast.remove();},3000);}
 
 // ── cancel/modify Firebase updates
 window.cancelOrder=cancelOrder; window.modifyOrder=modifyOrder;
@@ -3594,3 +3538,380 @@ window.confirmModify=function(orderId){
 
 </script>
 </body>
+var _db = null;
+function _initDb(){if(_db)return;if(typeof firebase==='undefined'||!firebase.firestore)return;try{var app=(firebase.apps&&firebase.apps.length)?firebase.app():firebase.initializeApp({apiKey:"AIzaSyAb1G6UATyCR0l_8kDyO3VpRgMwDJ5l7UI",authDomain:"roocan-16ea0.firebaseapp.com",projectId:"roocan-16ea0",storageBucket:"roocan-16ea0.firebasestorage.app",messagingSenderId:"521412270728",appId:"1:521412270728:web:c2564cf45855e2a6961d3d"});_db=firebase.firestore();}catch(e){console.warn('FB init:',e.message);}}
+document.addEventListener('DOMContentLoaded',function(){_initDb();});
+window.addEventListener('load',function(){_initDb();});
+setTimeout(function(){_initDb();},300);
+setTimeout(function(){_initDb();},1000);
+function _waitDb(){return new Promise(function(resolve){if(_db){resolve(_db);return;}var n=0,iv=setInterval(function(){_initDb();if(_db){clearInterval(iv);resolve(_db);}else if(++n>60){clearInterval(iv);resolve(null);}},200);});}
+
+// ── ENTRY SCREEN
+document.addEventListener('DOMContentLoaded', function() {
+  // Restore orders from localStorage on page load
+  try {
+    var raw = localStorage.getItem('hyatt_g_' + String(window.ROOM_NUM||'000'));
+    if (raw) {
+      var d = JSON.parse(raw);
+      if (d.ts && Date.now()-d.ts < 86400000) {
+        if (Array.isArray(d.orders)) orderHistory = d.orders;
+        if (Array.isArray(d.services)) serviceHistory = d.services;
+      }
+    }
+  } catch(e) {}
+  if (orderHistory.length) updateOrdersBadge();
+  if (serviceHistory.length) updateServicesBadge();
+
+  var rn = window.ROOM_NUM;
+  var sRoom = document.getElementById('splash-room-num');
+  if (sRoom) sRoom.textContent = rn;
+  document.querySelectorAll('.dyn-room').forEach(function(el){ el.textContent = 'Room ' + rn; });
+  var ss = document.getElementById('success-sub'); if(ss) ss.textContent = 'Room '+rn+' · Your food is being prepared';
+  var ms = document.getElementById('merge-sub'); if(ms) ms.textContent = 'Someone in Room '+rn+' just ordered. Want to add to it?';
+  // If name already saved, skip entry screen
+  var _savedName = '';
+  try { _savedName = localStorage.getItem('hyatt_guest_name') || ''; } catch(e) {}
+  if (_savedName) {
+    window.GUEST_NAME = _savedName;
+    var inp = document.getElementById('guest-name-input');
+    if (inp) inp.value = _savedName;
+    go('home');
+    // Re-attach Firebase listeners after restore
+    setTimeout(function(){ _reattachAllListeners(); }, 1000);
+  } else {
+    setTimeout(function(){ var inp=document.getElementById('guest-name-input'); if(inp) inp.focus(); }, 500);
+  }
+  if(orderHistory.length){updateOrdersBadge();}
+  if(serviceHistory.length){updateServicesBadge();}
+});
+
+function startOrdering() {
+  var inp = document.getElementById('guest-name-input');
+  var name = inp ? inp.value.trim() : '';
+  if (!name) { if(inp){inp.style.borderColor='rgba(192,57,43,0.6)';inp.focus();} return; }
+  window.GUEST_NAME = name;
+  try { localStorage.setItem('hyatt_guest_name', name); } catch(e) {}
+  go('home');
+}
+
+// ── localStorage
+function _saveHistory(){try{localStorage.setItem('hyatt_g_'+String(window.ROOM_NUM||'000'),JSON.stringify({orders:orderHistory,services:serviceHistory,ts:Date.now()}));}catch(e){}}
+(function(){try{var raw=localStorage.getItem('hyatt_g_'+String(window.ROOM_NUM||'000'));if(!raw)return;var d=JSON.parse(raw);if(!d.ts||Date.now()-d.ts>86400000)return;if(Array.isArray(d.orders))orderHistory=d.orders;if(Array.isArray(d.services))serviceHistory=d.services;}catch(e){}})();
+
+// ══════════════════════════════════════════
+// FIREBASE SYNC
+// Global listener registry — prevents duplicate onSnapshot listeners
+// ══════════════════════════════════════════
+var _orderListeners = {};
+var _svcListeners   = {};
+
+// Parse Firestore timestamp or ISO string → ms
+function _parseTs(val) {
+  if (!val) return null;
+  if (val.toDate)   return val.toDate().getTime();
+  if (val.seconds)  return val.seconds * 1000;
+  var ms = new Date(val).getTime();
+  return isNaN(ms) ? null : ms;
+}
+
+// Apply Firestore row to local order — returns true if status changed
+function _applyOrderRow(order, row) {
+  var prev = order.status;
+  var ns   = row.status;
+  order.status           = ns;
+  order.rejection_reason = row.rejection_reason || null;
+  if ((ns==='accepted'||ns==='preparing'||ns==='ready') && !order.acceptedAt) {
+    order.acceptedAt = _parseTs(row.accepted_at) || Date.now();
+  }
+  if (ns === 'delivered' && !order.deliveredAt) order.deliveredAt = Date.now();
+  if (row.eta) order.eta = row.eta;
+  return prev !== ns;
+}
+
+// Attach real-time listener for an order (idempotent)
+function _attachOrderListener(db, orderId) {
+  if (_orderListeners[orderId]) return;
+  _orderListeners[orderId] = true;
+  var _prev = null; // null so first snapshot always processes
+  db.collection('orders').doc(orderId).onSnapshot(function(doc) {
+    if (!doc.exists) return;
+    var row = doc.data();
+    var ns  = row.status;
+    var order = orderHistory.find(function(o){ return o.id === orderId; });
+    if (!order) return;
+
+    // Always apply — keeps local state in sync with Firebase
+    var changed = _applyOrderRow(order, row);
+    _saveHistory();
+    updateOrdersBadge();
+    // Re-render orders if screen is open OR status changed (to update tracker)
+    var ordersScreen = document.getElementById('screen-orders');
+    if (ordersScreen && (ordersScreen.classList.contains('active') || changed)) {
+      renderOrders();
+    }
+
+    // Show notification + toast only on real status change
+    if (!changed || ns === _prev) { _prev = ns; return; }
+    _prev = ns;
+
+    if (ns === 'accepted') {
+      showGuestNotif('Order Accepted! ✅', 'Kitchen is confirmed — preparing your order.', 'accepted', function(){ go('orders'); });
+      showGuestToast('Order accepted — kitchen is on it!', 'green');
+    } else if (ns === 'preparing') {
+      showGuestNotif('Being Prepared 🍳', 'Sit back — your food is being prepared.', 'preparing', function(){ go('orders'); });
+    } else if (ns === 'ready') {
+      showGuestNotif('Almost Ready! 🛎', 'Your order will be delivered shortly.', 'ready', function(){ go('orders'); });
+    } else if (ns === 'rejected') {
+      showGuestNotif('Order Declined ❌', row.rejection_reason || 'Please contact reception.', 'rejected', function(){ go('orders'); });
+      showGuestToast('Not accepted: '+(row.rejection_reason||'contact reception'), 'red');
+    } else if (ns === 'delivered') {
+      showGuestNotif('Delivered! Enjoy 🏁', 'Hope you enjoy your meal.', 'delivered', function(){ go('orders'); });
+      showGuestToast('Your order has been delivered · Enjoy your meal', 'green');
+      _orderListeners[orderId] = false; // reset so future re-subscribe works
+      if (typeof broadcastActivity === 'function') broadcastActivity('idle');
+    }
+  }, function(err) {
+    _orderListeners[orderId] = false; // reset on error so retry is possible
+    console.warn('Order listener error:', err);
+  });
+}
+
+// Attach real-time listener for a service request (idempotent)
+function _attachSvcListener(db, reqId) {
+  if (_svcListeners[reqId]) return;
+  _svcListeners[reqId] = true;
+  var _prev = null;
+  db.collection('service_requests').doc(reqId).onSnapshot(function(doc) {
+    if (!doc.exists) return;
+    var data = doc.data();
+    var ns   = data.status;
+    var r = serviceHistory.find(function(x){ return x.id === reqId; });
+    if (!r) return;
+    var changed = ns !== r.status;
+    r.status = ns;
+    if ((ns==='assigned'||ns==='inprogress') && !r.assignedAt && data.assigned_at) {
+      r.assignedAt = _parseTs(data.assigned_at) || Date.now();
+    }
+    _saveHistory();
+    updateServicesBadge();
+    if (document.getElementById('screen-services').classList.contains('active')) renderServices();
+    if (!changed || ns === _prev) { _prev = ns; return; }
+    _prev = ns;
+    var svcName = r.type || 'Your request';
+    if (ns === 'assigned')   showGuestNotif(svcName+' — Assigned 👤', 'A staff member is on their way.', 'accepted', function(){ go('services'); });
+    else if (ns === 'inprogress') showGuestNotif(svcName+' — En Route 🚶', 'Be there shortly.', 'preparing', function(){ go('services'); });
+    else if (ns === 'done')  showGuestNotif(svcName+' — Completed ✅', 'Your request has been fulfilled.', 'delivered', function(){ go('services'); });
+  }, function(err) {
+    _svcListeners[reqId] = false;
+    console.warn('Svc listener error:', err);
+  });
+}
+
+// Re-attach listeners for all active orders + services (called on load/reconnect)
+function _reattachAllListeners() {
+  _waitDb().then(function(db) {
+    if (!db) return;
+
+    // Sync + attach orders
+    db.collection('orders').where('room','==',String(window.ROOM_NUM||'000')).get().then(function(snap) {
+      var changed = false;
+      snap.docs.forEach(function(doc) {
+        var row   = doc.data();
+        var order = orderHistory.find(function(o){ return o.id === doc.id; });
+        if (!order) return;
+        // Sync current Firebase state (handles status changes while offline)
+        if (_applyOrderRow(order, row)) changed = true;
+        // Attach listener for all non-terminal orders
+        if (row.status !== 'rejected' && row.status !== 'cancelled') {
+          _orderListeners[doc.id] = false; // reset so we can re-attach
+          _attachOrderListener(db, doc.id);
+        }
+      });
+      if (changed) _saveHistory();
+      updateOrdersBadge();
+      renderOrders();
+    }).catch(function(e){ console.warn('Reattach orders:', e.message); });
+
+    // Sync + attach services
+    db.collection('service_requests').where('room','==',String(window.ROOM_NUM||'000')).get().then(function(snap) {
+      var changed = false;
+      snap.docs.forEach(function(doc) {
+        var row = doc.data();
+        var req = serviceHistory.find(function(r){ return r.id === doc.id; });
+        if (!req) return;
+        if (row.status !== req.status) { req.status = row.status; changed = true; }
+        if ((row.status==='assigned'||row.status==='inprogress') && !req.assignedAt && row.assigned_at) {
+          req.assignedAt = _parseTs(row.assigned_at) || Date.now();
+        }
+        if (row.status !== 'done' && row.status !== 'cancelled') {
+          _svcListeners[doc.id] = false;
+          _attachSvcListener(db, doc.id);
+        }
+      });
+      if (changed) { _saveHistory(); updateServicesBadge(); }
+    }).catch(function(e){ console.warn('Reattach services:', e.message); });
+  });
+}
+
+// Re-attach on visibility change (phone wake / tab switch)
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') {
+    _reattachAllListeners();
+  }
+});
+
+// ── OVERRIDE placeOrder — writes to Firebase + attaches listener
+var _origPlaceOrder = placeOrder;
+placeOrder = async function(isMerge) {
+  var cartSnapshot;
+  try { cartSnapshot=JSON.parse(JSON.stringify(Object.entries(cart).map(function(e){var i=e[1];return{name:String(i.name||''),qty:Number(i.qty||1),price:Number(i.price||0),category:String(i.category||'')};}))); } catch(e){cartSnapshot=[];}
+  var totalSnapshot = cartSnapshot.reduce(function(s,i){ return s+i.qty*i.price; }, 0);
+  var prefix = (window.HOTEL_NAME||'SH').trim().split(/\s+/).slice(0,3).map(function(w){ return w[0].toUpperCase(); }).join('');
+  var n = parseInt(localStorage.getItem('_hoc')||'0',10)+1;
+  localStorage.setItem('_hoc',String(n));
+  var orderId = prefix+'-'+String(n).padStart(4,'0');
+  window._pendingOrderId = orderId;
+  _origPlaceOrder(isMerge);
+  window._pendingOrderId = null;
+  var db = await _waitDb();
+  if (!db) { console.warn('Firebase not available'); return; }
+  try {
+    await db.collection('orders').doc(orderId).set({
+      id:        orderId,
+      room:      String(window.ROOM_NUM||'000'),
+      guest:     String(window.GUEST_NAME||'Guest'),
+      items:     cartSnapshot,
+      total:     Number(totalSnapshot),
+      status:    'new',
+      placed_at: new Date().toISOString()
+    });
+    _attachOrderListener(db, orderId);
+    // Sync current status 2s after insert (dashboard may have already acted)
+    setTimeout(function(){ _reattachAllListeners(); }, 2000);
+  } catch(e) { console.error('Order insert failed:', e&&e.message||e); }
+};
+
+// ── OVERRIDE submitService — writes to Firebase + attaches listener
+var _origSubmitService = submitService;
+submitService = function() {
+  _origSubmitService();
+  var req = serviceHistory[0];
+  if (!req) return;
+  _waitDb().then(function(db) {
+    if (!db) return;
+    db.collection('service_requests').doc(String(req.id)).set({
+      id:        req.id,
+      room:      String(window.ROOM_NUM||'000'),
+      guest:     String(window.GUEST_NAME||'Guest'),
+      type:      req.type,
+      icon:      req.icon||'',
+      qty:       req.qty||null,
+      note:      req.note||null,
+      status:    'received',
+      placed_at: new Date().toISOString()
+    }).then(function() {
+      _attachSvcListener(db, String(req.id));
+    }).catch(function(e){ console.warn('Service insert:', e.message); });
+  });
+};
+
+// ── On page load: sync all known orders + services, attach listeners
+window.addEventListener('load', function() {
+  setTimeout(_reattachAllListeners, 800);
+});
+
+// ── Poll every 10s as fallback (handles missed onSnapshot events)
+setInterval(function() {
+  if (!_db) return;
+  orderHistory.forEach(function(o) {
+    if (o.status==='rejected'||o.status==='cancelled'||o.status==='delivered') return;
+    _db.collection('orders').doc(String(o.id)).get().then(function(doc) {
+      if (!doc.exists) return;
+      var row = doc.data();
+      var ns  = row.status;
+      if (ns && ns !== o.status) {
+        var changed = _applyOrderRow(o, row);
+        _saveHistory(); updateOrdersBadge(); renderOrders();
+        if (changed) {
+          if (ns==='accepted') showGuestToast('Order accepted — kitchen is on it!', 'green');
+          else if (ns==='delivered') showGuestToast('Your order has been delivered · Enjoy your meal', 'green');
+        }
+        // Ensure listener is attached
+        if (ns!=='rejected'&&ns!=='cancelled') {
+          _orderListeners[String(o.id)] = false;
+          _waitDb().then(function(db2){ if(db2) _attachOrderListener(db2, String(o.id)); });
+        }
+      }
+    }).catch(function(){});
+  });
+}, 10000);
+
+function editGuestName() {
+  var current = window.GUEST_NAME || '';
+  var overlay = document.createElement('div');
+  overlay.id = 'name-edit-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;';
+  overlay.innerHTML = '<div style="background:var(--surface);border-radius:20px;padding:28px 24px;width:100%;max-width:320px;text-align:center;">'
+    + '<div style="font-family:Cormorant Garamond,serif;font-size:20px;color:var(--text);margin-bottom:16px;">Your Name</div>'
+    + '<input id="name-edit-input" value="' + current + '" style="width:100%;background:var(--surface2);border:1px solid rgba(201,169,110,0.4);border-radius:10px;padding:11px 14px;color:var(--text);font-size:15px;font-family:DM Sans,sans-serif;outline:none;text-align:center;box-sizing:border-box;" />'
+    + '<button id="name-edit-confirm" style="width:100%;margin-top:14px;padding:13px;background:var(--gold);border:none;border-radius:12px;color:var(--dark);font-family:DM Sans,sans-serif;font-size:15px;font-weight:600;cursor:pointer;">Save</button>'
+    + '<button id="name-edit-cancel" style="width:100%;margin-top:8px;padding:11px;background:transparent;border:none;color:var(--text-muted);font-family:DM Sans,sans-serif;font-size:14px;cursor:pointer;">Cancel</button>'
+    + '</div>';
+  document.body.appendChild(overlay);
+  document.getElementById('name-edit-cancel').addEventListener('click', function(){ overlay.remove(); });
+  document.getElementById('name-edit-confirm').addEventListener('click', function() {
+    var val = document.getElementById('name-edit-input').value.trim();
+    if (!val) return;
+    window.GUEST_NAME = val;
+    try { localStorage.setItem('hyatt_guest_name', val); } catch(e) {}
+    orderHistory.forEach(function(o){ o.guest = val; });
+    serviceHistory.forEach(function(s){ s.guest = val; });
+    _saveHistory();
+    overlay.remove();
+    renderOrders();
+  });
+  setTimeout(function(){ var i=document.getElementById('name-edit-input'); if(i){i.focus();i.select();} }, 100);
+}
+window.editGuestName = editGuestName;
+
+function showGuestNotif(title, msg, type, onClick) {
+  var old = document.getElementById('guest-notif-banner');
+  if (old) old.remove();
+  var banner = document.createElement('div');
+  banner.id = 'guest-notif-banner';
+  var bg   = type==='ready'?'var(--green)':type==='accepted'?'var(--gold)':type==='delivered'?'#555':type==='rejected'?'var(--red)':'var(--gold)';
+  var icon = type==='ready'?'🛎':type==='accepted'?'✅':type==='delivered'?'🏁':type==='rejected'?'❌':'🔔';
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:'+bg+';color:#0D0D0D;display:flex;align-items:center;justify-content:space-between;padding:14px 18px;font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 4px 24px rgba(0,0,0,0.3);animation:fadeIn 0.3s ease;';
+  banner.innerHTML = '<div style="display:flex;align-items:center;gap:10px;"><span style="font-size:20px;">'+icon+'</span><div><div>'+title+'</div><div style="font-size:12px;font-weight:400;opacity:0.8;">'+msg+'</div></div></div><span style="font-size:20px;opacity:0.6;">×</span>';
+  banner.querySelector('span:last-child').onclick = function(e){ e.stopPropagation(); banner.remove(); };
+  if (onClick) banner.addEventListener('click', function(){ onClick(); banner.remove(); });
+  document.body.appendChild(banner);
+  // Play chime
+  try {
+    var ctx = new (window.AudioContext||window.webkitAudioContext)();
+    var freqs = type==='ready'?[784,1047]:[659,880];
+    freqs.forEach(function(freq,i){ var osc=ctx.createOscillator(),gain=ctx.createGain();osc.connect(gain);gain.connect(ctx.destination);osc.type='sine';osc.frequency.value=freq;gain.gain.setValueAtTime(0,ctx.currentTime+i*0.18);gain.gain.linearRampToValueAtTime(0.25,ctx.currentTime+i*0.18+0.02);gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+i*0.18+0.5);osc.start(ctx.currentTime+i*0.18);osc.stop(ctx.currentTime+i*0.18+0.55); });
+  } catch(e){}
+  setTimeout(function(){ if(banner.parentElement) banner.remove(); }, 8000);
+}
+function showGuestToast(msg,color){var toast=document.createElement('div');var bg=color==='red'?'rgba(192,57,43,0.95)':'rgba(76,175,125,0.95)';toast.style.cssText='position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:'+bg+';color:white;border-radius:14px;padding:14px 20px;z-index:999;font-size:14px;font-family:DM Sans,sans-serif;text-align:center;max-width:320px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3);';toast.textContent=msg;document.body.appendChild(toast);setTimeout(function(){if(toast.parentNode)toast.remove();},3000);}
+
+window.cancelOrder=cancelOrder; window.modifyOrder=modifyOrder;
+window.confirmModify=function(orderId){
+  var order=orderHistory.find(function(o){return o.id===orderId;}); if(!order)return;
+  var items=window._editItems || order.items;
+  var finalItems=items.filter(function(i){return i.qty>0;});
+  if(!finalItems.length){showGuestToast('Cannot remove all items. Cancel instead.','red');return;}
+  var newTotal=finalItems.reduce(function(s,i){return s+i.qty*i.price;},0);
+  order.items=finalItems; order.total=newTotal; _saveHistory();
+  window._editItems=null;
+  var mo=document.getElementById('modify-overlay'); if(mo)mo.remove();
+  go('orders');
+  renderOrders(); updateOrdersBadge();
+  showGuestToast('Order updated!','green');
+  _waitDb().then(function(db){ if(db)db.collection('orders').doc(String(orderId)).update({items:finalItems,total:newTotal}).catch(function(){}); });
+};
+
+</script>
+</body>
+</html>
