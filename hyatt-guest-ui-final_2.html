@@ -2108,9 +2108,8 @@ function updateOrdersBadge() {
     badge.style.display = 'inline-block';
     if (active.length === 1) {
       var _o=active[0],_st=_o.status,_sub='';
-      if(_st==='new'){
-        _sub='Waiting for confirmation · '+(_o.eta||25)+' min est.';
-      } else if(_st==='accepted'||_st==='preparing'||_st==='ready'){
+      if(_st==='new'){_sub='Waiting for confirmation · '+(_o.eta||25)+' min est.';}
+      else if(_st==='accepted'||_st==='preparing'||_st==='ready'){
         var _lbl=_st==='ready'?'Almost ready':(_st==='preparing'?'Preparing':'Accepted – Kitchen is on it');
         if(_o.acceptedAt){var _el=Math.floor((Date.now()-_o.acceptedAt)/60000);var _rem=Math.max(0,(_o.eta||25)-_el);_sub=_lbl+' · '+(_rem>0?_rem+' min remaining':'Ready soon!');}
         else{_sub=_lbl+' · '+(_o.eta||25)+' min est.';}
@@ -2194,28 +2193,32 @@ function renderOrders() {
       : isCancelled
       ? '<div style="font-size:12px;color:var(--text-muted);padding:4px 0;">Order cancelled</div>'
       : stepsDef.map((s, i) => {
+          // si=0:new  si=1:accepted/preparing/ready  si=2:delivered
           var cls='',tick='',anim='';
           if(i===0){
-            cls='done';tick=checkSvgGreen;
+            // Placed — always done
+            cls='done'; tick=checkSvgGreen;
           } else if(i===1){
             if(si===0){
-              cls='active';tick='';
+              // Waiting for acceptance — pulse ring, no tick
+              cls='active';
             } else {
-              // Accepted reached — green tick; but line to Delivered stays grey until delivered
-              cls='done';tick=checkSvgGreen;
-              var _greyLine='<div style="position:absolute;top:10px;left:50%;right:-50%;height:2px;background:var(--surface2);z-index:1;pointer-events:none;"></div>';
-              // Animated green line growing from Accepted outward toward Delivered
-              var _eta2=o.eta||25;var _sm2=o.acceptedAt||Date.now();var _em2=Date.now()-_sm2;
-              var _late2=_em2>_eta2*60000;var _col2=_late2?'#E67E22':'var(--green)';
-              var _tgt2=Math.max(1000,(_eta2-1)*60000);var _pct2=Math.min(50,(_em2/_tgt2)*50);
-              var _rm2=Math.max(0,_tgt2-_em2);
-              var _tr2=_rm2>0?'transition:width '+_rm2+'ms linear;':'';
-              var _fl2=_late2?'animation:_flash 0.8s ease-in-out infinite;':'';
-              var _tip='<div style="position:absolute;right:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:'+_col2+';filter:drop-shadow(0 0 6px rgba(76,175,125,0.9));animation:line-tip-pulse 1s ease-in-out infinite;z-index:4;"></div>';
-              anim=_greyLine+'<div style="position:absolute;top:10px;left:50%;height:2px;background:'+_col2+';z-index:2;width:'+_pct2.toFixed(1)+'%;'+_tr2+_fl2+'">'+_tip+'</div>';
+              // Accepted/Preparing/Ready — GREEN TICK on Accepted dot
+              cls='done'; tick=checkSvgGreen;
+              // Grey overlay hides the CSS ::before line (which would turn green due to 'done' class)
+              // so the Accepted->Delivered segment stays grey until delivered
+              var _grey='<div style="position:absolute;top:10px;left:50%;right:-50%;height:2px;background:var(--surface2);z-index:1;pointer-events:none;"></div>';
+              // Animated green progress bar growing from Accepted dot toward Delivered
+              var _e2=o.eta||25; var _s2=o.acceptedAt||Date.now(); var _ms2=Date.now()-_s2;
+              var _late=_ms2>_e2*60000; var _col=_late?'#E67E22':'var(--green)';
+              var _tgt=Math.max(1000,(_e2-1)*60000); var _p=Math.min(50,(_ms2/_tgt)*50);
+              var _r=Math.max(0,_tgt-_ms2); var _tr=_r>0?'transition:width '+_r+'ms linear;':'';
+              var _fl=_late?'animation:_flash 0.8s ease-in-out infinite;':'';
+              var _tip='<div style="position:absolute;right:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:'+_col+';filter:drop-shadow(0 0 6px rgba(76,175,125,0.9));animation:line-tip-pulse 1s ease-in-out infinite;z-index:4;"></div>';
+              anim=_grey+'<div style="position:absolute;top:10px;left:50%;height:2px;background:'+_col+';z-index:2;width:'+_p.toFixed(1)+'%;'+_tr+_fl+'">'+_tip+'</div>';
             }
           } else if(i===2){
-            cls=si>=2?'done':'';tick=si>=2?checkSvgGreen:'';
+            cls=si>=2?'done':''; tick=si>=2?checkSvgGreen:'';
           }
           return '<div class="tracker-step '+cls+'">'+anim+'<div class="tracker-dot">'+tick+'</div><div class="tracker-step-name">'+s+'</div></div>';
         }).join('');
@@ -3402,57 +3405,55 @@ function startOrdering() {
 function _saveHistory(){try{localStorage.setItem('hyatt_g_'+String(window.ROOM_NUM||'000'),JSON.stringify({orders:orderHistory,services:serviceHistory,ts:Date.now()}));}catch(e){}}
 (function(){try{var raw=localStorage.getItem('hyatt_g_'+String(window.ROOM_NUM||'000'));if(!raw)return;var d=JSON.parse(raw);if(!d.ts||Date.now()-d.ts>86400000)return;if(Array.isArray(d.orders))orderHistory=d.orders;if(Array.isArray(d.services))serviceHistory=d.services;}catch(e){}})();
 
-// ── FIREBASE SYNC
-// Global listener registry — prevents duplicate onSnapshot listeners per order ID
-var _orderListeners={};
-var _svcListeners={};
+// ══════════════════════════════════════════
+// FIREBASE SYNC — Guest UI
+// Single source of truth: Firestore
+// One listener per order, registry prevents duplicates
+// Terminal orders (delivered/rejected/cancelled) update locally then stay in history
+// ══════════════════════════════════════════
+var _gListeners = {}; // orderId -> true, prevents duplicate onSnapshot
 
-// Parse Firestore accepted_at string to ms timestamp
-function _parseAcceptedAt(row){
-  if(row.accepted_at){var ms=new Date(row.accepted_at).getTime();if(!isNaN(ms))return ms;}
-  return Date.now();
+function _parseAcceptedMs(row) {
+  if (row.accepted_at) { var ms = new Date(row.accepted_at).getTime(); if (!isNaN(ms)) return ms; }
+  return null;
 }
 
-// Apply a Firestore order row to local order object
-function _applyOrderRow(order, row){
-  var ns=row.status;
-  order.status=ns;
-  order.rejection_reason=row.rejection_reason||null;
-  if((ns==='accepted'||ns==='preparing'||ns==='ready')&&!order.acceptedAt){
-    order.acceptedAt=_parseAcceptedAt(row);
+// Apply Firestore row to local order. Returns true if something changed.
+function _applyRow(order, row) {
+  var changed = false;
+  if (row.status && row.status !== order.status) { order.status = row.status; changed = true; }
+  if (row.rejection_reason !== undefined) order.rejection_reason = row.rejection_reason || null;
+  if ((row.status==='accepted'||row.status==='preparing'||row.status==='ready') && !order.acceptedAt) {
+    order.acceptedAt = _parseAcceptedMs(row) || Date.now(); changed = true;
   }
-  if(ns==='delivered'&&!order.deliveredAt) order.deliveredAt=Date.now();
-  if(row.eta) order.eta=row.eta;
+  if (row.status === 'delivered' && !order.deliveredAt) { order.deliveredAt = Date.now(); changed = true; }
+  if (row.eta && !order.eta) { order.eta = row.eta; changed = true; }
+  return changed;
 }
 
-// Attach a single real-time listener to an order document (no-op if already attached)
-function _attachOrderListener(db, orderId){
-  if(_orderListeners[orderId]) return; // already listening
-  _orderListeners[orderId]=true;
-  db.collection('orders').doc(orderId).onSnapshot(function(doc){
-    if(!doc.exists) return;
-    var row=doc.data(); var ns=row.status;
-    var order=orderHistory.find(function(o){return o.id===orderId;});
-    if(!order) return;
-    if(ns===order.status && order.acceptedAt) return; // no real change
-    _applyOrderRow(order, row);
-    _saveHistory(); updateOrdersBadge(); renderOrders();
-    if(ns==='accepted') showGuestToast('Kitchen has started preparing your order ✅','green');
-    else if(ns==='rejected') showGuestToast('Not accepted: '+(row.rejection_reason||'contact reception'),'red');
-    else if(ns==='delivered'){showGuestToast('Your order has been delivered · Enjoy your meal','green');if(typeof broadcastActivity==='function')broadcastActivity('idle');}
-  });
-}
-
-// Attach a single real-time listener to a service request document
-function _attachSvcListener(db, reqId){
-  if(_svcListeners[reqId]) return;
-  _svcListeners[reqId]=true;
-  db.collection('service_requests').doc(reqId).onSnapshot(function(doc){
-    if(!doc.exists) return;
-    var r=serviceHistory.find(function(x){return x.id===reqId;}); if(!r) return;
-    var ns=doc.data().status; if(ns===r.status) return;
-    r.status=ns; _saveHistory(); updateServicesBadge();
-    if(document.getElementById('screen-services').classList.contains('active')) renderServices();
+// Attach ONE real-time listener per order. Safe to call multiple times.
+function _listenOrder(db, orderId) {
+  if (_gListeners[orderId]) return;
+  _gListeners[orderId] = true;
+  db.collection('orders').doc(String(orderId)).onSnapshot(function(doc) {
+    if (!doc.exists) return;
+    var row = doc.data();
+    var order = orderHistory.find(function(o){ return o.id === orderId; });
+    if (!order) return;
+    var prevStatus = order.status;
+    var changed = _applyRow(order, row);
+    if (!changed) return;
+    _saveHistory();
+    updateOrdersBadge();
+    renderOrders();
+    if (row.status === 'accepted' && prevStatus !== 'accepted')
+      showGuestToast('Kitchen has started preparing your order ✅', 'green');
+    else if (row.status === 'rejected' && prevStatus !== 'rejected')
+      showGuestToast('Not accepted: ' + (row.rejection_reason || 'contact reception'), 'red');
+    else if (row.status === 'delivered' && prevStatus !== 'delivered') {
+      showGuestToast('Your order has been delivered · Enjoy your meal', 'green');
+      if (typeof broadcastActivity === 'function') broadcastActivity('idle');
+    }
   });
 }
 
@@ -3469,7 +3470,7 @@ placeOrder = async function(isMerge) {
   var db=await _waitDb(); if(!db){console.warn('Firebase not available');return;}
   try {
     await db.collection('orders').doc(orderId).set({id:orderId,room:String(window.ROOM_NUM||'000'),guest:String(window.GUEST_NAME||'Guest'),items:cartSnapshot,total:Number(totalSnapshot),status:'new',placed_at:new Date().toISOString()});
-    _attachOrderListener(db, orderId);
+    _listenOrder(db, orderId);
   } catch(e){console.error('Order insert failed:',e&&e.message||e);}
 };
 
@@ -3481,73 +3482,64 @@ submitService=function(){
   _waitDb().then(function(db){
     if(!db)return;
     db.collection('service_requests').doc(String(req.id)).set({id:req.id,room:String(window.ROOM_NUM||'000'),guest:String(window.GUEST_NAME||'Guest'),type:req.type,icon:req.icon||'',qty:req.qty||null,note:req.note||null,status:'received',placed_at:new Date().toISOString()}).then(function(){
-      _attachSvcListener(db, String(req.id));
+      // Service listener — simple, no registry needed for services
+      db.collection('service_requests').doc(String(req.id)).onSnapshot(function(doc){
+        if(!doc.exists)return;
+        var r=serviceHistory.find(function(x){return x.id===req.id;}); if(!r)return;
+        var ns=doc.data().status; if(ns===r.status)return;
+        r.status=ns; _saveHistory(); updateServicesBadge();
+        if(document.getElementById('screen-services').classList.contains('active'))renderServices();
+      });
     }).catch(function(e){console.warn('Service insert:',e.message);});
   });
 };
 
-// ── On page load: sync all known orders + services from Firestore, attach listeners
-window.addEventListener('load',function(){
-  setTimeout(function(){
-    _waitDb().then(function(db){
-      if(!db) return;
-
-      // Sync orders
-      db.collection('orders').where('room','==',String(window.ROOM_NUM||'000')).get().then(function(snap){
-        var changed=false;
-        snap.docs.forEach(function(doc){
-          var row=doc.data();
-          var order=orderHistory.find(function(o){return o.id===doc.id;});
-          if(!order) return;
-          // Always apply Firestore state — this is source of truth
-          if(row.status!==order.status || ((row.status==='accepted'||row.status==='preparing'||row.status==='ready')&&!order.acceptedAt)){
-            _applyOrderRow(order, row);
-            changed=true;
+// ── On page load: sync current Firestore state into existing local orders
+// IMPORTANT: Only updates orders already in orderHistory (placed this session/day).
+// Never injects new orders from Firestore (avoids ghost orders).
+// Terminal orders get their status updated locally then renderOrders moves them to Past.
+window.addEventListener('load', function() {
+  setTimeout(function() {
+    _waitDb().then(function(db) {
+      if (!db) return;
+      // For each order in local history, fetch latest status from Firestore
+      var pending = orderHistory.filter(function(o){
+        return o.status !== 'rejected' && o.status !== 'cancelled';
+      });
+      if (!pending.length) { updateOrdersBadge(); renderOrders(); return; }
+      pending.forEach(function(order) {
+        db.collection('orders').doc(String(order.id)).get().then(function(doc) {
+          if (!doc.exists) return;
+          var row = doc.data();
+          var changed = _applyRow(order, row);
+          if (changed) _saveHistory();
+          // Attach live listener only for non-terminal orders
+          if (order.status !== 'delivered' && order.status !== 'rejected' && order.status !== 'cancelled') {
+            _listenOrder(db, order.id);
           }
-          // Attach live listener for ALL non-terminal orders
-          if(row.status!=='rejected' && row.status!=='cancelled'){
-            _attachOrderListener(db, doc.id);
-          }
-        });
-        if(changed) _saveHistory();
-        updateOrdersBadge(); renderOrders();
-      }).catch(function(e){console.warn('Load sync orders:',e.message);});
-
-      // Sync services
-      db.collection('service_requests').where('room','==',String(window.ROOM_NUM||'000')).get().then(function(snap){
-        var changed=false;
-        snap.docs.forEach(function(doc){
-          var row=doc.data();
-          var req=serviceHistory.find(function(r){return r.id===doc.id;});
-          if(!req) return;
-          if(row.status!==req.status){req.status=row.status;changed=true;}
-          if(row.status!=='done'&&row.status!=='cancelled') _attachSvcListener(db, doc.id);
-        });
-        if(changed){_saveHistory();updateServicesBadge();}
-      }).catch(function(e){console.warn('Load sync services:',e.message);});
+          updateOrdersBadge();
+          renderOrders();
+        }).catch(function(e){ console.warn('Sync order', order.id, e.message); });
+      });
     });
-  },800);
+  }, 800);
 });
 
-// ── Poll every 10s as fallback (in case onSnapshot misses)
+// ── Fallback poll every 10s (catches any missed snapshots)
 setInterval(function(){
   if(!_db) return;
   orderHistory.forEach(function(o){
-    if(o.status==='rejected'||o.status==='cancelled') return;
-    // If delivered locally, no need to poll
-    if(o.status==='delivered') return;
+    if(o.status==='rejected'||o.status==='cancelled'||o.status==='delivered') return;
     _db.collection('orders').doc(String(o.id)).get().then(function(doc){
       if(!doc.exists) return;
-      var row=doc.data(); var ns=row.status;
-      if(ns && ns!==o.status){
-        _applyOrderRow(o, row);
-        _saveHistory(); updateOrdersBadge(); renderOrders();
-        if(ns==='accepted') showGuestToast('Kitchen has started preparing your order ✅','green');
-        else if(ns==='delivered') showGuestToast('Your order has been delivered · Enjoy your meal','green');
+      var row=doc.data();
+      var changed=_applyRow(o, row);
+      if(changed){ _saveHistory(); updateOrdersBadge(); renderOrders();
+        if(o.status==='accepted') showGuestToast('Kitchen has started preparing your order ✅','green');
       }
     }).catch(function(){});
   });
-},10000);
+}, 10000);
 
 function editGuestName() {
   var current = window.GUEST_NAME || '';
