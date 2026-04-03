@@ -3713,4 +3713,37 @@ window.confirmModify=function(orderId){
 };
 
 </script>
+
+<!-- ── ON-SCREEN DEBUG CONSOLE (remove after testing) ── -->
+<div id="dbg-toggle" onclick="document.getElementById('dbg-panel').style.display=document.getElementById('dbg-panel').style.display==='none'?'block':'none'" style="position:fixed;bottom:80px;right:12px;z-index:9999;background:#1a1a1a;color:#0f0;font-size:11px;font-family:monospace;padding:6px 10px;border-radius:8px;cursor:pointer;opacity:0.85;">🔍 LOG</div>
+<div id="dbg-panel" style="display:none;position:fixed;bottom:140px;left:8px;right:8px;max-height:40vh;overflow-y:auto;z-index:9999;background:rgba(0,0,0,0.92);color:#0f0;font-size:10px;font-family:monospace;padding:8px;border-radius:10px;border:1px solid #333;">
+  <div style="color:#fff;font-weight:bold;margin-bottom:4px;">Debug Log <span onclick="document.getElementById('dbg-body').innerHTML=''" style="color:#f66;cursor:pointer;float:right;">clear</span></div>
+  <div id="dbg-body"></div>
+</div>
+<script>
+(function(){
+  var _dbgBody = null;
+  function _dbgLog(type, args) {
+    if(!_dbgBody) _dbgBody = document.getElementById('dbg-body');
+    if(!_dbgBody) return;
+    var msg = Array.from(args).map(function(a){
+      try { return typeof a === 'object' ? JSON.stringify(a) : String(a); } catch(e){ return String(a); }
+    }).join(' ');
+    var col = type==='error'?'#f66':type==='warn'?'#fa0':'#0f0';
+    var line = document.createElement('div');
+    line.style.cssText = 'color:'+col+';border-bottom:1px solid #222;padding:2px 0;word-break:break-all;';
+    line.textContent = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) + ' ' + msg;
+    _dbgBody.insertBefore(line, _dbgBody.firstChild);
+    while(_dbgBody.children.length > 50) _dbgBody.removeChild(_dbgBody.lastChild);
+  }
+  var _origLog   = console.log.bind(console);
+  var _origWarn  = console.warn.bind(console);
+  var _origError = console.error.bind(console);
+  console.log   = function(){ _origLog.apply(console,arguments);   _dbgLog('log',  arguments); };
+  console.warn  = function(){ _origWarn.apply(console,arguments);  _dbgLog('warn', arguments); };
+  console.error = function(){ _origError.apply(console,arguments); _dbgLog('error',arguments); };
+})();
+</script>
+<!-- ── END DEBUG CONSOLE ── -->
+
 </body>
