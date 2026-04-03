@@ -2187,20 +2187,22 @@ function renderOrders() {
       : isCancelled
       ? '<div style="font-size:12px;color:var(--text-muted);padding:4px 0;">Order cancelled</div>'
       : stepsDef.map((s, i) => {
-          const ACCEPTED_PHASE = ['accepted','preparing','ready'];
+          // State-driven rendering per spec — no index arithmetic
+          var _s = o.status || 'new';
+          var _state = {
+            placed:        true,
+            acceptedDone:  (_s==='accepted'||_s==='ready'||_s==='delivered'),
+            acceptedBlink: (_s==='new'),
+            deliveredDone: (_s==='delivered')
+          };
           var cls = '';
-          if (i === 0) {
+          if (s === 'Placed') {
             cls = 'done';
-          } else if (i === 1) {
-            if (o.status === 'new') {
-              cls = 'active';
-            } else if (ACCEPTED_PHASE.includes(o.status)) {
-              cls = 'done';
-            }
-          } else if (i === 2) {
-            if (o.status === 'delivered') {
-              cls = 'done';
-            }
+          } else if (s === 'Accepted') {
+            if (_state.acceptedDone)  cls = 'done';
+            else if (_state.acceptedBlink) cls = 'active';
+          } else if (s === 'Delivered') {
+            if (_state.deliveredDone) cls = 'done';
           }
           var tick = (cls === 'done') ? checkSvgGreen : '';
           var anim='';
@@ -3437,7 +3439,7 @@ placeOrder = async function(isMerge) {
       if(!doc.exists)return; var row=doc.data(); if(row.status===prevStatus)return; prevStatus=row.status;
       var order=orderHistory.find(function(o){return o.id===orderId;}); if(!order)return;
       order.status=row.status; order.rejection_reason=row.rejection_reason||null;
-      if(['accepted','preparing','ready'].includes(row.status)){order.acceptedAt=row.accepted_at||order.acceptedAt||Date.now(); if(row.eta)order.eta=row.eta;}
+      if(['accepted','ready','delivered'].includes(row.status)){if(row.accepted_at&&!order.acceptedAt)order.acceptedAt=typeof row.accepted_at==='number'?row.accepted_at:new Date(row.accepted_at).getTime(); if(row.eta)order.eta=row.eta;}
       if(row.status==='delivered')order.deliveredAt=Date.now();
       _saveHistory(); updateOrdersBadge(); renderOrders();
       if(row.status==='accepted')showGuestToast('Kitchen has started preparing your order','green');

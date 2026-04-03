@@ -3894,7 +3894,7 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
           <button class="ops-tab" id="filter-tab-food" onclick="setTypeFilter('food',this)">Food</button>
           <button class="ops-tab" id="filter-tab-service" onclick="setTypeFilter('service',this)">Service</button>
           <button class="ops-tab" id="filter-tab-new" onclick="setTypeFilter('new',this)">New</button>
-          <button class="ops-tab" id="filter-tab-preparing" onclick="setTypeFilter('preparing',this)">Preparing</button>
+          <button class="ops-tab" id="filter-tab-preparing" onclick="setTypeFilter('accepted',this)">Preparing</button>
           <button class="ops-tab" id="filter-tab-ready" onclick="setTypeFilter('ready',this)">Ready</button>
           <button class="ops-tab" id="filter-tab-rejected" onclick="setTypeFilter('rejected',this)">Rejected</button>
         </div></div>
@@ -4299,7 +4299,7 @@ async function loadOrdersFromSupabase(){
   if (!db) { setConnBadge('disconnected','Error'); return; }
   try {
     var snap = await db.collection('orders').limit(300).get();
-    var _sRank = {new:0,accepted:1,preparing:2,ready:3,delivered:4,rejected:5,cancelled:5};
+    var _sRank = {new:0,accepted:1,ready:2,delivered:3,rejected:4,cancelled:4};
     // Today's midnight in ms — only show today's active orders
     var todayMidnight = new Date(); todayMidnight.setHours(0,0,0,0);
     var todayMs = todayMidnight.getTime();
@@ -4564,7 +4564,7 @@ function handleRealtimeEvent(payload){
       stopAlertBeep(_updO.id);
       renderOrders(); updateStats(); return;
     }
-    var _sRank2 = {new:0,accepted:1,preparing:2,ready:3,delivered:4,rejected:5,cancelled:5};
+    var _sRank2 = {new:0,accepted:1,ready:2,delivered:3,rejected:4,cancelled:4};
     var idx=orders.findIndex(function(x){return x.id===row.id;});
     if(idx!==-1){
       // Never downgrade local status from a stale Firebase event
@@ -5087,28 +5087,22 @@ async function acceptOrder(id) {
   if (typeof renderTasks==='function') renderTasks(); else renderOrders();
   updateStats();
   showUndoToast('Order accepted — Room '+order.room, id, 'order');
-  // Firebase sync in background
+  // Firebase: write accepted + accepted_at (single source of truth)
   var db = getDb();
   if (db) {
     db.collection('orders').doc(String(id)).update({
       status: 'accepted',
       accepted_at: now,
-      eta: order.eta || 25   // write eta so guest can show countdown
+      eta: order.eta || 25
     }).catch(function(e){ console.warn('Accept Firebase sync error:', e); });
   }
-  // Auto-advance to 'preparing' after 1s — removes need for manual "Start Preparing"
-  setTimeout(function() {
-    var o2 = orders.find(function(x){ return x.id === id; });
-    if (o2 && o2.status === 'accepted') {
-      advanceOrderWithUndo(id, 'preparing');
-    }
-  }, 1000);
+  // No auto-preparing — 'preparing' is display-only, never written to Firestore
 }
 window.acceptOrder = acceptOrder;
 
 // ── ADVANCE ORDER (with undo) — inline, no wrapper chain
 async function advanceOrderWithUndo(id, toStatus) {
-  var next = {new:'accepted',accepted:'preparing',preparing:'ready',ready:'delivered'};
+  var next = {new:'accepted',accepted:'ready',ready:'delivered'};
   var order = orders.find(function(o){ return o.id===id; });
   if (!order) return;
   var prevStatus = order.status;
@@ -5143,12 +5137,6 @@ async function advanceOrderWithUndo(id, toStatus) {
     var _iso = new Date().toISOString();
     if (newStatus === 'accepted') {
       updateData.accepted_at   = _iso;
-      updateData.eta           = order.eta || 25;
-    }
-    if (newStatus === 'preparing') {
-      updateData.preparing_at  = _iso;
-      // Also write accepted_at if not already set (in case acceptOrder was skipped)
-      if (!order.accepted_at)  updateData.accepted_at = _iso;
       updateData.eta           = order.eta || 25;
     }
     if (newStatus === 'ready') {
@@ -5872,7 +5860,7 @@ function renderTasks() {
   var foodTasks = ord.filter(function(o) {
     if (_typeFilter==='service') return false;
     if (_typeFilter==='new') return o.status==='new';
-    if (_typeFilter==='preparing') return o.status==='accepted'||o.status==='preparing';
+    if (_typeFilter==='preparing') return o.status==='accepted';
     if (_typeFilter==='ready') return o.status==='ready';
     if (_typeFilter==='rejected') return o.status==='rejected'||o.status==='cancelled';
     return o.status!=='delivered' && o.status!=='cancelled' && o.status!=='rejected';
@@ -5949,8 +5937,7 @@ function renderTasks() {
     // Status pill
     var sp = {
       new:      pill('NEW',      'rgba(192,57,43,0.12)','var(--red)','rgba(192,57,43,0.25)'),
-      accepted: pill('ACCEPTED', 'rgba(76,175,125,0.1)','var(--green)','rgba(76,175,125,0.22)'),
-      preparing:pill('PREPARING','rgba(201,169,110,0.12)','var(--gold)','rgba(201,169,110,0.28)'),
+      accepted: pill('PREPARING','rgba(201,169,110,0.12)','var(--gold)','rgba(201,169,110,0.28)'),
       ready:    pill('READY',    'rgba(76,175,125,0.14)','var(--green)','rgba(76,175,125,0.3)'),
       rejected: pill('REJECTED', 'rgba(192,57,43,0.08)','var(--text-muted)','var(--card-border)')
     };
@@ -5974,7 +5961,7 @@ function renderTasks() {
          + '<button data-id="'+id+'" onclick="openRejectModal(this.dataset.id)" style="flex:1;padding:14px 8px;border-radius:10px;background:rgba(192,57,43,0.12);color:var(--red);border:1px solid rgba(192,57,43,0.25);font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">&#10005; Reject</button>'
          + cb;
     else if (o.status==='accepted')
-      ac = undoBtn + cb; // auto-advances to preparing — no manual step
+      ac = '<button data-id="'+id+'" data-s="ready" onclick="advanceOrder(this.dataset.id,this.dataset.s)" style="flex:1;padding:14px 8px;border-radius:10px;background:rgba(76,175,125,0.15);color:var(--green);border:1px solid rgba(76,175,125,0.3);font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">&#9654; Mark Ready</button>' + undoBtn + cb;
     else if (o.status==='preparing')
       ac = '<button data-id="'+id+'" data-s="ready" onclick="advanceOrder(this.dataset.id,this.dataset.s)" style="flex:1;padding:14px 8px;border-radius:10px;background:rgba(76,175,125,0.15);color:var(--green);border:1px solid rgba(76,175,125,0.3);font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">&#9654; Mark Ready</button>' + undoBtn + cb;
     else if (o.status==='ready')
