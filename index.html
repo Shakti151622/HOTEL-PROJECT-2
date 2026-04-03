@@ -3158,7 +3158,7 @@ function showOrderNotification(order) {
     <div>Someone in Room 203 placed an order</div>`;
   toast.onclick = () => { toast.remove(); go('orders'); };
   document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 4000);
+  setTimeout(() => toast.remove(), 1000);
 }
 
 function dismissMerge(e) {
@@ -4493,11 +4493,11 @@ function handleSvcRealtimeEvent(payload){
     renderServices();updateUrgencyStrip();
     // inprogress = staff en route (toast only, no sound)
     if(row.status==='inprogress'){
-      showToast('service','En Route — Room '+row.room,'Staff is on the way');
+      showToast('service','En Route — Room '+row.room,'Staff is on the way',1000);
     }
     // done = completion alert
     if(row.status==='done'){
-      showToast('service','Completed — Room '+row.room,'Request fulfilled ✓');
+      showToast('service','Completed — Room '+row.room,'Request fulfilled ✓',1000);
     }
   } else if(evt==='DELETE'){
     services=services.filter(function(x){return x.id!==old.id;});
@@ -4558,7 +4558,7 @@ function handleRealtimeEvent(payload){
     if(!_inArch && !orders.find(function(x){return x.id===o.id;})){
       orders.unshift(o);renderOrders();updateStats();
       // Step 1: New order alert — sound + highlight
-      showToast('order','New Order — Room '+o.room,'₹'+o.total+' · '+o.items.length+' item'+(o.items.length!==1?'s':''));
+      showToast('order','New Order — Room '+o.room,'₹'+o.total+' · '+o.items.length+' item'+(o.items.length!==1?'s':''),4000);
       startAlertBeep(o.id,'order');
       announceNewOrder(o.room);
     }
@@ -4583,7 +4583,7 @@ function handleRealtimeEvent(payload){
     renderOrders();updateStats();
     if(row.status!=='new') stopAlertBeep(row.id);
     if(row.status==='ready'){
-      showToast('service','🚀 Ready to Deliver — Room '+row.room,'Send to room now');
+      showToast('service','🚀 Ready to Deliver — Room '+row.room,'Send to room now',1000);
       playBeep('order');
     }
   } else if(evt==='DELETE'){
@@ -4632,7 +4632,7 @@ async function confirmReject(){
   closeRejectModal();
   renderOrders();updateStats();
   stopAlertBeep(_rejectOrderId);
-  showToast('service','Order Rejected — Room '+order.room,fullReason);
+  showToast('service','Order Rejected — Room '+order.room,fullReason,1000);
   var db=getDb();
   if(db){ db.collection('orders').doc(String(_rejectOrderId)).update({
     status:'rejected',
@@ -4760,7 +4760,7 @@ var orderCounter=4;
 var roomPool=['101','207','301','303','105'];
 var menuPool=[{name:'Butter Chicken',price:340},{name:'Egg Fried Rice',price:210},{name:'Masala Chai',price:60},{name:'Mango Lassi',price:120},{name:'Chicken Tikka',price:380},{name:'Fresh Lime Soda',price:90}];
 function simulateNewOrder(){var room=roomPool[Math.floor(Math.random()*roomPool.length)];var numItems=Math.floor(Math.random()*2)+1;var items=[],total=0;for(var i=0;i<numItems;i++){var m=menuPool[Math.floor(Math.random()*menuPool.length)];var qty=Math.floor(Math.random()*2)+1;items.push({name:m.name,qty:qty,price:m.price});total+=m.price*qty;}var id='ORD-'+String(orderCounter).padStart(3,'0');orderCounter++;orders.unshift({id:id,room:room,guest:'Guest',items:items,total:total,status:'new',placedAt:Date.now()});renderOrders();updateStats();showToast('order','New Order — Room '+room,'₹'+total+' · '+items.length+' item'+(items.length>1?'s':''));}
-function showToast(type,title,msg){var container=document.getElementById('alert-container');var toast=document.createElement('div');toast.className='alert-toast';var ic=type==='order'?'var(--amber)':' var(--blue)';var svg=type==='order'?'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+ic+'" stroke-width="2" stroke-linecap="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>':' <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+ic+'" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>';var now=new Date();toast.innerHTML='<div class="toast-icon '+type+'">'+svg+'</div><div class="toast-body"><div class="toast-title">'+title+'</div><div class="toast-msg">'+msg+'</div><div class="toast-time">'+now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true})+'</div></div><button class="toast-close" onclick="this.parentElement.remove()">×</button>';container.appendChild(toast);setTimeout(function(){toast.classList.add('fade-out');setTimeout(function(){if(toast.parentElement)toast.remove();},300);},5000);}
+function showToast(type,title,msg,duration){var container=document.getElementById('alert-container');var toast=document.createElement('div');toast.className='alert-toast';duration=duration||1500;var ic=type==='order'?'var(--amber)':' var(--blue)';var svg=type==='order'?'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+ic+'" stroke-width="2" stroke-linecap="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>':' <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+ic+'" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>';var now=new Date();toast.innerHTML='<div class="toast-icon '+type+'">'+svg+'</div><div class="toast-body"><div class="toast-title">'+title+'</div><div class="toast-msg">'+msg+'</div><div class="toast-time">'+now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true})+'</div></div><button class="toast-close" onclick="this.parentElement.remove()">×</button>';container.appendChild(toast);setTimeout(function(){toast.classList.add('fade-out');setTimeout(function(){if(toast.parentElement)toast.remove();},300);},duration);}
 function animateBars(){document.querySelectorAll('.bar-fill').forEach(function(b){var w=b.style.width;b.style.width='0';setTimeout(function(){b.style.width=w;},50);});}
 var currentQRUrl='',currentQRRoom='';
 function showRoomQR(roomNum){
@@ -5077,8 +5077,8 @@ function showUndoToast(label, id, type) {
   toast.appendChild(label_span);
   toast.appendChild(undoBtn);
   document.body.appendChild(toast);
-  // Auto-dismiss after 6 seconds
-  setTimeout(function(){ if(toast.parentElement) toast.remove(); }, 6000);
+  // Auto-dismiss after 1 second
+  setTimeout(function(){ if(toast.parentElement) toast.remove(); }, 1000);
 }
 
 // ── ACCEPT ORDER

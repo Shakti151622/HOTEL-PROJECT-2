@@ -2182,14 +2182,15 @@ function renderOrders() {
     var _clock='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="'+col+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
     return '<div style="text-align:right;display:flex;align-items:center;justify-content:flex-end;gap:2px;">'
       + _clock
-      + '<span style="font-size:15px;font-weight:700;font-family:DM Sans,sans-serif;color:'+col+';">'+num+'</span>'
+      + '<span id="eta-timer-'+o.id+'" style="font-size:15px;font-weight:700;font-family:DM Sans,sans-serif;color:'+col+';">'+num+'</span>'
       + '</div>';
   }
 
   function getStatusText(o) {
     if(o.status==='new') return 'Order received · Awaiting confirmation';
     if(o.status==='accepted') return 'Kitchen is on it';
-    if(o.status==='preparing'||o.status==='ready') return 'Kitchen is on it';
+    if(o.status==='preparing') return 'Kitchen is on it';
+    if(o.status==='ready') return 'On its way to your room! 🛎';
     if(o.status==='delivered') return 'Delivered · Enjoy your meal';
     return '';
   }
@@ -2245,19 +2246,19 @@ function renderOrders() {
 
               if(_atStop) {
                 // Reached stop point — hold at max, dot blinks
-                _pct = 44; // ~full width of the gap (left:55% + 44% ≈ right edge before Delivered)
+                _pct = 26; // left:55% + 26% = ~81% → just before Delivered dot
                 _dotAnim = 'animation:line-tip-pulse 0.6s ease-in-out infinite;';
                 _lineAnim2 = _overMin > 0 ? 'animation:_flash 0.8s ease-in-out infinite;' : '';
               } else {
                 // Still travelling
-                _pct = (_em / _stopMs) * 44;
+                _pct = (_em / _stopMs) * 26;
                 _dotAnim = 'animation:line-tip-pulse 1s ease-in-out infinite;';
                 _lineAnim2 = '';
                 // CSS transition so line moves smoothly
               }
 
-              var _dot2='<div style="position:absolute;right:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:'+_lineCol+';filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));'+_dotAnim+'z-index:2;"></div>';
-              anim='<div style="position:absolute;top:11px;left:55%;height:2px;background:'+_lineCol+';z-index:1;width:'+_pct.toFixed(1)+'%;'+_lineAnim2+'">'+_dot2+'</div>';
+              var _dot2='<div id="eta-dot-'+o.id+'" style="position:absolute;right:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:'+_lineCol+';filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));'+_dotAnim+'z-index:2;"></div>';
+              anim='<div id="eta-line-'+o.id+'" style="position:absolute;top:11px;left:55%;height:2px;background:'+_lineCol+';z-index:1;width:'+_pct.toFixed(1)+'%;'+_lineAnim2+'">'+_dot2+'</div>';
             }
           }
           return '<div class="tracker-step '+cls+'">'+anim+'<div class="tracker-dot">'+tick+'</div><div class="tracker-step-name">'+s+'</div></div>';
@@ -2334,12 +2335,18 @@ function renderOrders() {
       'Thanks for your patience',
       'You will receive your order soon'
     ];
+    var readyMsgs = [
+      'On its way to your room!',
+      'Delivering shortly 🛎',
+      'Almost there — hang tight!',
+      'Your meal is on the way'
+    ];
     orderHistory.forEach(function(o) {
       if (o.status !== 'new' && o.status !== 'accepted' && o.status !== 'preparing' && o.status !== 'ready') return;
       var el = document.getElementById('status-msg-' + o.id);
       if (!el || el._rotating) return;
       el._rotating = true;
-      var msgs = (o.status === 'new') ? newMsgs : acceptedMsgs;
+      var msgs = (o.status === 'new') ? newMsgs : (o.status === 'ready') ? readyMsgs : acceptedMsgs;
       var idx = 0;
       el._rotateTimer = setInterval(function() {
         var el2 = document.getElementById('status-msg-' + o.id);
@@ -2358,16 +2365,59 @@ function renderOrders() {
   body.innerHTML = html;
 }
 
-// ── Live 1s timer — re-renders orders screen for countdown + inline animation
+// ── Live 1s timer — updates only timer text + inline anim, no full re-render
 (function(){
   if (window._guestTimerInterval) return;
   window._guestTimerInterval = setInterval(function() {
-    var hasActive = orderHistory.some(function(o){
-      return o.status==='accepted'||o.status==='preparing'||o.status==='ready';
-    });
-    if (!hasActive) return;
     var screen = document.getElementById('screen-orders');
-    if (screen && screen.classList.contains('active')) renderOrders();
+    if (!screen || !screen.classList.contains('active')) return;
+    orderHistory.forEach(function(o){
+      if (o.status!=='accepted'&&o.status!=='preparing'&&o.status!=='ready') return;
+      if (!o.acceptedAt) return;
+      var eta    = o.eta || 25;
+      var now    = Date.now();
+      var elMs   = now - o.acceptedAt;
+      var etaMs  = eta * 60000;
+      var stopMs = Math.max(1000, (eta-1)*60000);
+      var overMin = Math.max(0, Math.floor((elMs - etaMs) / 60000));
+      // Colour
+      var col = overMin>=20?'#C0392B':overMin>=10?'#E67E22':overMin>=1?'#E0A800':'var(--green)';
+      // Timer text
+      var num;
+      if (overMin > 0) {
+        num = '+'+overMin+'m';
+      } else {
+        var remSec = Math.max(0, etaMs - elMs);
+        var remM = Math.floor(remSec/60000);
+        var remS = Math.floor((remSec%60000)/1000);
+        num = remM > 0 ? remM+'m '+(remS<10?'0':'')+remS+'s' : (remSec>0 ? remS+'s' : 'Delivering!');
+      }
+      // Update timer element
+      var timerEl = document.getElementById('eta-timer-'+o.id);
+      if (timerEl) {
+        timerEl.textContent = num;
+        timerEl.style.color = col;
+        var svgEl = timerEl.previousSibling;
+        if (svgEl && svgEl.tagName==='svg') svgEl.setAttribute('stroke', col);
+      }
+      // Update inline progress line width + colour
+      var lineEl = document.getElementById('eta-line-'+o.id);
+      var dotEl  = document.getElementById('eta-dot-'+o.id);
+      if (lineEl && dotEl) {
+        var atStop = elMs >= stopMs;
+        var pct = atStop ? 26 : Math.min(26, (elMs/stopMs)*26);
+        lineEl.style.width = pct.toFixed(1)+'%';
+        lineEl.style.background = col;
+        dotEl.style.background = col;
+        if (atStop) {
+          dotEl.style.animationDuration = '0.6s';
+          if (overMin > 0 && !lineEl._flashing) {
+            lineEl.style.animation = '_flash 0.8s ease-in-out infinite';
+            lineEl._flashing = true;
+          }
+        }
+      }
+    });
   }, 1000);
 })();
 
@@ -3516,8 +3566,10 @@ function attachOrderListener(orderId) {
       // Toast notifications
       if (data.status === 'accepted')
         showGuestToast('Order accepted — kitchen is preparing your order', 'green');
-      else if (data.status === 'ready')
-        showGuestToast('Your order is ready — delivering shortly', 'green');
+      else if (data.status === 'ready') {
+        showGuestToast('Your order is ready — delivering shortly 🛎', 'green');
+        showGuestNotif('Your Order is Ready! 🛎', 'Sit tight — delivering to your room shortly.', 'ready', function(){ if(typeof go==='function')go('orders'); });
+      }
       else if (data.status === 'delivered')
         showGuestToast('Delivered · Enjoy your meal!', 'green');
       else if (data.status === 'rejected')
