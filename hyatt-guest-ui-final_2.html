@@ -2139,26 +2139,44 @@ function renderOrders() {
   function stepIndex(status) {
     return STATUS_TO_STEP[status] !== undefined ? STATUS_TO_STEP[status] : 0;
   }
+  // ── Colour helper based on over-ETA minutes
+  function _etaCol(overMin) {
+    if (overMin >= 20) return '#C0392B';   // red
+    if (overMin >= 10) return '#E67E22';   // brown/amber
+    if (overMin >= 1)  return '#E0A800';   // yellow
+    return 'var(--green)';
+  }
+
   function getEtaHtml(o) {
     if(o.status==='rejected'||o.status==='cancelled') return '';
     var eta = o.eta || 25;
     var acceptedAt = o.acceptedAt || null;
     var now = Date.now();
-    // Colour: grey before accepted, then green/orange/red based on lateness
     var col, num;
     if(!acceptedAt || o.status==='new') {
       col = 'var(--text-muted)';
       num = eta+' min';
     } else {
       var elapsedMin = Math.floor((now - acceptedAt) / 60000);
-      var overMin = elapsedMin - eta;
+      var elapsedSec = Math.floor(((now - acceptedAt) % 60000) / 1000);
+      var overMin   = elapsedMin - eta;
       var remaining = Math.max(0, eta - elapsedMin);
-      col = overMin >= 20 ? '#C0392B' : overMin >= 10 ? '#E67E22' : 'var(--green)';
+      col = _etaCol(overMin);
       if(o.status==='delivered') {
         var deliveredAt = o.deliveredAt || now;
-        num = (Math.round((deliveredAt - acceptedAt)/60000))+' min';
+        var tookMin = Math.round((deliveredAt - acceptedAt) / 60000);
+        num = tookMin+' min';
+      } else if(overMin > 0) {
+        // Over ETA — show +Xm
+        num = '+'+overMin+'m';
+      } else if(remaining === 0) {
+        num = 'Delivering!';
       } else {
-        num = remaining > 0 ? remaining+' min' : 'Ready!';
+        // Show MM:SS countdown
+        var remSec = Math.max(0, eta*60 - Math.floor((now - acceptedAt)/1000));
+        var remM = Math.floor(remSec/60);
+        var remS = remSec % 60;
+        num = remM+'m '+(remS<10?'0':'')+remS+'s';
       }
     }
     var _clock='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="'+col+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
@@ -2211,20 +2229,35 @@ function renderOrders() {
             anim='<div style="position:absolute;top:6px;left:calc(50% - 5px);width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
           }
           if(i===1){
-            var _eta=o.eta||25;
-            var _sm=o.acceptedAt||Date.now();
-            var _em=Date.now()-_sm;
-            var _isLate=_em>_eta*60000;
-            var _lineCol=_isLate?'#E67E22':'var(--green)';
+            var _eta  = o.eta || 25;
+            var _sm   = o.acceptedAt || Date.now();
+            var _em   = Date.now() - _sm;            // elapsed ms
+            var _etaMs = _eta * 60000;               // full ETA in ms
+            var _stopMs = Math.max(1000, (_eta-1)*60000); // stop 1 min before ETA
+            var _overMin = Math.max(0, Math.floor((_em - _etaMs) / 60000));
+            var _lineCol = _etaCol(_overMin);
+
             if(si===1){
-              // Line grows from Accepted center, dot at moving tip, stops 1min before ETA
-              var _targetMs=Math.max(1000,(_eta-1)*60000);
-              var _pct=Math.min(30,(_em/_targetMs)*30);
-              var _rm=Math.max(0,_targetMs-_em);
-              var _trans=_rm>0?'transition:width '+_rm+'ms linear;':'';
-              var _lineAnim=_isLate?'animation:_flash 0.8s ease-in-out infinite;':'';
-              var _dot='<div style="position:absolute;right:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:'+_lineCol+';filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
-              anim='<div style="position:absolute;top:11px;left:55%;height:2px;background:'+_lineCol+';z-index:1;width:'+_pct.toFixed(1)+'%;'+_trans+_lineAnim+'">'+_dot+'</div>';
+              // Progress: travels from Accepted to 1min-before-Delivered over (_eta-1) mins
+              // After that: line full, dot blinks at end
+              var _atStop = _em >= _stopMs;
+              var _pct, _dotAnim, _lineAnim2;
+
+              if(_atStop) {
+                // Reached stop point — hold at max, dot blinks
+                _pct = 44; // ~full width of the gap (left:55% + 44% ≈ right edge before Delivered)
+                _dotAnim = 'animation:line-tip-pulse 0.6s ease-in-out infinite;';
+                _lineAnim2 = _overMin > 0 ? 'animation:_flash 0.8s ease-in-out infinite;' : '';
+              } else {
+                // Still travelling
+                _pct = (_em / _stopMs) * 44;
+                _dotAnim = 'animation:line-tip-pulse 1s ease-in-out infinite;';
+                _lineAnim2 = '';
+                // CSS transition so line moves smoothly
+              }
+
+              var _dot2='<div style="position:absolute;right:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:'+_lineCol+';filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));'+_dotAnim+'z-index:2;"></div>';
+              anim='<div style="position:absolute;top:11px;left:55%;height:2px;background:'+_lineCol+';z-index:1;width:'+_pct.toFixed(1)+'%;'+_lineAnim2+'">'+_dot2+'</div>';
             }
           }
           return '<div class="tracker-step '+cls+'">'+anim+'<div class="tracker-dot">'+tick+'</div><div class="tracker-step-name">'+s+'</div></div>';
@@ -2324,6 +2357,19 @@ function renderOrders() {
   }
   body.innerHTML = html;
 }
+
+// ── Live 1s timer — re-renders orders screen for countdown + inline animation
+(function(){
+  if (window._guestTimerInterval) return;
+  window._guestTimerInterval = setInterval(function() {
+    var hasActive = orderHistory.some(function(o){
+      return o.status==='accepted'||o.status==='preparing'||o.status==='ready';
+    });
+    if (!hasActive) return;
+    var screen = document.getElementById('screen-orders');
+    if (screen && screen.classList.contains('active')) renderOrders();
+  }, 1000);
+})();
 
 // ── CANCEL / MODIFY ORDER
 function cancelOrder(orderId) {
@@ -2857,7 +2903,7 @@ function renderServices() {
       if (!el2) { clearInterval(el._rotateTimer); return; }
       idx = (idx + 1) % svcMsgs.length;
       el2.textContent = svcMsgs[idx];
-    }, 2000);
+    }, 3000);
   });
   // Attach button listeners by ID after render
   serviceHistory.forEach(function(r) {

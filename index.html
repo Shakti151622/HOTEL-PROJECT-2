@@ -4366,7 +4366,14 @@ function subscribeRealtime(){
             return;
           }
           if (!orders.find(function(x){ return x.id===o.id; })) {
-            orders.unshift(o);
+            // Don't re-add if already archived in order history
+            var _alreadyArchived = false;
+            try {
+              Object.values(OH._food||{}).forEach(function(arr){
+                if(arr.find(function(a){ return a.id===o.id; })) _alreadyArchived=true;
+              });
+            } catch(e){}
+            if (!_alreadyArchived) orders.unshift(o);
           }
           return;
         }
@@ -4545,7 +4552,10 @@ function handleRealtimeEvent(payload){
   var evt=payload.eventType,row=payload.new||{},old=payload.old||{};
   if(evt==='INSERT'){
     var o=rowToOrder(row);
-    if(!orders.find(function(x){return x.id===o.id;})){
+    // Don't re-insert if already archived
+    var _inArch=false;
+    try{Object.values(OH._food||{}).forEach(function(arr){if(arr.find(function(a){return a.id===o.id;}))_inArch=true;});}catch(e){}
+    if(!_inArch && !orders.find(function(x){return x.id===o.id;})){
       orders.unshift(o);renderOrders();updateStats();
       // Step 1: New order alert — sound + highlight
       showToast('order','New Order — Room '+o.room,'₹'+o.total+' · '+o.items.length+' item'+(o.items.length!==1?'s':''));
@@ -7031,6 +7041,14 @@ function ohArchive(order) {
       archivedAt: Date.now()
     });
     ohSave();
+    // Delete from Firestore so it never reappears after reconnect
+    try {
+      var _db = getDb();
+      if (_db) {
+        _db.collection('orders').doc(String(order.id)).delete()
+          .catch(function(e){ console.warn('Archive delete error:', e && e.message); });
+      }
+    } catch(e){}
   }
 }
 
