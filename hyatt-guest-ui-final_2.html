@@ -3431,6 +3431,7 @@ var _activeListeners = {}; // orderId → unsubscribe fn (prevents duplicates)
 
 // Single attach function — always reflects state, no prev filtering
 function attachOrderListener(orderId) {
+  console.log('[GUEST] attachOrderListener called for', orderId);
   // Unsubscribe existing listener for this order first
   if (_activeListeners[orderId]) {
     try { _activeListeners[orderId](); } catch(e) {}
@@ -3438,14 +3439,16 @@ function attachOrderListener(orderId) {
   }
 
   _waitDb().then(function(db) {
-    if (!db) return;
+    if (!db) { console.warn('[GUEST] _waitDb returned null for', orderId); return; }
+    console.log('[GUEST] listener attached to Firestore for', orderId);
     var unsub = db.collection('orders').doc(orderId).onSnapshot(function(doc) {
       if (!doc.exists) return;
       var data = doc.data();
+      console.log('[GUEST] snapshot received for', orderId, '→ status:', data.status, '| accepted_at:', data.accepted_at);
 
       // Always reflect — no filtering, no prev check
       var order = orderHistory.find(function(o){ return o.id === orderId; });
-      if (!order) return;
+      if (!order) { console.warn('[GUEST] order not found in orderHistory for', orderId); return; }
 
       order.status = data.status;
       order.rejection_reason = data.rejection_reason || null;
@@ -3485,40 +3488,61 @@ function attachOrderListener(orderId) {
 
 // Attach listener for all active orders — called on load, visibility change
 function attachAllListeners() {
+  console.log('[GUEST] attachAllListeners called, orderHistory length:', orderHistory.length);
   _waitDb().then(function(db) {
-    if (!db) return;
-    // Fetch latest from Firebase first (sync any missed changes)
+    if (!db) { console.warn('[GUEST] _waitDb returned null in attachAllListeners'); return; }
+
+    var roomNum = String(window.ROOM_NUM || '000');
+
+    // Query Firestore for ALL active orders for this room
     db.collection('orders')
-      .where('room', '==', String(window.ROOM_NUM || '000'))
+      .where('room', '==', roomNum)
       .get()
       .then(function(snap) {
+        console.log('[GUEST] Firestore returned', snap.docs.length, 'orders for room', roomNum);
+        var changed = false;
         snap.docs.forEach(function(doc) {
           var data = doc.data();
-          var order = orderHistory.find(function(o){ return o.id === doc.id; });
-          if (!order) return;
+          if (['delivered','cancelled','rejected'].indexOf(data.status) !== -1) return;
 
-          // Sync current Firebase state immediately
+          // Find in orderHistory OR create entry if missing (e.g. placed on another device)
+          var order = orderHistory.find(function(o){ return o.id === doc.id; });
+          if (!order) {
+            // Order exists in Firebase but not in this device's localStorage — add it
+            order = {
+              id: doc.id,
+              room: data.room || roomNum,
+              guest: data.guest || '',
+              items: data.items || [],
+              total: data.total || 0,
+              status: data.status || 'new',
+              placedAt: data.placed_at ? new Date(data.placed_at).getTime() : Date.now(),
+              eta: data.eta || 25,
+              fromPeer: false
+            };
+            orderHistory.unshift(order);
+            changed = true;
+          }
+
+          // Always sync current Firebase state
           order.status = data.status;
           if (['accepted','ready'].indexOf(data.status) !== -1 && data.accepted_at) {
             var ts = typeof data.accepted_at === 'number'
-              ? data.accepted_at
-              : new Date(data.accepted_at).getTime();
+              ? data.accepted_at : new Date(data.accepted_at).getTime();
             if (!isNaN(ts)) order.acceptedAt = ts;
           }
           if (data.eta) order.eta = data.eta;
-          if (data.status === 'delivered' && !order.deliveredAt) order.deliveredAt = Date.now();
+          changed = true;
 
-          _saveHistory();
-
-          // Attach live listener for non-terminal orders
-          if (['delivered','cancelled','rejected'].indexOf(data.status) === -1) {
-            attachOrderListener(doc.id);
-          }
+          // Attach live listener
+          attachOrderListener(doc.id);
         });
+
+        if (changed) _saveHistory();
         updateOrdersBadge();
         renderOrders();
       })
-      .catch(function(e){ console.warn('attachAllListeners sync error:', e); });
+      .catch(function(e){ console.warn('[GUEST] attachAllListeners Firestore error:', e); });
   });
 }
 
@@ -3558,6 +3582,7 @@ placeOrder = async function(isMerge) {
   var db = await _waitDb();
   if (!db) { console.warn('Firebase not available'); return; }
   try {
+    console.log('[GUEST] writing order to Firestore:', orderId);
     await db.collection('orders').doc(orderId).set({
       id:        orderId,
       room:      String(window.ROOM_NUM || '000'),
