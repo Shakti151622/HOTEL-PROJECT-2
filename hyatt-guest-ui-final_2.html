@@ -2106,20 +2106,11 @@ function updateOrdersBadge() {
   const active = orderHistory.filter(o => o.status !== 'delivered' && o.status !== 'rejected' && o.status !== 'cancelled');
   if (active.length > 0) {
     badge.style.display = 'inline-block';
-    if (active.length === 1) {
-      var _o=active[0],_st=_o.status,_sub='';
-      var _APHASE=['accepted','preparing','ready'];
-      if(_st==='new'){
-        _sub='Waiting for confirmation · '+(_o.eta||25)+' min est.';
-      } else if(_APHASE.indexOf(_st)!==-1){
-        var _lbl=_st==='ready'?'Almost ready':(_st==='preparing'?'Preparing':'Accepted – Kitchen is on it');
-        if(_o.acceptedAt){var _el=Math.floor((Date.now()-_o.acceptedAt)/60000);var _rem=Math.max(0,(_o.eta||25)-_el);_sub=_lbl+' · '+(_rem>0?_rem+' min remaining':'Ready soon!');}
-        else{_sub=_lbl+' · '+(_o.eta||25)+' min est.';}
-      } else {_sub='In progress';}
-      desc.textContent=_sub;
-    } else {
-      desc.textContent=active.length+' orders in progress';
-    }
+    // Guest visibility mapping: ready is hidden (shows as Preparing per spec)
+    const statusText = { new: 'Waiting for confirmation', accepted: 'Accepted · being prepared', preparing: 'Being prepared', ready: 'Being prepared' };
+    desc.textContent = active.length === 1
+      ? (statusText[active[0].status] || 'In progress') + ' · ' + active[0].eta + ' min est.'
+      : active.length + ' orders in progress';
   } else {
     badge.style.display = 'none';
     desc.textContent = `${orderHistory.length} order${orderHistory.length > 1 ? 's' : ''} placed today`;
@@ -2144,8 +2135,9 @@ function renderOrders() {
   const statusClass = { new: 'status-live', accepted: 'status-live', preparing: 'status-live', ready: 'status-live', delivered: 'status-delivered-green', rejected: 'status-rejected', cancelled: 'status-cancelled-red' };
 
   const stepsDef = ['Placed', 'Accepted', 'Delivered'];
+  const STATUS_TO_STEP = { new:0, accepted:1, preparing:1, ready:1, delivered:2 };
   function stepIndex(status) {
-    var _m={new:0,accepted:1,preparing:1,ready:1,delivered:2,rejected:-1}; return _m[status]!==undefined?_m[status]:0;
+    return STATUS_TO_STEP[status] !== undefined ? STATUS_TO_STEP[status] : 0;
   }
   function getEtaHtml(o) {
     if(o.status==='rejected'||o.status==='cancelled') return '';
@@ -2194,53 +2186,47 @@ function renderOrders() {
       ? '<div style="font-size:12px;color:#C0392B;padding:4px 0;">✕ Order was not accepted</div>'
       : isCancelled
       ? '<div style="font-size:12px;color:var(--text-muted);padding:4px 0;">Order cancelled</div>'
-      : (function(){
-          // Phase-based step index — accepted/preparing/ready are ALL phase 1
-          var APHASE=['accepted','preparing','ready'];
-          var si = o.status==='new' ? 0
-                 : APHASE.indexOf(o.status)!==-1 ? 1
-                 : o.status==='delivered' ? 2
-                 : 0;
-
-          return stepsDef.map(function(s, i) {
-            var cls='', tick='', anim='';
-
-            if(i===0){
-              // Placed — always done once order exists
-              cls='done'; tick=checkSvgGreen;
-
-            } else if(i===1){
-              if(si===0){
-                // new — Accepted dot pulses (waiting)
-                cls='active';
-              } else {
-                // accepted OR preparing OR ready — tick the Accepted dot
-                cls='done'; tick=checkSvgGreen;
-                // Grey overlay kills the CSS ::before green line toward Delivered
-                var _grey='<div style="position:absolute;top:10px;left:50%;right:-50%;height:2px;background:var(--surface2);z-index:1;pointer-events:none;"></div>';
-                // Animated green bar growing from Accepted toward Delivered
-                var _e=o.eta||25;
-                var _s=o.acceptedAt||Date.now();
-                var _ms=Date.now()-_s;
-                var _late=_ms>_e*60000;
-                var _col=_late?'#E67E22':'var(--green)';
-                var _tgt=Math.max(1000,(_e-1)*60000);
-                var _p=Math.min(50,(_ms/_tgt)*50);
-                var _r=Math.max(0,_tgt-_ms);
-                var _tr=_r>0?'transition:width '+_r+'ms linear;':'';
-                var _fl=_late?'animation:_flash 0.8s ease-in-out infinite;':'';
-                var _tip='<div style="position:absolute;right:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:'+_col+';filter:drop-shadow(0 0 6px rgba(76,175,125,0.9));animation:line-tip-pulse 1s ease-in-out infinite;z-index:4;"></div>';
-                anim=_grey+'<div style="position:absolute;top:10px;left:50%;height:2px;background:'+_col+';z-index:2;width:'+_p.toFixed(1)+'%;'+_tr+_fl+'">'+_tip+'</div>';
-              }
-
-            } else if(i===2){
-              // Delivered
-              if(si>=2){ cls='done'; tick=checkSvgGreen; }
+      : stepsDef.map((s, i) => {
+          const ACCEPTED_PHASE = ['accepted','preparing','ready'];
+          var cls = '';
+          if (i === 0) {
+            cls = 'done';
+          } else if (i === 1) {
+            if (o.status === 'new') {
+              cls = 'active';
+            } else if (ACCEPTED_PHASE.includes(o.status)) {
+              cls = 'done';
             }
-
-            return '<div class="tracker-step '+cls+'">'+anim+'<div class="tracker-dot">'+tick+'</div><div class="tracker-step-name">'+s+'</div></div>';
-          }).join('');
-        })();
+          } else if (i === 2) {
+            if (o.status === 'delivered') {
+              cls = 'done';
+            }
+          }
+          var tick = (cls === 'done') ? checkSvgGreen : '';
+          var anim='';
+          if(i===1 && si===0){
+            // Dot centered on Accepted circle while waiting for acceptance
+            anim='<div style="position:absolute;top:6px;left:calc(50% - 5px);width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
+          }
+          if(i===1){
+            var _eta=o.eta||25;
+            var _sm=o.acceptedAt||Date.now();
+            var _em=Date.now()-_sm;
+            var _isLate=_em>_eta*60000;
+            var _lineCol=_isLate?'#E67E22':'var(--green)';
+            if(si===1){
+              // Line grows from Accepted center, dot at moving tip, stops 1min before ETA
+              var _targetMs=Math.max(1000,(_eta-1)*60000);
+              var _pct=Math.min(30,(_em/_targetMs)*30);
+              var _rm=Math.max(0,_targetMs-_em);
+              var _trans=_rm>0?'transition:width '+_rm+'ms linear;':'';
+              var _lineAnim=_isLate?'animation:_flash 0.8s ease-in-out infinite;':'';
+              var _dot='<div style="position:absolute;right:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:'+_lineCol+';filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
+              anim='<div style="position:absolute;top:11px;left:55%;height:2px;background:'+_lineCol+';z-index:1;width:'+_pct.toFixed(1)+'%;'+_trans+_lineAnim+'">'+_dot+'</div>';
+            }
+          }
+          return '<div class="tracker-step '+cls+'">'+anim+'<div class="tracker-dot">'+tick+'</div><div class="tracker-step-name">'+s+'</div></div>';
+        }).join('');
 
     // Cancel/Modify: always for 'new', within 10 mins for 'accepted'
     const minsElapsed = o.acceptedAt ? (Date.now() - o.acceptedAt) / 60000 : 0;
@@ -2730,8 +2716,17 @@ function renderServices() {
     var isDone = r.status === 'done' || r.status === 'cancelled';
     var checkSvgGreen = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
     var steps = svcStepsDef.map(function(s, i) {
-      var cls = (i === 0 || i < si) ? 'done' : (i === si ? 'active' : '');
-      var tick = (i === 0 || i < si) ? checkSvgGreen : '';
+      var cls = '';
+      if (i < si) {
+        cls = 'done';
+      } else if (i === si) {
+        if (r.status === 'received') {
+          cls = 'active';
+        } else {
+          cls = 'done';
+        }
+      }
+      var tick = (cls === 'done') ? checkSvgGreen : '';
       var anim = '';
       if (i === 1 && si === 0) {
         anim = '<div style="position:absolute;top:6px;left:calc(50% - 5px);width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
@@ -3424,66 +3419,6 @@ function startOrdering() {
 function _saveHistory(){try{localStorage.setItem('hyatt_g_'+String(window.ROOM_NUM||'000'),JSON.stringify({orders:orderHistory,services:serviceHistory,ts:Date.now()}));}catch(e){}}
 (function(){try{var raw=localStorage.getItem('hyatt_g_'+String(window.ROOM_NUM||'000'));if(!raw)return;var d=JSON.parse(raw);if(!d.ts||Date.now()-d.ts>86400000)return;if(Array.isArray(d.orders))orderHistory=d.orders;if(Array.isArray(d.services))serviceHistory=d.services;}catch(e){}})();
 
-// ══════════════════════════════════════════════════════
-// FIREBASE SYNC
-// One listener per order (registry prevents duplicates).
-// _applyRow is the single place that mutates order state.
-// Terminal orders (delivered/rejected/cancelled) are updated
-// locally and rendered as Past — no listener re-attached.
-// ══════════════════════════════════════════════════════
-var _gListeners = {};  // orderId -> true
-
-var _ACCEPTED_PHASE = ['accepted','preparing','ready'];
-
-function _parseAcceptedMs(row) {
-  if (row.accepted_at) { var ms = new Date(row.accepted_at).getTime(); if (!isNaN(ms)) return ms; }
-  return null;
-}
-
-// Single function that applies a Firestore row to a local order.
-// Returns true if anything changed.
-function _applyRow(order, row) {
-  var changed = false;
-  var ns = row.status;
-  if (ns && ns !== order.status) { order.status = ns; changed = true; }
-  if (row.rejection_reason !== undefined) order.rejection_reason = row.rejection_reason || null;
-  // Set acceptedAt for ANY accepted-phase status (accepted, preparing, ready)
-  if (_ACCEPTED_PHASE.indexOf(ns) !== -1 && !order.acceptedAt) {
-    order.acceptedAt = _parseAcceptedMs(row) || Date.now();
-    changed = true;
-  }
-  if (ns === 'delivered' && !order.deliveredAt) { order.deliveredAt = Date.now(); changed = true; }
-  if (row.eta && !order.eta) { order.eta = row.eta; changed = true; }
-  return changed;
-}
-
-// Attach ONE real-time listener per order — registry prevents duplicates.
-function _listenOrder(db, orderId) {
-  if (_gListeners[orderId]) return;
-  _gListeners[orderId] = true;
-  db.collection('orders').doc(String(orderId)).onSnapshot(function(doc) {
-    if (!doc.exists) return;
-    var row = doc.data();
-    var order = orderHistory.find(function(o){ return o.id === orderId; });
-    if (!order) return;
-    var prevStatus = order.status;
-    var changed = _applyRow(order, row);
-    if (!changed) return;
-    _saveHistory();
-    updateOrdersBadge();
-    renderOrders();
-    var ns = order.status;
-    if (_ACCEPTED_PHASE.indexOf(ns) !== -1 && _ACCEPTED_PHASE.indexOf(prevStatus) === -1)
-      showGuestToast('Kitchen has started preparing your order ✅', 'green');
-    else if (ns === 'rejected' && prevStatus !== 'rejected')
-      showGuestToast('Not accepted: ' + (order.rejection_reason || 'contact reception'), 'red');
-    else if (ns === 'delivered' && prevStatus !== 'delivered') {
-      showGuestToast('Your order has been delivered · Enjoy your meal', 'green');
-      if (typeof broadcastActivity === 'function') broadcastActivity('idle');
-    }
-  });
-}
-
 // ── OVERRIDE placeOrder
 var _origPlaceOrder = placeOrder;
 placeOrder = async function(isMerge) {
@@ -3497,7 +3432,18 @@ placeOrder = async function(isMerge) {
   var db=await _waitDb(); if(!db){console.warn('Firebase not available');return;}
   try {
     await db.collection('orders').doc(orderId).set({id:orderId,room:String(window.ROOM_NUM||'000'),guest:String(window.GUEST_NAME||'Guest'),items:cartSnapshot,total:Number(totalSnapshot),status:'new',placed_at:new Date().toISOString()});
-    _listenOrder(db, orderId);
+    var prevStatus=null;
+    db.collection('orders').doc(orderId).onSnapshot(function(doc){
+      if(!doc.exists)return; var row=doc.data(); if(row.status===prevStatus)return; prevStatus=row.status;
+      var order=orderHistory.find(function(o){return o.id===orderId;}); if(!order)return;
+      order.status=row.status; order.rejection_reason=row.rejection_reason||null;
+      if(['accepted','preparing','ready'].includes(row.status)){order.acceptedAt=row.accepted_at||order.acceptedAt||Date.now(); if(row.eta)order.eta=row.eta;}
+      if(row.status==='delivered')order.deliveredAt=Date.now();
+      _saveHistory(); updateOrdersBadge(); renderOrders();
+      if(row.status==='accepted')showGuestToast('Kitchen has started preparing your order','green');
+      else if(row.status==='rejected')showGuestToast('Not accepted: '+(row.rejection_reason||'contact reception'),'red');
+      else if(row.status==='delivered'){showGuestToast('Your order has been delivered · Enjoy your meal','green');broadcastActivity('idle');}
+    });
   } catch(e){console.error('Order insert failed:',e&&e.message||e);}
 };
 
@@ -3510,58 +3456,49 @@ submitService=function(){
     if(!db)return;
     db.collection('service_requests').doc(String(req.id)).set({id:req.id,room:String(window.ROOM_NUM||'000'),guest:String(window.GUEST_NAME||'Guest'),type:req.type,icon:req.icon||'',qty:req.qty||null,note:req.note||null,status:'received',placed_at:new Date().toISOString()}).then(function(){
       db.collection('service_requests').doc(String(req.id)).onSnapshot(function(doc){
-        if(!doc.exists)return;
-        var r=serviceHistory.find(function(x){return x.id===req.id;}); if(!r)return;
-        var ns=doc.data().status; if(ns===r.status)return;
-        r.status=ns; _saveHistory(); updateServicesBadge();
+        if(!doc.exists)return; var r=serviceHistory.find(function(x){return x.id===req.id;}); if(!r||doc.data().status===r.status)return;
+        r.status=doc.data().status; _saveHistory(); updateServicesBadge();
         if(document.getElementById('screen-services').classList.contains('active'))renderServices();
       });
     }).catch(function(e){console.warn('Service insert:',e.message);});
   });
 };
 
-// ── On page load: fetch latest status for every local order, attach live listeners
-window.addEventListener('load', function() {
-  setTimeout(function() {
-    _waitDb().then(function(db) {
-      if (!db) return;
-      var pending = orderHistory.filter(function(o){
-        return o.status !== 'rejected' && o.status !== 'cancelled' && o.status !== 'delivered';
-      });
-      if (!pending.length) { updateOrdersBadge(); renderOrders(); return; }
-      var done = 0;
-      pending.forEach(function(order) {
-        db.collection('orders').doc(String(order.id)).get().then(function(doc) {
-          if (doc.exists) {
-            var changed = _applyRow(order, doc.data());
-            if (changed) _saveHistory();
-          }
-          // Attach live listener only if still non-terminal after Firestore check
-          if (order.status !== 'delivered' && order.status !== 'rejected' && order.status !== 'cancelled') {
-            _listenOrder(db, order.id);
-          }
-          done++;
-          if (done === pending.length) { updateOrdersBadge(); renderOrders(); }
-        }).catch(function(){ done++; if(done===pending.length){updateOrdersBadge();renderOrders();} });
-      });
+// ── Re-attach listeners on refresh
+window.addEventListener('load',function(){
+  setTimeout(function(){
+    _waitDb().then(function(db){
+      if(!db)return;
+      db.collection('orders').where('room','==',String(window.ROOM_NUM||'000')).get().then(function(snap){
+        snap.docs.forEach(function(doc){
+          var data=doc.data(); if(data.status==='delivered'||data.status==='cancelled')return;
+          var order=orderHistory.find(function(o){return o.id===doc.id;}); if(!order)return;
+          if(data.status!==order.status){order.status=data.status;if(['accepted','preparing','ready'].includes(data.status)&&!order.acceptedAt){order.acceptedAt=data.accepted_at||order.acceptedAt||Date.now();}if(data.eta)order.eta=data.eta;_saveHistory();}
+          var prev=data.status;
+          db.collection('orders').doc(doc.id).onSnapshot(function(d){
+            if(!d.exists)return; var ns=d.data().status; if(ns===prev)return; prev=ns;
+            order.status=ns; if(['accepted','preparing','ready'].includes(ns)&&!order.acceptedAt){order.acceptedAt=d.data().accepted_at||order.acceptedAt||Date.now();} if(d.data().eta)order.eta=d.data().eta;
+            _saveHistory(); updateOrdersBadge(); renderOrders();
+            if(ns==='accepted')showGuestToast('Kitchen has started preparing your order','green');
+            else if(ns==='delivered')showGuestToast('Your order has been delivered · Enjoy your meal','green');
+          });
+        });
+        updateOrdersBadge(); renderOrders();
+      }).catch(function(e){console.warn('Load sync:',e.message);});
     });
-  }, 800);
+  },1000);
 });
 
-// ── Poll every 10s as fallback
+// ── Poll every 8s
 setInterval(function(){
-  if(!_db) return;
+  if(!_db)return;
   orderHistory.forEach(function(o){
-    if(o.status==='rejected'||o.status==='cancelled'||o.status==='delivered') return;
+    if(o.status==='delivered'||o.status==='cancelled'||o.status==='rejected')return;
     _db.collection('orders').doc(String(o.id)).get().then(function(doc){
-      if(!doc.exists) return;
-      var changed = _applyRow(o, doc.data());
-      if(changed){ _saveHistory(); updateOrdersBadge(); renderOrders();
-        if(_ACCEPTED_PHASE.indexOf(o.status)!==-1) showGuestToast('Kitchen has started preparing your order ✅','green');
-      }
+      if(!doc.exists)return; var ns=doc.data().status; if(ns&&ns!==o.status){o.status=ns;if(['accepted','preparing','ready'].includes(ns)&&!o.acceptedAt){o.acceptedAt=doc.data().accepted_at||o.acceptedAt||Date.now();}if(doc.data().eta)o.eta=doc.data().eta;_saveHistory();updateOrdersBadge();renderOrders();}
     }).catch(function(){});
   });
-}, 10000);
+},8000);
 
 function editGuestName() {
   var current = window.GUEST_NAME || '';
