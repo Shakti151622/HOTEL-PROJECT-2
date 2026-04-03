@@ -2245,16 +2245,17 @@ function renderOrders() {
               var _pct, _dotAnim, _lineAnim2;
 
               if(_atStop) {
-                // Reached stop point — hold at max, dot blinks
-                _pct = 26; // left:55% + 26% = ~81% → just before Delivered dot
+                // Stopped at 90% (left:55% + width:35%), dot blinks
+                _pct = 35;
                 _dotAnim = 'animation:line-tip-pulse 0.6s ease-in-out infinite;';
                 _lineAnim2 = _overMin > 0 ? 'animation:_flash 0.8s ease-in-out infinite;' : '';
               } else {
-                // Still travelling
-                _pct = (_em / _stopMs) * 26;
+                // Travelling smoothly 0→35% over (eta-1) minutes
+                _pct = (_em / _stopMs) * 35;
+                var _remMs = Math.max(0, _stopMs - _em);
+                // CSS transition covers remaining time so line glides without JS repaints
+                _lineAnim2 = _remMs > 500 ? 'transition:width '+Math.round(_remMs/1000)+'s linear;' : '';
                 _dotAnim = 'animation:line-tip-pulse 1s ease-in-out infinite;';
-                _lineAnim2 = '';
-                // CSS transition so line moves smoothly
               }
 
               var _dot2='<div id="eta-dot-'+o.id+'" style="position:absolute;right:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:'+_lineCol+';filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));'+_dotAnim+'z-index:2;"></div>';
@@ -2278,7 +2279,7 @@ function renderOrders() {
     return `<div class="order-card" id="ocard-${o.id}">
       <div class="order-card-head">
         <div class="order-card-meta">
-          <div class="order-card-id">${o.id} · ${o.date} · ${o.time}${o.fromPeer ? ' <span class="order-device-tag">Roommate</span>' : ''}${o.isMerge ? ' <span class="order-device-tag">Merged</span>' : ''}</div>
+          <div class="order-card-id">${o.id}${o.date&&o.date!=="undefined"?" · "+o.date:""}${o.time&&o.time!=="undefined"?" · "+o.time:""}${o.fromPeer ? ' <span class="order-device-tag">Roommate</span>' : ''}${o.isMerge ? ' <span class="order-device-tag">Merged</span>' : ''}</div>
           ${o.guest ? '<div class="order-card-time" style="display:flex;align-items:center;gap:4px;">' + o.guest + '<span onclick="editGuestName()" style="font-size:10px;color:var(--gold);opacity:0.7;cursor:pointer;margin-left:4px;">✏</span></div>' : ''}
         </div>
         <div class="order-status-pill ${statusClass[o.status]||'status-delivered'}">
@@ -2405,7 +2406,7 @@ function renderOrders() {
       var dotEl  = document.getElementById('eta-dot-'+o.id);
       if (lineEl && dotEl) {
         var atStop = elMs >= stopMs;
-        var pct = atStop ? 26 : Math.min(26, (elMs/stopMs)*26);
+        var pct = atStop ? 35 : Math.min(35, (elMs/stopMs)*35);
         lineEl.style.width = pct.toFixed(1)+'%';
         lineEl.style.background = col;
         dotEl.style.background = col;
