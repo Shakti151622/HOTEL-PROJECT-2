@@ -3479,8 +3479,9 @@ function attachOrderListener(orderId) {
 
     }, function(err) {
       console.warn('Order listener error:', err);
-      // Reset so re-attach can happen
       delete _activeListeners[orderId];
+      // Auto re-attach after 3s on error (e.g. rules change, network blip)
+      setTimeout(function(){ attachOrderListener(orderId); }, 3000);
     });
     _activeListeners[orderId] = unsub;
   });
