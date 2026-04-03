@@ -3421,86 +3421,220 @@ function startOrdering() {
 function _saveHistory(){try{localStorage.setItem('hyatt_g_'+String(window.ROOM_NUM||'000'),JSON.stringify({orders:orderHistory,services:serviceHistory,ts:Date.now()}));}catch(e){}}
 (function(){try{var raw=localStorage.getItem('hyatt_g_'+String(window.ROOM_NUM||'000'));if(!raw)return;var d=JSON.parse(raw);if(!d.ts||Date.now()-d.ts>86400000)return;if(Array.isArray(d.orders))orderHistory=d.orders;if(Array.isArray(d.services))serviceHistory=d.services;}catch(e){}})();
 
-// ── OVERRIDE placeOrder
+// ══════════════════════════════════════════
+// GUEST FIREBASE SYNC
+// Architecture: Firebase is source of truth.
+// Always reflect state — never filter events.
+// ══════════════════════════════════════════
+
+var _activeListeners = {}; // orderId → unsubscribe fn (prevents duplicates)
+
+// Single attach function — always reflects state, no prev filtering
+function attachOrderListener(orderId) {
+  // Unsubscribe existing listener for this order first
+  if (_activeListeners[orderId]) {
+    try { _activeListeners[orderId](); } catch(e) {}
+    delete _activeListeners[orderId];
+  }
+
+  _waitDb().then(function(db) {
+    if (!db) return;
+    var unsub = db.collection('orders').doc(orderId).onSnapshot(function(doc) {
+      if (!doc.exists) return;
+      var data = doc.data();
+
+      // Always reflect — no filtering, no prev check
+      var order = orderHistory.find(function(o){ return o.id === orderId; });
+      if (!order) return;
+
+      order.status = data.status;
+      order.rejection_reason = data.rejection_reason || null;
+
+      // Timer: read strictly from Firebase accepted_at
+      if (['accepted','ready'].indexOf(data.status) !== -1 && data.accepted_at) {
+        var ts = typeof data.accepted_at === 'number'
+          ? data.accepted_at
+          : new Date(data.accepted_at).getTime();
+        if (!isNaN(ts)) order.acceptedAt = ts;
+      }
+      if (data.eta) order.eta = data.eta;
+      if (data.status === 'delivered' && !order.deliveredAt) order.deliveredAt = Date.now();
+
+      _saveHistory();
+      updateOrdersBadge();
+      renderOrders();
+
+      // Toast notifications
+      if (data.status === 'accepted')
+        showGuestToast('Order accepted — kitchen is preparing your order', 'green');
+      else if (data.status === 'ready')
+        showGuestToast('Your order is ready — delivering shortly', 'green');
+      else if (data.status === 'delivered')
+        showGuestToast('Delivered · Enjoy your meal!', 'green');
+      else if (data.status === 'rejected')
+        showGuestToast('Not accepted: ' + (data.rejection_reason || 'contact reception'), 'red');
+
+    }, function(err) {
+      console.warn('Order listener error:', err);
+      // Reset so re-attach can happen
+      delete _activeListeners[orderId];
+    });
+    _activeListeners[orderId] = unsub;
+  });
+}
+
+// Attach listener for all active orders — called on load, visibility change
+function attachAllListeners() {
+  _waitDb().then(function(db) {
+    if (!db) return;
+    // Fetch latest from Firebase first (sync any missed changes)
+    db.collection('orders')
+      .where('room', '==', String(window.ROOM_NUM || '000'))
+      .get()
+      .then(function(snap) {
+        snap.docs.forEach(function(doc) {
+          var data = doc.data();
+          var order = orderHistory.find(function(o){ return o.id === doc.id; });
+          if (!order) return;
+
+          // Sync current Firebase state immediately
+          order.status = data.status;
+          if (['accepted','ready'].indexOf(data.status) !== -1 && data.accepted_at) {
+            var ts = typeof data.accepted_at === 'number'
+              ? data.accepted_at
+              : new Date(data.accepted_at).getTime();
+            if (!isNaN(ts)) order.acceptedAt = ts;
+          }
+          if (data.eta) order.eta = data.eta;
+          if (data.status === 'delivered' && !order.deliveredAt) order.deliveredAt = Date.now();
+
+          _saveHistory();
+
+          // Attach live listener for non-terminal orders
+          if (['delivered','cancelled','rejected'].indexOf(data.status) === -1) {
+            attachOrderListener(doc.id);
+          }
+        });
+        updateOrdersBadge();
+        renderOrders();
+      })
+      .catch(function(e){ console.warn('attachAllListeners sync error:', e); });
+  });
+}
+
+// ── On page load: sync + attach
+window.addEventListener('load', function() {
+  attachAllListeners();
+});
+
+// ── On visibility change (phone wake / tab switch): re-sync
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') {
+    attachAllListeners();
+  }
+});
+
+// ── OVERRIDE placeOrder — writes to Firebase + attaches listener
 var _origPlaceOrder = placeOrder;
 placeOrder = async function(isMerge) {
   var cartSnapshot;
-  try { cartSnapshot=JSON.parse(JSON.stringify(Object.entries(cart).map(function(e){var i=e[1];return{name:String(i.name||''),qty:Number(i.qty||1),price:Number(i.price||0),category:String(i.category||'')};}))); } catch(e){cartSnapshot=[];}
-  var totalSnapshot=cartSnapshot.reduce(function(s,i){return s+i.qty*i.price;},0);
-  var prefix=(window.HOTEL_NAME||'SH').trim().split(/\s+/).slice(0,3).map(function(w){return w[0].toUpperCase();}).join('');
-  var n=parseInt(localStorage.getItem('_hoc')||'0',10)+1; localStorage.setItem('_hoc',String(n));
-  var orderId=prefix+'-'+String(n).padStart(4,'0');
-  window._pendingOrderId=orderId; _origPlaceOrder(isMerge); window._pendingOrderId=null;
-  var db=await _waitDb(); if(!db){console.warn('Firebase not available');return;}
   try {
-    await db.collection('orders').doc(orderId).set({id:orderId,room:String(window.ROOM_NUM||'000'),guest:String(window.GUEST_NAME||'Guest'),items:cartSnapshot,total:Number(totalSnapshot),status:'new',placed_at:new Date().toISOString()});
-    var prevStatus=null;
-    db.collection('orders').doc(orderId).onSnapshot(function(doc){
-      if(!doc.exists)return; var row=doc.data(); if(row.status===prevStatus)return; prevStatus=row.status;
-      var order=orderHistory.find(function(o){return o.id===orderId;}); if(!order)return;
-      order.status=row.status; order.rejection_reason=row.rejection_reason||null;
-      if(['accepted','ready','delivered'].includes(row.status)){if(row.accepted_at&&!order.acceptedAt)order.acceptedAt=typeof row.accepted_at==='number'?row.accepted_at:new Date(row.accepted_at).getTime(); if(row.eta)order.eta=row.eta;}
-      if(row.status==='delivered')order.deliveredAt=Date.now();
-      _saveHistory(); updateOrdersBadge(); renderOrders();
-      if(row.status==='accepted')showGuestToast('Kitchen has started preparing your order','green');
-      else if(row.status==='rejected')showGuestToast('Not accepted: '+(row.rejection_reason||'contact reception'),'red');
-      else if(row.status==='delivered'){showGuestToast('Your order has been delivered · Enjoy your meal','green');broadcastActivity('idle');}
+    cartSnapshot = JSON.parse(JSON.stringify(
+      Object.entries(cart).map(function(e){
+        var i = e[1];
+        return { name:String(i.name||''), qty:Number(i.qty||1), price:Number(i.price||0), category:String(i.category||'') };
+      })
+    ));
+  } catch(e) { cartSnapshot = []; }
+  var totalSnapshot = cartSnapshot.reduce(function(s,i){ return s + i.qty * i.price; }, 0);
+  var prefix = (window.HOTEL_NAME||'SH').trim().split(/\s+/).slice(0,3).map(function(w){ return w[0].toUpperCase(); }).join('');
+  var n = parseInt(localStorage.getItem('_hoc')||'0', 10) + 1;
+  localStorage.setItem('_hoc', String(n));
+  var orderId = prefix + '-' + String(n).padStart(4,'0');
+  window._pendingOrderId = orderId;
+  _origPlaceOrder(isMerge);
+  window._pendingOrderId = null;
+
+  var db = await _waitDb();
+  if (!db) { console.warn('Firebase not available'); return; }
+  try {
+    await db.collection('orders').doc(orderId).set({
+      id:        orderId,
+      room:      String(window.ROOM_NUM || '000'),
+      guest:     String(window.GUEST_NAME || 'Guest'),
+      items:     cartSnapshot,
+      total:     Number(totalSnapshot),
+      status:    'new',
+      placed_at: new Date().toISOString()
     });
-  } catch(e){console.error('Order insert failed:',e&&e.message||e);}
+    // Attach listener immediately after insert
+    attachOrderListener(orderId);
+  } catch(e) {
+    console.error('Order insert failed:', e && e.message || e);
+  }
 };
 
-// ── Service request
-var _origSubmitService=submitService;
-submitService=function(){
+// ── OVERRIDE submitService — writes to Firebase + attaches listener
+var _origSubmitService = submitService;
+submitService = function() {
   _origSubmitService();
-  var req=serviceHistory[0]; if(!req)return;
-  _waitDb().then(function(db){
-    if(!db)return;
-    db.collection('service_requests').doc(String(req.id)).set({id:req.id,room:String(window.ROOM_NUM||'000'),guest:String(window.GUEST_NAME||'Guest'),type:req.type,icon:req.icon||'',qty:req.qty||null,note:req.note||null,status:'received',placed_at:new Date().toISOString()}).then(function(){
-      db.collection('service_requests').doc(String(req.id)).onSnapshot(function(doc){
-        if(!doc.exists)return; var r=serviceHistory.find(function(x){return x.id===req.id;}); if(!r||doc.data().status===r.status)return;
-        r.status=doc.data().status; _saveHistory(); updateServicesBadge();
-        if(document.getElementById('screen-services').classList.contains('active'))renderServices();
+  var req = serviceHistory[0];
+  if (!req) return;
+  _waitDb().then(function(db) {
+    if (!db) return;
+    db.collection('service_requests').doc(String(req.id)).set({
+      id:        req.id,
+      room:      String(window.ROOM_NUM || '000'),
+      guest:     String(window.GUEST_NAME || 'Guest'),
+      type:      req.type,
+      icon:      req.icon || '',
+      qty:       req.qty || null,
+      note:      req.note || null,
+      status:    'received',
+      placed_at: new Date().toISOString()
+    }).then(function() {
+      // Attach service listener
+      db.collection('service_requests').doc(String(req.id)).onSnapshot(function(doc) {
+        if (!doc.exists) return;
+        var r = serviceHistory.find(function(x){ return x.id === req.id; });
+        if (!r) return;
+        r.status = doc.data().status;
+        _saveHistory();
+        updateServicesBadge();
+        if (document.getElementById('screen-services').classList.contains('active')) renderServices();
       });
-    }).catch(function(e){console.warn('Service insert:',e.message);});
+    }).catch(function(e){ console.warn('Service insert:', e.message); });
   });
 };
 
-// ── Re-attach listeners on refresh
-window.addEventListener('load',function(){
-  setTimeout(function(){
-    _waitDb().then(function(db){
-      if(!db)return;
-      db.collection('orders').where('room','==',String(window.ROOM_NUM||'000')).get().then(function(snap){
-        snap.docs.forEach(function(doc){
-          var data=doc.data(); if(data.status==='delivered'||data.status==='cancelled')return;
-          var order=orderHistory.find(function(o){return o.id===doc.id;}); if(!order)return;
-          if(data.status!==order.status){order.status=data.status;if(['accepted','preparing','ready'].includes(data.status)&&!order.acceptedAt){order.acceptedAt=data.accepted_at||order.acceptedAt||Date.now();}if(data.eta)order.eta=data.eta;_saveHistory();}
-          var prev=data.status;
-          db.collection('orders').doc(doc.id).onSnapshot(function(d){
-            if(!d.exists)return; var ns=d.data().status; if(ns===prev)return; prev=ns;
-            order.status=ns; if(['accepted','preparing','ready'].includes(ns)&&!order.acceptedAt){order.acceptedAt=d.data().accepted_at||order.acceptedAt||Date.now();} if(d.data().eta)order.eta=d.data().eta;
-            _saveHistory(); updateOrdersBadge(); renderOrders();
-            if(ns==='accepted')showGuestToast('Kitchen has started preparing your order','green');
-            else if(ns==='delivered')showGuestToast('Your order has been delivered · Enjoy your meal','green');
-          });
-        });
-        updateOrdersBadge(); renderOrders();
-      }).catch(function(e){console.warn('Load sync:',e.message);});
-    });
-  },1000);
-});
-
-// ── Poll every 8s
-setInterval(function(){
-  if(!_db)return;
-  orderHistory.forEach(function(o){
-    if(o.status==='delivered'||o.status==='cancelled'||o.status==='rejected')return;
-    _db.collection('orders').doc(String(o.id)).get().then(function(doc){
-      if(!doc.exists)return; var ns=doc.data().status; if(ns&&ns!==o.status){o.status=ns;if(['accepted','preparing','ready'].includes(ns)&&!o.acceptedAt){o.acceptedAt=doc.data().accepted_at||o.acceptedAt||Date.now();}if(doc.data().eta)o.eta=doc.data().eta;_saveHistory();updateOrdersBadge();renderOrders();}
+// ── Poll every 8s as belt-and-suspenders fallback
+setInterval(function() {
+  if (!_db) return;
+  orderHistory.forEach(function(o) {
+    if (['delivered','cancelled','rejected'].indexOf(o.status) !== -1) return;
+    _db.collection('orders').doc(String(o.id)).get().then(function(doc) {
+      if (!doc.exists) return;
+      var data = doc.data();
+      if (data.status && data.status !== o.status) {
+        o.status = data.status;
+        if (['accepted','ready'].indexOf(data.status) !== -1 && data.accepted_at && !o.acceptedAt) {
+          var ts = typeof data.accepted_at === 'number' ? data.accepted_at : new Date(data.accepted_at).getTime();
+          if (!isNaN(ts)) o.acceptedAt = ts;
+        }
+        if (data.eta) o.eta = data.eta;
+        if (data.status === 'delivered' && !o.deliveredAt) o.deliveredAt = Date.now();
+        _saveHistory();
+        updateOrdersBadge();
+        renderOrders();
+        // Ensure listener is attached
+        if (['delivered','cancelled','rejected'].indexOf(data.status) === -1) {
+          attachOrderListener(String(o.id));
+        }
+      }
     }).catch(function(){});
   });
-},8000);
+}, 8000);
+
 
 function editGuestName() {
   var current = window.GUEST_NAME || '';
