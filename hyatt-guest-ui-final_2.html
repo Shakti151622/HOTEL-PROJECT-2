@@ -875,7 +875,8 @@
   }
   .order-card-head {
     padding: 16px 18px 12px;
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 10px;
     border-bottom: 1px solid var(--topbar-border);
   }
   .order-card-meta { flex: 1; }
@@ -893,12 +894,17 @@
     font-weight: 500;
   }
   .order-status-pill {
-    font-size: 12px;
-    font-weight: 500;
-    padding: 5px 12px;
-    border-radius: 100px;
-    letter-spacing: 0.04em;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 7px 13px;
+    border-radius: 12px;
+    letter-spacing: 0.03em;
     flex-shrink: 0;
+    white-space: normal;
+    word-break: break-word;
+    max-width: 160px;
+    text-align: center;
+    line-height: 1.4;
   }
   .status-active {
     background: rgba(76,175,125,0.12);
@@ -915,6 +921,20 @@
   .status-delivered-green {
     background: transparent;
     color: var(--green);
+  }
+  .status-food-ready {
+    background: rgba(76,175,125,0.15);
+    color: var(--green);
+    border: 1px solid rgba(76,175,125,0.4);
+    display: flex; align-items: center; gap: 5px;
+    animation: pulse-badge 1.5s infinite;
+  }
+  .status-ontheway {
+    background: rgba(76,175,125,0.15);
+    color: var(--green);
+    border: 1px solid rgba(76,175,125,0.4);
+    display: flex; align-items: center; gap: 5px;
+    animation: pulse-badge 1.5s infinite;
   }
   .status-cancelled-red {
     background: transparent;
@@ -1001,13 +1021,16 @@
   }
   .tracker-step:last-child::before { display: none; }
   .tracker-step.done::before { background: var(--green); }
+  /* While order is accepted but not yet delivered, keep Accepted→Delivered connector gray */
+  .tracker-step.done[data-no-green-line]::before { background: var(--surface2) !important; }
   .tracker-dot {
     width: 22px; height: 22px;
     border-radius: 50%;
     border: 2px solid var(--surface2);
     background: var(--surface);
     display: flex; align-items: center; justify-content: center;
-    z-index: 1;
+    z-index: 3;
+    position: relative;
     transition: all 0.3s;
   }
   .tracker-step.done .tracker-dot {
@@ -2107,7 +2130,7 @@ function placeOrder(isMerge) {
     total,
     status: 'new',
     placedAt: Date.now(),
-    eta: 25,
+    eta: 20,
     isMerge,
     fromPeer: false,
     guest: String(window.GUEST_NAME || '')
@@ -2153,6 +2176,14 @@ function updateOrdersBadge() {
 }
 
 function renderOrders() {
+  // Patch any orders missing date/time (e.g. synced from Firebase without those fields)
+  orderHistory.forEach(function(o) {
+    if ((!o.date || o.date === 'undefined') && o.placedAt) {
+      var _d = new Date(o.placedAt);
+      o.date = _d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+      o.time = _d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+    }
+  });
   const body = document.getElementById('orders-body');
   if (orderHistory.length === 0) {
     body.innerHTML = `<div class="orders-empty">
@@ -2166,8 +2197,8 @@ function renderOrders() {
   const active = orderHistory.filter(o => o.status !== 'delivered' && o.status !== 'rejected' && o.status !== 'cancelled');
   const past   = orderHistory.filter(o => o.status === 'delivered' || o.status === 'rejected' || o.status === 'cancelled');
 
-  const statusLabel = { new: 'LIVE', accepted: 'LIVE', preparing: 'LIVE', ready: 'LIVE', delivered: 'Delivered', rejected: 'Rejected', cancelled: 'Cancelled' };
-  const statusClass = { new: 'status-live', accepted: 'status-live', preparing: 'status-live', ready: 'status-live', delivered: 'status-delivered-green', rejected: 'status-rejected', cancelled: 'status-cancelled-red' };
+  const statusLabel = { new: 'Order Placed', accepted: 'Preparing 👨‍🍳', preparing: 'Preparing 👨‍🍳', ready: 'Food is Ready 🍽️', delivered: 'Delivered', rejected: 'Rejected', cancelled: 'Cancelled' };
+  const statusClass = { new: 'status-preparing', accepted: 'status-preparing', preparing: 'status-preparing', ready: 'status-food-ready', delivered: 'status-delivered-green', rejected: 'status-rejected', cancelled: 'status-cancelled-red' };
 
   const stepsDef = ['Placed', 'Accepted', 'Delivered'];
   const STATUS_TO_STEP = { new:0, accepted:1, preparing:1, ready:1, delivered:2 };
@@ -2184,7 +2215,7 @@ function renderOrders() {
 
   function getEtaHtml(o) {
     if(o.status==='rejected'||o.status==='cancelled') return '';
-    var eta = o.eta || 25;
+    var eta = o.eta || 20;
     var acceptedAt = o.acceptedAt || null;
     var now = Date.now();
     var col, num;
@@ -2192,23 +2223,26 @@ function renderOrders() {
       col = 'var(--text-muted)';
       num = eta+' min';
     } else {
-      var elapsedMin = Math.floor((now - acceptedAt) / 60000);
-      var elapsedSec = Math.floor(((now - acceptedAt) % 60000) / 1000);
-      var overMin   = elapsedMin - eta;
-      var remaining = Math.max(0, eta - elapsedMin);
+      // 10-min shift: when ready and not already late, count from readyAt with 10 min cap
+      var _ref = acceptedAt, _eta = eta;
+      if (o.status === 'ready' && o.readyAt) {
+        var _natRem = eta - Math.floor((o.readyAt - acceptedAt) / 60000);
+        if (_natRem > 10) { _ref = o.readyAt; _eta = 10; }
+      }
+      var elapsedMin = Math.floor((now - _ref) / 60000);
+      var overMin   = elapsedMin - _eta;
+      var remaining = Math.max(0, _eta - elapsedMin);
       col = _etaCol(overMin);
       if(o.status==='delivered') {
         var deliveredAt = o.deliveredAt || now;
         var tookMin = Math.round((deliveredAt - acceptedAt) / 60000);
         num = tookMin+' min';
       } else if(overMin > 0) {
-        // Over ETA — cap at +99m, show Delayed for very stale orders
         num = overMin > 240 ? 'Delayed' : '+'+Math.min(overMin,99)+'m';
       } else if(remaining === 0) {
-        num = 'Delivering!';
+        num = o.status==='ready' ? 'Arriving!' : 'Delivering!';
       } else {
-        // Show MM:SS countdown
-        var remSec = Math.max(0, eta*60 - Math.floor((now - acceptedAt)/1000));
+        var remSec = Math.max(0, _eta*60 - Math.floor((now - _ref)/1000));
         var remM = Math.floor(remSec/60);
         var remS = remSec % 60;
         num = remM+'m '+(remS<10?'0':'')+remS+'s';
@@ -2262,10 +2296,10 @@ function renderOrders() {
           var anim='';
           if(i===1 && si===0){
             // Dot centered on Accepted circle while waiting for acceptance
-            anim='<div style="position:absolute;top:6px;left:calc(50% - 5px);width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
+            anim='<div style="position:absolute;top:6px;left:calc(50% - 5px);width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:4;"></div>';
           }
           if(i===1){
-            var _eta  = o.eta || 25;
+            var _eta  = o.eta || 20;
             var _sm   = o.acceptedAt || Date.now();
             var _em   = Date.now() - _sm;            // elapsed ms
             var _etaMs = _eta * 60000;               // full ETA in ms
@@ -2291,12 +2325,12 @@ function renderOrders() {
               }
 
               var _dotVis = _pct < 1 ? 'opacity:0;' : '';
-              // Line starts from right edge of Accepted circle so blinking dot emerges cleanly from outside the tick
+              // Line starts from right edge of Accepted circle — blinking dot emerges cleanly from outside the tick
               var _dot2='<div id="eta-dot-'+o.id+'" style="position:absolute;right:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:'+_lineCol+';filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));'+_dotAnim+_dotVis+'z-index:2;"></div>';
               anim='<div id="eta-line-'+o.id+'" style="position:absolute;top:11px;left:calc(50% + 11px);height:2px;background:'+_lineCol+';z-index:1;width:'+_pct.toFixed(1)+'%;'+_lineAnim2+'">'+_dot2+'</div>';
             }
           }
-          return '<div class="tracker-step '+cls+'">'+anim+'<div class="tracker-dot">'+tick+'</div><div class="tracker-step-name">'+s+'</div></div>';
+          return '<div class="tracker-step '+cls+'"'+(i===1 && si===1 ? ' data-no-green-line="1"' : '')+'>'+anim+'<div class="tracker-dot">'+tick+'</div><div class="tracker-step-name">'+s+'</div></div>';
         }).join('');
 
     // Cancel/Modify: always for 'new', within 10 mins for 'accepted'
@@ -2317,7 +2351,7 @@ function renderOrders() {
           ${o.guest ? '<div class="order-card-time" style="display:flex;align-items:center;gap:4px;">' + o.guest + '<span onclick="editGuestName()" style="font-size:10px;color:var(--gold);opacity:0.7;cursor:pointer;margin-left:4px;">✏</span></div>' : ''}
         </div>
         <div class="order-status-pill ${statusClass[o.status]||'status-delivered'}">
-          ${(o.status==='new'||o.status==='accepted'||o.status==='preparing'||o.status==='ready') ? '<span class="pill-dot pill-dot-green"></span>' : o.status==='rejected' ? '<span class="pill-dot pill-dot-red"></span>' : ''}
+          ${(o.status==='new'||o.status==='accepted'||o.status==='preparing') ? '<span class="pill-dot" style="background:var(--gold);animation:pill-blink 1.2s ease-in-out infinite;width:6px;height:6px;border-radius:50%;flex-shrink:0;display:inline-block;"></span>' : o.status==='ready' ? '<span class="pill-dot pill-dot-green" style="animation-duration:0.6s;"></span>' : o.status==='rejected' ? '<span class="pill-dot pill-dot-red"></span>' : ''}
           ${statusLabel[o.status]||o.status}
         </div>
       </div>
@@ -2343,10 +2377,7 @@ function renderOrders() {
           ${etaHtml}
         </div>
         <div class="tracker-steps">${steps}</div>
-        <div class="tracker-eta" style="margin-top:10px;padding-left:calc(100%/3*0.5 - 11px);" id="status-text-${o.id}">
-          <div class="tracker-eta-dot"></div>
-          <span id="status-msg-${o.id}">${getStatusText(o)}</span>
-        </div>
+
       </div>` : ''}
       ${modifyBtns}
     </div>`;
@@ -2357,40 +2388,7 @@ function renderOrders() {
     html += `<div class="orders-section-label">Active Orders</div>`;
     html += active.map(renderCard).join('');
   }
-  // Start rotating status text for 'new' and 'accepted' orders after DOM is updated
-  setTimeout(function() {
-    var newMsgs = [
-      'Order received · Awaiting confirmation',
-      'Your order will be accepted shortly',
-      'Thanks for your patience'
-    ];
-    var acceptedMsgs = [
-      'Kitchen is preparing your order',
-      'Love to serve you delicious food',
-      'Thanks for your patience',
-      'You will receive your order soon'
-    ];
-    var readyMsgs = [
-      'On its way to your room!',
-      'Delivering shortly 🛎',
-      'Almost there — hang tight!',
-      'Your meal is on the way'
-    ];
-    orderHistory.forEach(function(o) {
-      if (o.status !== 'new' && o.status !== 'accepted' && o.status !== 'preparing' && o.status !== 'ready') return;
-      var el = document.getElementById('status-msg-' + o.id);
-      if (!el || el._rotating) return;
-      el._rotating = true;
-      var msgs = (o.status === 'new') ? newMsgs : (o.status === 'ready') ? readyMsgs : acceptedMsgs;
-      var idx = 0;
-      el._rotateTimer = setInterval(function() {
-        var el2 = document.getElementById('status-msg-' + o.id);
-        if (!el2) { clearInterval(el._rotateTimer); return; }
-        idx = (idx + 1) % msgs.length;
-        el2.textContent = msgs[idx];
-      }, 3000);
-    });
-  }, 100);
+
   if (past.length > 0) {
     html += `<div class="orders-section-label" style="margin-top:${active.length?'20px':'0'}">Past Orders</div>`;
     html += past.map(function(o) {
@@ -2404,15 +2402,25 @@ function renderOrders() {
 (function(){
   if (window._guestTimerInterval) return;
   window._guestTimerInterval = setInterval(function() {
-    var screen = document.getElementById('screen-orders');
-    if (!screen || !screen.classList.contains('active')) return;
-    orderHistory.forEach(function(o){
+    var _ordersScreen   = document.getElementById('screen-orders');
+    var _servicesScreen = document.getElementById('screen-services');
+    var _ordersActive   = _ordersScreen   && _ordersScreen.classList.contains('active');
+    var _servicesActive = _servicesScreen && _servicesScreen.classList.contains('active');
+    if (!_ordersActive && !_servicesActive) return;
+    if (_ordersActive) orderHistory.forEach(function(o){
       if (o.status!=='accepted'&&o.status!=='preparing'&&o.status!=='ready') return;
       if (!o.acceptedAt) return;
-      var eta    = o.eta || 25;
+      var eta    = o.eta || 20;
       var now    = Date.now();
-      var elMs   = now - o.acceptedAt;
-      var etaMs  = eta * 60000;
+      // When ready: shift timer reference to readyAt with 10 min ETA if not already late
+      var _ref = o.acceptedAt, _eta = eta;
+      if (o.status === 'ready' && o.readyAt) {
+        var _natRem = eta - Math.floor((o.readyAt - o.acceptedAt) / 60000);
+        if (_natRem > 10) { _ref = o.readyAt; _eta = 10; }
+      }
+      var elMs   = now - _ref;
+      eta = _eta;
+      var etaMs  = eta * 60000;   // eta is now _eta (may be 10 if ready-shifted)
       var stopMs = Math.max(1000, (eta-1)*60000);
       var overMin = Math.max(0, Math.floor((elMs - etaMs) / 60000));
       // Colour
@@ -2425,7 +2433,7 @@ function renderOrders() {
         var remSec = Math.max(0, etaMs - elMs);
         var remM = Math.floor(remSec/60000);
         var remS = Math.floor((remSec%60000)/1000);
-        num = remM > 0 ? remM+'m '+(remS<10?'0':'')+remS+'s' : (remSec>0 ? remS+'s' : 'Delivering!');
+        num = remM > 0 ? remM+'m '+(remS<10?'0':'')+remS+'s' : (remSec>0 ? remS+'s' : (o.status==='ready' ? 'Arriving!' : 'Delivering!'));
       }
       // Update timer element
       var timerEl = document.getElementById('eta-timer-'+o.id);
@@ -2455,6 +2463,54 @@ function renderOrders() {
         }
       }
     });
+
+    // ── Service request live line updater
+    if (_servicesActive) {
+      serviceHistory.forEach(function(r) {
+        if (r.status !== 'assigned' && r.status !== 'inprogress') return;
+        var _svcEta    = r.eta || 15;
+        var _svcRef    = r.assignedAt || r.placedAt || Date.now();
+        // 10-min cap: when En Route (inprogress) and natural remaining > 10 mins, count 10 mins from inprogressAt
+        if (r.status === 'inprogress' && r.inprogressAt && r.assignedAt) {
+          var _natRem = _svcEta - Math.floor((r.inprogressAt - r.assignedAt) / 60000);
+          if (_natRem > 10) { _svcRef = r.inprogressAt; _svcEta = 10; }
+        }
+        var _svcElMs   = Date.now() - _svcRef;
+        var _svcStopMs = Math.max(1000, (_svcEta - 1) * 60000);
+        var _atSvcStop = _svcElMs >= _svcStopMs;
+        var _svcPct    = _atSvcStop ? 68 : Math.min(68, (_svcElMs / _svcStopMs) * 68);
+        var _svcRemSec = Math.max(0, _svcEta * 60000 - _svcElMs);
+        var _svcRemMin = Math.floor(_svcRemSec / 60000);
+        var _svcRemS   = Math.floor((_svcRemSec % 60000) / 1000);
+        var _svcCol    = _svcElMs > _svcEta * 60000 ? 'var(--red)' : _atSvcStop ? '#E0A800' : 'var(--green)';
+        var lineEl = document.getElementById('svc-line-' + r.id);
+        var dotEl  = document.getElementById('svc-dot-'  + r.id);
+        if (lineEl && dotEl) {
+          lineEl.style.transition   = 'width 1.5s linear';
+          lineEl.style.width        = _svcPct.toFixed(1) + '%';
+          lineEl.style.background   = _svcCol;
+          dotEl.style.background    = _svcCol;
+          dotEl.style.animationDuration = _atSvcStop ? '0.6s' : '1s';
+        }
+        // Update header countdown timer (the ~15 min label)
+        var timerEl = document.getElementById('svc-timer-' + r.id);
+        var timerSvg = document.getElementById('svc-timer-svg-' + r.id);
+        if (timerEl) {
+          var _headerTxt;
+          if (_svcElMs > _svcEta * 60000) {
+            _headerTxt = '+' + Math.min(Math.floor((_svcElMs - _svcEta * 60000) / 60000), 99) + 'm late';
+          } else {
+            _headerTxt = _svcRemMin > 0 ? _svcRemMin + 'm ' + (_svcRemS < 10 ? '0' : '') + _svcRemS + 's' : (_svcRemSec > 0 ? _svcRemS + 's' : 'Arriving!');
+          }
+          timerEl.textContent = _headerTxt;
+          timerEl.style.color = _svcCol;
+          if (timerSvg) timerSvg.setAttribute('stroke', _svcCol);
+        }
+
+        // svc-txt is now rotating messages — managed by renderServices rotation, not timer
+      });
+    }
+
   }, 1000);
 })();
 
@@ -2848,7 +2904,13 @@ function submitService() {
         if(!doc.exists)return;
         var r = serviceHistory.find(function(x){ return x.id===reqId; });
         if(!r)return;
-        r.status = doc.data().status;
+        var _d = doc.data();
+        r.status = _d.status;
+        if (_d.eta) r.eta = _d.eta;
+        if ((_d.status === 'assigned' || _d.status === 'inprogress') && _d.assigned_at && !r.assignedAt) {
+          var _ts = typeof _d.assigned_at === 'number' ? _d.assigned_at : new Date(_d.assigned_at).getTime();
+          if (!isNaN(_ts)) r.assignedAt = _ts;
+        }
         _saveHistory(); updateServicesBadge();
         if(document.getElementById('screen-services').classList.contains('active')) renderServices();
       });
@@ -2901,8 +2963,8 @@ function renderServices() {
 
   const svcStepsDef  = ['Received', 'Assigned', 'Done'];
   const svcStepIndex = { received: 0, assigned: 1, inprogress: 2, done: 2 };
-  const svcStatusLabel = { received: 'Received', assigned: 'Assigned', inprogress: 'In Progress', done: 'Done' };
-  const svcStatusClass = { received: 'status-preparing', assigned: 'status-preparing', inprogress: 'status-active', done: 'status-delivered' };
+  const svcStatusLabel = { received: 'Received', assigned: 'Assigned', inprogress: 'On the Way 🚶', done: 'Done', cancelled: 'Cancelled' };
+  const svcStatusClass = { received: 'status-preparing', assigned: 'status-preparing', inprogress: 'status-delivered-green', done: 'status-delivered' };
 
   function renderSvcCard(r) {
     var si = svcStepIndex[r.status];
@@ -2923,21 +2985,27 @@ function renderServices() {
       var anim = '';
       // Pulsing dot on Assigned step while still received (shows "next")
       if (i === 1 && r.status === 'received') {
-        anim = '<div style="position:absolute;top:6px;left:calc(50% - 5px);width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
+        anim = '<div style="position:absolute;top:6px;left:calc(50% - 5px);width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:4;"></div>';
       }
-      // After Assigned tick: blinking dot + green line grows from Assigned circle toward Done
+      // After Assigned tick: blinking dot + green line grows from right of Assigned circle toward Done
       if (i === 1 && (r.status === 'assigned' || r.status === 'inprogress')) {
-        var _svcPct = r.status === 'inprogress' ? 50 : 15;
-        var _svcDot = '<div id="svc-dot-' + r.id + '" style="position:absolute;right:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
+        var _svcEta    = r.eta || 15;
+        var _svcRef    = r.assignedAt || r.placedAt || Date.now();
+        var _svcElMs   = Date.now() - _svcRef;
+        var _svcStopMs = Math.max(1000, (_svcEta - 1) * 60000);
+        var _atSvcStop = _svcElMs >= _svcStopMs;
+        var _svcPct    = _atSvcStop ? 68 : (_svcElMs / _svcStopMs) * 68;
+        var _svcDotAnim = _atSvcStop ? 'animation:line-tip-pulse 0.6s ease-in-out infinite;' : 'animation:line-tip-pulse 1s ease-in-out infinite;';
+        var _svcDot = '<div id="svc-dot-' + r.id + '" style="position:absolute;right:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));' + _svcDotAnim + 'z-index:2;"></div>';
         anim = '<div id="svc-line-' + r.id + '" style="position:absolute;top:11px;left:calc(50% + 11px);height:2px;background:var(--green);z-index:1;width:' + _svcPct + '%;">' + _svcDot + '</div>';
       }
-      return '<div class="tracker-step ' + cls + '">' + anim + '<div class="tracker-dot">' + tick + '</div><div class="tracker-step-name">' + s + '</div></div>';
+      return '<div class="tracker-step ' + cls + '"' + (i === 1 && (r.status === 'assigned' || r.status === 'inprogress') ? ' data-no-green-line="1"' : '') + '>' + anim + '<div class="tracker-dot">' + tick + '</div><div class="tracker-step-name">' + s + '</div></div>';
     }).join('');
 
     var cardCls = isDone ? 'order-card past-card' : 'order-card';
-    var pillDot = !isDone ? '<span class="pill-dot pill-dot-green"></span>' : '';
-    var svcLabel = { received: 'LIVE', assigned: 'LIVE', inprogress: 'LIVE', done: 'Done', cancelled: 'Cancelled' };
-    var svcCls = { received: 'status-live', assigned: 'status-live', inprogress: 'status-live', done: 'status-delivered-green', cancelled: 'status-cancelled-red' };
+    var pillDot = !isDone ? '<span class="pill-dot pill-dot-green"' + (r.status==='inprogress' ? ' style="animation-duration:0.6s;"' : '') + '></span>' : '';
+    var svcLabel = { received: 'Order Placed', assigned: 'Reaching Soon 🛎', inprogress: 'On the Way 🚶', done: 'Done', cancelled: 'Cancelled' };
+    var svcCls = { received: 'status-preparing', assigned: 'status-preparing', inprogress: 'status-food-ready', done: 'status-delivered-green', cancelled: 'status-cancelled-red' };
 
     var _rid = String(r.id);
     var canSvcModify = r.status === 'received' || r.status === 'assigned';
@@ -2954,12 +3022,12 @@ function renderServices() {
         + '<div class="tracker-header">'
         + '<div class="tracker-label">Request Status</div>'
         + '<div style="display:flex;align-items:center;justify-content:flex-end;gap:2px;">'
-        + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
-        + '<span style="font-size:14px;font-weight:700;font-family:DM Sans,sans-serif;color:var(--text-muted);">~15 min</span>'
+        + '<svg id="svc-timer-svg-' + r.id + '" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+        + '<span id="svc-timer-' + r.id + '" style="font-size:14px;font-weight:700;font-family:DM Sans,sans-serif;color:var(--text-muted);">~'+(r.eta||15)+' min</span>'
         + '</div></div>'
         + '<div class="tracker-steps">' + steps + '</div>'
         + '</div>'
-        + '<div class="tracker-eta" style="margin-top:4px;padding-left:calc(100%/3 * 0.5);" id="svc-msg-' + r.id + '"><div class="tracker-eta-dot"></div><span id="svc-txt-' + r.id + '" style="">Your request will be entertained soon</span></div>'
+
         + modifyBtns
       : '';
 
@@ -3038,25 +3106,36 @@ function renderServices() {
     html += `<div class="orders-section-label" style="margin-top:${(active.length||done.length) ? '20px' : '0'}">Cancelled</div>`;
     html += cancelled.map(renderSvcCard).join('');
   }
+  // Clear any stale rotation intervals before replacing DOM
+  if (window._svcRotateTimers) {
+    window._svcRotateTimers.forEach(function(t){ clearInterval(t); });
+  }
+  window._svcRotateTimers = [];
+
   body.innerHTML = html;
-  // Rotate status text for active requests
-  var svcMsgs = [
-    'Your request will be entertained soon',
-    'We love to serve you',
-    'Thanks for your patience'
-  ];
-  serviceHistory.filter(function(r){ return r.status !== 'done' && r.status !== 'cancelled'; }).forEach(function(r) {
-    var el = document.getElementById('svc-txt-' + r.id);
-    if (!el || el._rotating) return;
-    el._rotating = true;
-    var idx = 0;
-    el._rotateTimer = setInterval(function() {
-      var el2 = document.getElementById('svc-txt-' + r.id);
-      if (!el2) { clearInterval(el._rotateTimer); return; }
-      idx = (idx + 1) % svcMsgs.length;
-      el2.textContent = svcMsgs[idx];
-    }, 3000);
+
+  // Initialise header timer immediately for assigned/inprogress
+  serviceHistory.filter(function(r){ return r.status === 'assigned' || r.status === 'inprogress'; }).forEach(function(r) {
+    var _svcEta   = r.eta || 15;
+    var _svcRef   = r.assignedAt || r.placedAt || Date.now();
+    var _svcElMs  = Date.now() - _svcRef;
+    var _svcRemSec = Math.max(0, _svcEta * 60000 - _svcElMs);
+    var _svcRemMin = Math.floor(_svcRemSec / 60000);
+    var _svcRemS   = Math.floor((_svcRemSec % 60000) / 1000);
+    var _svcCol2 = _svcElMs > _svcEta * 60000 ? 'var(--red)' : 'var(--green)';
+    var _hdrEl = document.getElementById('svc-timer-' + r.id);
+    var _hdrSvg = document.getElementById('svc-timer-svg-' + r.id);
+    if (_hdrEl) {
+      var _hdrTxt = _svcElMs > _svcEta * 60000
+        ? '+' + Math.min(Math.floor((_svcElMs - _svcEta * 60000) / 60000), 99) + 'm late'
+        : (_svcRemMin > 0 ? _svcRemMin + 'm ' + (_svcRemS < 10 ? '0' : '') + _svcRemS + 's' : (_svcRemSec > 0 ? _svcRemS + 's' : 'Arriving!'));
+      _hdrEl.textContent = _hdrTxt;
+      _hdrEl.style.color = _svcCol2;
+      if (_hdrSvg) _hdrSvg.setAttribute('stroke', _svcCol2);
+    }
   });
+
+
   // Attach button listeners by ID after render
   serviceHistory.forEach(function(r) {
     var mb = document.getElementById('svc-mod-' + r.id);
@@ -3601,15 +3680,13 @@ function _waitDb(){return new Promise(function(resolve){if(_db){resolve(_db);ret
 
 // ── ENTRY SCREEN
 document.addEventListener('DOMContentLoaded', function() {
-  // Restore orders from localStorage on page load
+  // Restore orders from localStorage on page load — no expiry, history kept for the full stay
   try {
     var raw = localStorage.getItem('hyatt_g_' + String(window.ROOM_NUM||'000'));
     if (raw) {
       var d = JSON.parse(raw);
-      if (d.ts && Date.now()-d.ts < 86400000) {
-        if (Array.isArray(d.orders)) orderHistory = d.orders;
-        if (Array.isArray(d.services)) serviceHistory = d.services;
-      }
+      if (Array.isArray(d.orders)) orderHistory = d.orders;
+      if (Array.isArray(d.services)) serviceHistory = d.services;
     }
   } catch(e) {}
   if (orderHistory.length) updateOrdersBadge();
@@ -3647,7 +3724,8 @@ function startOrdering() {
 
 // ── localStorage
 function _saveHistory(){try{localStorage.setItem('hyatt_g_'+String(window.ROOM_NUM||'000'),JSON.stringify({orders:orderHistory,services:serviceHistory,ts:Date.now()}));}catch(e){}}
-(function(){try{var raw=localStorage.getItem('hyatt_g_'+String(window.ROOM_NUM||'000'));if(!raw)return;var d=JSON.parse(raw);if(!d.ts||Date.now()-d.ts>86400000)return;if(Array.isArray(d.orders))orderHistory=d.orders;if(Array.isArray(d.services))serviceHistory=d.services;}catch(e){}})();
+// Load history — no expiry, kept for the full stay (cleared only on checkout or manual clear)
+(function(){try{var raw=localStorage.getItem('hyatt_g_'+String(window.ROOM_NUM||'000'));if(!raw)return;var d=JSON.parse(raw);if(Array.isArray(d.orders))orderHistory=d.orders;if(Array.isArray(d.services))serviceHistory=d.services;}catch(e){}})();
 
 // ══════════════════════════════════════════
 // GUEST FIREBASE SYNC
@@ -3689,6 +3767,10 @@ function attachOrderListener(orderId) {
         if (!isNaN(ts)) order.acceptedAt = ts;
       }
       if (data.eta) order.eta = data.eta;
+      if (data.status === 'ready' && data.ready_at && !order.readyAt) {
+        var _rts = typeof data.ready_at === 'number' ? data.ready_at : new Date(data.ready_at).getTime();
+        if (!isNaN(_rts)) order.readyAt = _rts;
+      }
       if (data.status === 'delivered' && !order.deliveredAt) order.deliveredAt = Date.now();
 
       _saveHistory();
@@ -3748,9 +3830,14 @@ function attachAllListeners() {
               total: data.total || 0,
               status: data.status || 'new',
               placedAt: data.placed_at ? new Date(data.placed_at).getTime() : Date.now(),
-              eta: data.eta || 25,
+              eta: data.eta || 20,
               fromPeer: false
             };
+            // Derive display date/time from placedAt
+            (function(){ var _d = new Date(order.placedAt);
+              if (!order.date || order.date === 'undefined') order.date = _d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+              if (!order.time || order.time === 'undefined') order.time = _d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+            })();
             orderHistory.unshift(order);
             changed = true;
           }
@@ -3787,13 +3874,31 @@ function attachAllListeners() {
           if (!req) return;
           // Sync current Firebase state
           req.status = data.status;
+          if (data.eta) req.eta = data.eta;
+          if ((data.status === 'assigned' || data.status === 'inprogress') && data.assigned_at && !req.assignedAt) {
+            var _rts = typeof data.assigned_at === 'number' ? data.assigned_at : new Date(data.assigned_at).getTime();
+            if (!isNaN(_rts)) req.assignedAt = _rts;
+          }
+          if (data.status === 'inprogress' && data.inprogress_at && !req.inprogressAt) {
+            var _ipts = typeof data.inprogress_at === 'number' ? data.inprogress_at : new Date(data.inprogress_at).getTime();
+            if (!isNaN(_ipts)) req.inprogressAt = _ipts;
+          }
           _saveHistory();
           // Re-attach live listener
           db.collection('service_requests').doc(doc.id).onSnapshot(function(d) {
             if (!d.exists) return;
             var r2 = serviceHistory.find(function(x){ return x.id === doc.id; });
             if (!r2) return;
-            r2.status = d.data().status;
+            var _d2 = d.data();
+            r2.status = _d2.status;
+            if (_d2.eta) r2.eta = _d2.eta;
+            if ((_d2.status === 'assigned' || _d2.status === 'inprogress') && _d2.assigned_at && !r2.assignedAt) {
+              r2.assignedAt = typeof _d2.assigned_at === 'number' ? _d2.assigned_at : new Date(_d2.assigned_at).getTime();
+            }
+            if (_d2.status === 'inprogress' && _d2.inprogress_at && !r2.inprogressAt) {
+              var _ipts2 = typeof _d2.inprogress_at === 'number' ? _d2.inprogress_at : new Date(_d2.inprogress_at).getTime();
+              if (!isNaN(_ipts2)) r2.inprogressAt = _ipts2;
+            }
             _saveHistory();
             updateServicesBadge();
             if (document.getElementById('screen-services').classList.contains('active')) renderServices();
@@ -3871,7 +3976,11 @@ setInterval(function() {
       var data = doc.data();
       if (data.status && data.status !== o.status) {
         o.status = data.status;
-        if (['accepted','ready'].indexOf(data.status) !== -1 && data.accepted_at && !o.acceptedAt) {
+        if (data.status === 'ready' && data.ready_at && !o.readyAt) {
+            var _rts = typeof data.ready_at === 'number' ? data.ready_at : new Date(data.ready_at).getTime();
+            if (!isNaN(_rts)) o.readyAt = _rts;
+          }
+          if (['accepted','ready'].indexOf(data.status) !== -1 && data.accepted_at && !o.acceptedAt) {
           var ts = typeof data.accepted_at === 'number' ? data.accepted_at : new Date(data.accepted_at).getTime();
           if (!isNaN(ts)) o.acceptedAt = ts;
         }
