@@ -990,7 +990,7 @@
   }
   .tracker-step {
     display: flex; flex-direction: column; align-items: center; flex: 1;
-    position: relative;
+    position: relative; overflow: visible;
   }
   .tracker-step::before {
     content: '';
@@ -2167,8 +2167,8 @@ function renderOrders() {
         var tookMin = Math.round((deliveredAt - acceptedAt) / 60000);
         num = tookMin+' min';
       } else if(overMin > 0) {
-        // Over ETA — show +Xm
-        num = '+'+overMin+'m';
+        // Over ETA — cap at +99m, show Delayed for very stale orders
+        num = overMin > 240 ? 'Delayed' : '+'+Math.min(overMin,99)+'m';
       } else if(remaining === 0) {
         num = 'Delivering!';
       } else {
@@ -2246,12 +2246,12 @@ function renderOrders() {
 
               if(_atStop) {
                 // Stopped at 90% (left:55% + width:35%), dot blinks
-                _pct = 35;
+                _pct = 85;
                 _dotAnim = 'animation:line-tip-pulse 0.6s ease-in-out infinite;';
                 _lineAnim2 = _overMin > 0 ? 'animation:_flash 0.8s ease-in-out infinite;' : '';
               } else {
                 // Travelling smoothly 0→35% over (eta-1) minutes
-                _pct = (_em / _stopMs) * 35;
+                _pct = (_em / _stopMs) * 85;
                 var _remMs = Math.max(0, _stopMs - _em);
                 // CSS transition covers remaining time so line glides without JS repaints
                 _lineAnim2 = _remMs > 500 ? 'transition:width '+Math.round(_remMs/1000)+'s linear;' : '';
@@ -2386,7 +2386,7 @@ function renderOrders() {
       // Timer text
       var num;
       if (overMin > 0) {
-        num = '+'+overMin+'m';
+        num = overMin > 240 ? 'Delayed' : '+'+Math.min(overMin,99)+'m';
       } else {
         var remSec = Math.max(0, etaMs - elMs);
         var remM = Math.floor(remSec/60000);
@@ -2406,7 +2406,7 @@ function renderOrders() {
       var dotEl  = document.getElementById('eta-dot-'+o.id);
       if (lineEl && dotEl) {
         var atStop = elMs >= stopMs;
-        var pct = atStop ? 35 : Math.min(35, (elMs/stopMs)*35);
+        var pct = atStop ? 85 : Math.min(85, (elMs/stopMs)*85);
         lineEl.style.width = pct.toFixed(1)+'%';
         lineEl.style.background = col;
         dotEl.style.background = col;
@@ -2815,21 +2815,20 @@ function renderServices() {
     var isDone = r.status === 'done' || r.status === 'cancelled';
     var checkSvgGreen = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
     var steps = svcStepsDef.map(function(s, i) {
+      // State-driven — same pattern as orders tracker
       var cls = '';
-      if (i < si) {
-        cls = 'done';
-      } else if (i === si) {
-        if (r.status === 'received') {
-          cls = 'active';
-        } else {
-          cls = 'done';
-        }
+      if (i === 0) {
+        cls = 'done'; // Received always ticks
+      } else if (i === 1) {
+        if (r.status === 'assigned' || r.status === 'inprogress' || r.status === 'done') cls = 'done';
+        else if (r.status === 'received') cls = 'active'; // blink while waiting
+      } else if (i === 2) {
+        if (r.status === 'done') cls = 'done';
       }
       var tick = (cls === 'done') ? checkSvgGreen : '';
       var anim = '';
-      if (i === 1 && si === 0) {
-        anim = '<div style="position:absolute;top:6px;left:calc(50% - 5px);width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
-      } else if (i === si && i > 0 && i < svcStepsDef.length - 1) {
+      // Pulsing dot on Assigned step while still received (shows "next")
+      if (i === 1 && r.status === 'received') {
         anim = '<div style="position:absolute;top:6px;left:calc(50% - 5px);width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
       }
       return '<div class="tracker-step ' + cls + '">' + anim + '<div class="tracker-dot">' + tick + '</div><div class="tracker-step-name">' + s + '</div></div>';
