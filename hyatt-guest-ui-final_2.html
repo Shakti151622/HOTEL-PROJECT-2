@@ -1807,6 +1807,10 @@ const menuData = {
 let cart = {}; // { itemKey: { name, price, qty } }
 let currentCat = 'breakfast';
 
+// ── Delivery ETA cap (mins): time from Mark Ready / En Route to guest room
+// Change this one value to adjust for your hotel
+var DELIVERY_ETA_MINS = 10;
+
 let orderHistory = []; // all placed orders
 let serviceHistory = []; // all service requests
 
@@ -2176,6 +2180,13 @@ function updateOrdersBadge() {
 }
 
 function renderOrders() {
+  // Stamp readyAt/inprogressAt if missing — ensures cap has a reference before any render
+  var _needSave = false;
+  orderHistory.forEach(function(o) {
+    if (o.status === 'ready' && !o.readyAt) { o.readyAt = Date.now(); _needSave = true; }
+  });
+  if (_needSave) _saveHistory();
+
   // Patch any orders missing date/time (e.g. synced from Firebase without those fields)
   orderHistory.forEach(function(o) {
     if ((!o.date || o.date === 'undefined') && o.placedAt) {
@@ -2227,7 +2238,7 @@ function renderOrders() {
       var _ref = acceptedAt, _eta = eta;
       if (o.status === 'ready' && o.readyAt) {
         var _natRem = eta - Math.floor((o.readyAt - acceptedAt) / 60000);
-        if (_natRem > 10) { _ref = o.readyAt; _eta = 10; }
+        if (_natRem > DELIVERY_ETA_MINS) { _ref = o.readyAt; _eta = DELIVERY_ETA_MINS; }
       }
       var elapsedMin = Math.floor((now - _ref) / 60000);
       var overMin   = elapsedMin - _eta;
@@ -2299,32 +2310,32 @@ function renderOrders() {
             anim='<div style="position:absolute;top:6px;left:calc(50% - 5px);width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:4;"></div>';
           }
           if(i===1){
-            var _eta  = o.eta || 20;
-            var _sm   = o.acceptedAt || Date.now();
-            // Apply 10-min cap: when ready and natural remaining > 10 mins, shift reference to readyAt
+            var _origEta = o.eta || 20;
+            var _eta     = _origEta;
+            var _sm      = o.acceptedAt || Date.now();
+            var _capActive = false;
             if (o.status === 'ready' && o.readyAt && o.acceptedAt) {
               var _natRem = _eta - Math.floor((o.readyAt - o.acceptedAt) / 60000);
-              if (_natRem > 10) { _sm = o.readyAt; _eta = 10; }
+              if (_natRem > DELIVERY_ETA_MINS) { _sm = o.readyAt; _eta = DELIVERY_ETA_MINS; _capActive = true; }
             }
-            var _em   = Date.now() - _sm;            // elapsed ms
-            var _etaMs = _eta * 60000;               // full ETA in ms
-            var _stopMs = Math.max(1000, (_eta-1)*60000); // stop 1 min before ETA
+            var _em   = Date.now() - _sm;
+            var _etaMs = _eta * 60000;
             var _overMin = Math.max(0, Math.floor((_em - _etaMs) / 60000));
             var _lineCol = _etaCol(_overMin);
+            // baseOffset: dot jumps to (origEta-capEta)/origEta*68 when cap activates, then grows to 68
+            var _baseOff = _capActive ? ((_origEta - DELIVERY_ETA_MINS) / Math.max(1, _origEta)) * 68 : 0;
 
             if(si===1){
-              // Progress: dot starts at Accepted circle centre, line grows toward Delivered
-              var _atStop = _em >= _stopMs;
-              var _pct, _dotAnim, _lineAnim2;
+              var _atStop   = _em >= _etaMs;
+              var _progress = Math.min(1, _em / Math.max(1, _etaMs));
+              var _pct      = Math.min(68, _baseOff + _progress * (68 - _baseOff));
+              var _dotAnim, _lineAnim2;
 
               if(_atStop) {
-                // Stopped at ~90%, dot blinks at tip
                 _pct = 68;
                 _dotAnim = 'animation:line-tip-pulse 0.6s ease-in-out infinite;';
                 _lineAnim2 = _overMin > 0 ? 'animation:_flash 0.8s ease-in-out infinite;' : '';
               } else {
-                // Grows from 0 to 68% over ETA
-                _pct = (_em / _stopMs) * 68;
                 _lineAnim2 = '';
                 _dotAnim = 'animation:line-tip-pulse 1s ease-in-out infinite;';
               }
@@ -2418,15 +2429,16 @@ function renderOrders() {
       var eta    = o.eta || 20;
       var now    = Date.now();
       // When ready: shift timer reference to readyAt with 10 min ETA if not already late
+      // If readyAt missing but status is ready, stamp it now so cap always has a reference
+      if (o.status === 'ready' && !o.readyAt) { o.readyAt = Date.now(); _saveHistory(); }
       var _ref = o.acceptedAt, _eta = eta;
       if (o.status === 'ready' && o.readyAt) {
         var _natRem = eta - Math.floor((o.readyAt - o.acceptedAt) / 60000);
-        if (_natRem > 10) { _ref = o.readyAt; _eta = 10; }
+        if (_natRem > DELIVERY_ETA_MINS) { _ref = o.readyAt; _eta = DELIVERY_ETA_MINS; }
       }
       var elMs   = now - _ref;
       eta = _eta;
       var etaMs  = eta * 60000;   // eta is now _eta (may be 10 if ready-shifted)
-      var stopMs = Math.max(1000, (eta-1)*60000);
       var overMin = Math.max(0, Math.floor((elMs - etaMs) / 60000));
       // Colour
       var col = overMin>=20?'#C0392B':overMin>=10?'#E67E22':overMin>=1?'#E0A800':'var(--green)';
@@ -2452,8 +2464,13 @@ function renderOrders() {
       var lineEl = document.getElementById('eta-line-'+o.id);
       var dotEl  = document.getElementById('eta-dot-'+o.id);
       if (lineEl && dotEl) {
-        var atStop = elMs >= stopMs;
-        var pct = atStop ? 68 : Math.min(68, (elMs/stopMs)*68);
+        var atStop = elMs >= etaMs;
+        var _origEtaT   = o.eta || 20;
+        var _baseOffT   = (o.status === 'ready' && o.readyAt && (_origEtaT - DELIVERY_ETA_MINS) > 0)
+          ? ((_origEtaT - DELIVERY_ETA_MINS) / Math.max(1, _origEtaT)) * 68 : 0;
+        var _progressT  = Math.min(1, elMs / Math.max(1, etaMs));
+        var pct = Math.min(68, _baseOffT + _progressT * (68 - _baseOffT));
+        if (atStop) pct = 68;
         lineEl.style.transition = 'width 1.5s linear';
         lineEl.style.width = pct.toFixed(1)+'%';
         lineEl.style.background = col;
@@ -2473,17 +2490,21 @@ function renderOrders() {
     if (_servicesActive) {
       serviceHistory.forEach(function(r) {
         if (r.status !== 'assigned' && r.status !== 'inprogress') return;
-        var _svcEta    = r.eta || 15;
-        var _svcRef    = r.assignedAt || r.placedAt || Date.now();
-        // 10-min cap: when En Route (inprogress) and natural remaining > 10 mins, count 10 mins from inprogressAt
+        var _svcOrigEta  = r.eta || 15;
+        var _svcEta      = _svcOrigEta;
+        var _svcRef      = r.assignedAt || r.placedAt || Date.now();
+        var _svcCapActive = false;
         if (r.status === 'inprogress' && r.inprogressAt && r.assignedAt) {
           var _natRem = _svcEta - Math.floor((r.inprogressAt - r.assignedAt) / 60000);
-          if (_natRem > 10) { _svcRef = r.inprogressAt; _svcEta = 10; }
+          if (_natRem > DELIVERY_ETA_MINS) { _svcRef = r.inprogressAt; _svcEta = DELIVERY_ETA_MINS; _svcCapActive = true; }
         }
-        var _svcElMs   = Date.now() - _svcRef;
-        var _svcStopMs = Math.max(1000, (_svcEta - 1) * 60000);
-        var _atSvcStop = _svcElMs >= _svcStopMs;
-        var _svcPct    = _atSvcStop ? 68 : Math.min(68, (_svcElMs / _svcStopMs) * 68);
+        var _svcElMs    = Date.now() - _svcRef;
+        var _svcEtaMs   = _svcEta * 60000;
+        var _atSvcStop  = _svcElMs >= _svcEtaMs;
+        var _svcBaseOff = _svcCapActive ? ((_svcOrigEta - DELIVERY_ETA_MINS) / Math.max(1, _svcOrigEta)) * 68 : 0;
+        var _svcProg    = Math.min(1, _svcElMs / Math.max(1, _svcEtaMs));
+        var _svcPct     = Math.min(68, _svcBaseOff + _svcProg * (68 - _svcBaseOff));
+        if (_atSvcStop) _svcPct = 68;
         var _svcRemSec = Math.max(0, _svcEta * 60000 - _svcElMs);
         var _svcRemMin = Math.floor(_svcRemSec / 60000);
         var _svcRemS   = Math.floor((_svcRemSec % 60000) / 1000);
@@ -2956,6 +2977,13 @@ function updateServicesBadge() {
 }
 
 function renderServices() {
+  // Stamp inprogressAt if missing — ensures cap has a reference before any render
+  var _svcNeedSave = false;
+  serviceHistory.forEach(function(r) {
+    if (r.status === 'inprogress' && !r.inprogressAt) { r.inprogressAt = Date.now(); _svcNeedSave = true; }
+  });
+  if (_svcNeedSave) _saveHistory();
+
   const body = document.getElementById('services-body');
   if (serviceHistory.length === 0) {
     body.innerHTML = `<div class="orders-empty">
@@ -2994,17 +3022,21 @@ function renderServices() {
       }
       // After Assigned tick: blinking dot + green line grows from right of Assigned circle toward Done
       if (i === 1 && (r.status === 'assigned' || r.status === 'inprogress')) {
-        var _svcEta    = r.eta || 15;
-        var _svcRef    = r.assignedAt || r.placedAt || Date.now();
-        // 10-min cap: when inprogress and natural remaining > 10 mins, shift reference to inprogressAt
+        var _svcOrigEtaR  = r.eta || 15;
+        var _svcEta       = _svcOrigEtaR;
+        var _svcRef       = r.assignedAt || r.placedAt || Date.now();
+        var _svcCapActiveR = false;
         if (r.status === 'inprogress' && r.inprogressAt && r.assignedAt) {
           var _natRem = _svcEta - Math.floor((r.inprogressAt - r.assignedAt) / 60000);
-          if (_natRem > 10) { _svcRef = r.inprogressAt; _svcEta = 10; }
+          if (_natRem > DELIVERY_ETA_MINS) { _svcRef = r.inprogressAt; _svcEta = DELIVERY_ETA_MINS; _svcCapActiveR = true; }
         }
-        var _svcElMs   = Date.now() - _svcRef;
-        var _svcStopMs = Math.max(1000, (_svcEta - 1) * 60000);
-        var _atSvcStop = _svcElMs >= _svcStopMs;
-        var _svcPct    = _atSvcStop ? 68 : (_svcElMs / _svcStopMs) * 68;
+        var _svcElMs    = Date.now() - _svcRef;
+        var _svcEtaMs   = _svcEta * 60000;
+        var _atSvcStop  = _svcElMs >= _svcEtaMs;
+        var _svcBaseOffR = _svcCapActiveR ? ((_svcOrigEtaR - DELIVERY_ETA_MINS) / Math.max(1, _svcOrigEtaR)) * 68 : 0;
+        var _svcProgR    = Math.min(1, _svcElMs / Math.max(1, _svcEtaMs));
+        var _svcPct      = Math.min(68, _svcBaseOffR + _svcProgR * (68 - _svcBaseOffR));
+        if (_atSvcStop) _svcPct = 68;
         var _svcDotAnim = _atSvcStop ? 'animation:line-tip-pulse 0.6s ease-in-out infinite;' : 'animation:line-tip-pulse 1s ease-in-out infinite;';
         var _svcDot = '<div id="svc-dot-' + r.id + '" style="position:absolute;right:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));' + _svcDotAnim + 'z-index:2;"></div>';
         anim = '<div id="svc-line-' + r.id + '" style="position:absolute;top:11px;left:calc(50% + 11px);height:2px;background:var(--green);z-index:1;width:' + _svcPct + '%;">' + _svcDot + '</div>';
