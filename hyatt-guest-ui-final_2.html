@@ -1121,6 +1121,29 @@
     line-height: 1;
   }
 
+  /* ── In-card qty for multi-select service ── */
+  .svc-card-qty {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    animation: fadeIn 0.18s ease;
+  }
+  .svc-card-qty .svc-qty-btn {
+    width: 28px; height: 28px;
+    font-size: 16px;
+    border-radius: 8px;
+  }
+  .svc-card-qty span {
+    font-family: Cormorant Garamond, serif;
+    font-size: 20px;
+    color: var(--green);
+    font-weight: 500;
+    min-width: 18px;
+    text-align: center;
+  }
+  .service-card.selected { border-color: var(--green) !important; background: rgba(76,175,125,0.08) !important; }
+
   /* ── SERVICE SCREEN ACTIVE BANNER ── */
   .svc-active-banner {
     background: rgba(201,169,110,0.08);
@@ -1508,40 +1531,52 @@
     </div>
   </div>
 
-  <div class="service-body">
-    <div style="font-size:14px;color:var(--text-muted);margin-bottom:18px;letter-spacing:0.05em">What do you need?</div>
-
+  <div class="service-body" id="service-body-main">
+    <!-- Items grid -->
+    <div style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-muted);margin-bottom:14px;">Add to Request</div>
     <div class="service-grid" id="service-grid">
-      <div class="service-card" onclick="selectService(this, 'Water')">
+      <div class="service-card" onclick="addSvcItem('Water','💧')">
         <div class="service-card-icon">💧</div>
         <div class="service-card-name">Water</div>
       </div>
-      <div class="service-card" onclick="selectService(this, 'Towels')">
+      <div class="service-card" onclick="addSvcItem('Towels','🧻')">
         <div class="service-card-icon">🧻</div>
         <div class="service-card-name">Towels</div>
       </div>
-      <div class="service-card" onclick="selectService(this, 'Room Cleaning')">
+      <div class="service-card" onclick="addSvcItem('Room Cleaning','🧹')">
         <div class="service-card-icon">🧹</div>
         <div class="service-card-name">Room Cleaning</div>
       </div>
-      <div class="service-card" onclick="selectService(this, 'Other')">
-        <div class="service-card-icon">🔧</div>
-        <div class="service-card-name">Other</div>
+      <div class="service-card" onclick="addSvcItem('Extra Pillows','🛏️')">
+        <div class="service-card-icon">🛏️</div>
+        <div class="service-card-name">Extra Pillows</div>
+      </div>
+      <div class="service-card" onclick="addSvcItem('Toiletries','🧴')">
+        <div class="service-card-icon">🧴</div>
+        <div class="service-card-name">Toiletries</div>
+      </div>
+      <div class="service-card" onclick="addSvcItem('Iron & Board','🫳')">
+        <div class="service-card-icon">🫳</div>
+        <div class="service-card-name">Iron & Board</div>
       </div>
     </div>
 
-    <!-- Quantity picker — shown only for Water / Towels -->
-    <div class="svc-qty-row" id="svc-qty-row" style="display:none">
-      <div class="svc-qty-label" id="svc-qty-label">How many bottles?</div>
-      <div class="svc-qty-control">
-        <button class="svc-qty-btn" onclick="changeSvcQty(-1)">−</button>
-        <span class="svc-qty-num" id="svc-qty-num">1</span>
-        <button class="svc-qty-btn svc-qty-plus" onclick="changeSvcQty(1)">+</button>
+    <!-- Custom request add row -->
+    <div style="margin-bottom:20px;">
+      <div style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;">Custom Request</div>
+      <div style="display:flex;gap:8px;align-items:stretch;">
+        <input id="svc-custom-input" type="text" placeholder="e.g. Extra blanket, baby cot…"
+          style="flex:1;background:var(--surface);border:1px solid var(--input-border);border-radius:12px;padding:11px 14px;color:var(--text);font-size:14px;font-family:'DM Sans',sans-serif;outline:none;"/>
+        <button onclick="addSvcCustom()"
+          style="padding:11px 16px;background:var(--surface);border:1px solid rgba(201,169,110,0.35);border-radius:12px;color:var(--gold);font-size:20px;cursor:pointer;flex-shrink:0;">+</button>
       </div>
     </div>
 
-    <div class="note-label" style="margin-top:20px">Additional note (optional)</div>
-    <textarea class="service-note" id="service-note" placeholder="e.g. Extra pillows please…" rows="3"></textarea>
+    <!-- Cart -->
+    <div id="svc-cart-section" style="display:none;">
+      <div style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;">Your Request</div>
+      <div id="svc-cart-items"></div>
+    </div>
   </div>
 
   <div id="service-success" style="display:none;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:48px 32px;text-align:center;">
@@ -1748,7 +1783,7 @@ const menuData = {
 
 let cart = {}; // { itemKey: { name, price, qty } }
 let currentCat = 'breakfast';
-let selectedService = null;
+
 let orderHistory = []; // all placed orders
 let serviceHistory = []; // all service requests
 
@@ -2227,7 +2262,7 @@ function renderOrders() {
           var anim='';
           if(i===1 && si===0){
             // Dot centered on Accepted circle while waiting for acceptance
-            anim='<div style="position:absolute;top:6px;left:calc(68% - 5px);width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
+            anim='<div style="position:absolute;top:6px;left:calc(50% - 5px);width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
           }
           if(i===1){
             var _eta  = o.eta || 25;
@@ -2239,27 +2274,26 @@ function renderOrders() {
             var _lineCol = _etaCol(_overMin);
 
             if(si===1){
-              // Progress: travels from Accepted to 1min-before-Delivered over (_eta-1) mins
-              // After that: line full, dot blinks at end
+              // Progress: dot starts at Accepted circle centre, line grows toward Delivered
               var _atStop = _em >= _stopMs;
               var _pct, _dotAnim, _lineAnim2;
 
               if(_atStop) {
-                // Stopped at 90% (left:55% + width:35%), dot blinks
+                // Stopped at ~90%, dot blinks at tip
                 _pct = 68;
                 _dotAnim = 'animation:line-tip-pulse 0.6s ease-in-out infinite;';
                 _lineAnim2 = _overMin > 0 ? 'animation:_flash 0.8s ease-in-out infinite;' : '';
               } else {
-                // Current position based on elapsed time
+                // Grows from 0 to 68% over ETA
                 _pct = (_em / _stopMs) * 68;
-                // No transition on initial render — 1s interval handles smooth updates
                 _lineAnim2 = '';
                 _dotAnim = 'animation:line-tip-pulse 1s ease-in-out infinite;';
               }
 
-              var _dotVis = _pct < 2 ? 'opacity:0;' : '';
+              var _dotVis = _pct < 1 ? 'opacity:0;' : '';
+              // Line starts from right edge of Accepted circle so blinking dot emerges cleanly from outside the tick
               var _dot2='<div id="eta-dot-'+o.id+'" style="position:absolute;right:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:'+_lineCol+';filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));'+_dotAnim+_dotVis+'z-index:2;"></div>';
-              anim='<div id="eta-line-'+o.id+'" style="position:absolute;top:11px;left:72%;height:2px;background:'+_lineCol+';z-index:1;width:'+_pct.toFixed(1)+'%;'+_lineAnim2+'">'+_dot2+'</div>';
+              anim='<div id="eta-line-'+o.id+'" style="position:absolute;top:11px;left:calc(50% + 11px);height:2px;background:'+_lineCol+';z-index:1;width:'+_pct.toFixed(1)+'%;'+_lineAnim2+'">'+_dot2+'</div>';
             }
           }
           return '<div class="tracker-step '+cls+'">'+anim+'<div class="tracker-dot">'+tick+'</div><div class="tracker-step-name">'+s+'</div></div>';
@@ -2411,7 +2445,7 @@ function renderOrders() {
         lineEl.style.width = pct.toFixed(1)+'%';
         lineEl.style.background = col;
         dotEl.style.background = col;
-        dotEl.style.opacity = pct < 2 ? '0' : '1';
+        dotEl.style.opacity = pct < 1 ? '0' : '1';
         if (atStop) {
           dotEl.style.animationDuration = '0.6s';
           if (overMin > 0 && !lineEl._flashing) {
@@ -2680,58 +2714,110 @@ window.editQty = function(idx, delta) {
 
 // ETA updates handled by 1s targeted interval — no full re-render needed here
 
-// ── Service
-const serviceIcons = {
-  'Water': '💧',
-  'Towels': '🧻',
-  'Room Cleaning': '🧹',
-  'Other': '🔧'
-};
-const serviceQtyItems = ['Water', 'Towels']; // items that show a quantity picker
-let serviceQty = 1;
+// ── Service cart
+var svcCart = []; // [{ id, type, icon, qty, custom }]
+var _svcCartIdSeq = 0;
 
-function selectService(el, name) {
-  document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
-  selectedService = name;
+function _renderSvcCart() {
+  var container = document.getElementById('svc-cart-items');
+  var section   = document.getElementById('svc-cart-section');
+  if (!container) return;
+  if (!svcCart.length) {
+    section.style.display = 'none';
+    document.getElementById('submit-btn').disabled = true;
+    return;
+  }
+  section.style.display = 'block';
   document.getElementById('submit-btn').disabled = false;
+  container.innerHTML = svcCart.map(function(item) {
+    var qtyControls = '';
+    if (!item.custom) {
+      // Preset items: show −/qty/+ for items where qty matters (all except non-countable)
+      var nonCountable = ['Room Cleaning', 'Iron & Board'];
+      if (nonCountable.indexOf(item.type) === -1) {
+        qtyControls = '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">'
+          + '<button class="ci-btn minus" onclick="svcCartQty(' + item.id + ',-1)">−</button>'
+          + '<span class="ci-qty" id="svc-ci-qty-' + item.id + '">' + item.qty + '</span>'
+          + '<button class="ci-btn plus" onclick="svcCartQty(' + item.id + ',1)">+</button>'
+          + '</div>';
+      }
+    }
+    return '<div class="cart-item" id="svc-ci-' + item.id + '">'
+      + '<div style="font-size:20px;flex-shrink:0;">' + item.icon + '</div>'
+      + '<div class="cart-item-name">' + item.type + (item.custom && item.type ? '' : '') + '</div>'
+      + qtyControls
+      + '<button class="ci-btn del" onclick="svcCartRemove(' + item.id + ')" style="margin-left:4px;">✕</button>'
+      + '</div>';
+  }).join('');
+}
 
-  // Show/hide quantity row
-  const qtyRow = document.getElementById('svc-qty-row');
-  const qtyLabel = document.getElementById('svc-qty-label');
-  if (serviceQtyItems.includes(name)) {
-    serviceQty = 1;
-    document.getElementById('svc-qty-num').textContent = '1';
-    qtyLabel.textContent = name === 'Water' ? 'How many bottles?' : 'How many towels?';
-    qtyRow.style.display = 'flex';
+function addSvcItem(type, icon) {
+  // If already in cart, increment qty
+  var existing = svcCart.find(function(i){ return i.type === type && !i.custom; });
+  if (existing) {
+    var nonCountable = ['Room Cleaning', 'Iron & Board'];
+    if (nonCountable.indexOf(type) === -1) {
+      existing.qty = Math.min(10, existing.qty + 1);
+    }
   } else {
-    qtyRow.style.display = 'none';
-    serviceQty = 1;
+    svcCart.push({ id: ++_svcCartIdSeq, type: type, icon: icon, qty: 1, custom: false });
+  }
+  _renderSvcCart();
+}
+
+function addSvcCustom() {
+  var input = document.getElementById('svc-custom-input');
+  var val = input ? input.value.trim() : '';
+  if (!val) return;
+  svcCart.push({ id: ++_svcCartIdSeq, type: val, icon: '🔧', qty: 1, custom: true });
+  input.value = '';
+  _renderSvcCart();
+}
+
+function svcCartQty(id, delta) {
+  var item = svcCart.find(function(i){ return i.id === id; });
+  if (!item) return;
+  item.qty = Math.max(1, Math.min(10, item.qty + delta));
+  var el = document.getElementById('svc-ci-qty-' + id);
+  if (el) el.textContent = item.qty;
+}
+
+function svcCartRemove(id) {
+  var el = document.getElementById('svc-ci-' + id);
+  if (el) {
+    el.classList.add('removing');
+    setTimeout(function(){
+      svcCart = svcCart.filter(function(i){ return i.id !== id; });
+      _renderSvcCart();
+    }, 240);
+  } else {
+    svcCart = svcCart.filter(function(i){ return i.id !== id; });
+    _renderSvcCart();
   }
 }
 
-function changeSvcQty(delta) {
-  serviceQty = Math.max(1, Math.min(10, serviceQty + delta));
-  document.getElementById('svc-qty-num').textContent = serviceQty;
-}
-
 function submitService() {
-  const note = document.getElementById('service-note').value.trim();
-  const hasQty = serviceQtyItems.includes(selectedService);
-  const qty = hasQty ? serviceQty : null;
+  if (!svcCart.length) return;
 
-  const now = new Date();
-  const _svcNums = serviceHistory.map(function(r){ return parseInt((r.id||'0').replace('REQ-','')); });
-  const _nextSvcNum = (_svcNums.length ? Math.max.apply(null,_svcNums) : 0) + 1;
-  const reqId = 'REQ-' + String(_nextSvcNum).padStart(3, '0');
-  const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  var items = svcCart.map(function(i) {
+    return { type: i.type, icon: i.icon, qty: i.qty, custom: i.custom || false };
+  });
 
-  const req = {
+  var now = new Date();
+  var _svcNums = serviceHistory.map(function(r){ return parseInt((r.id||'0').replace('REQ-','')); });
+  var _nextSvcNum = (_svcNums.length ? Math.max.apply(null,_svcNums) : 0) + 1;
+  var reqId = 'REQ-' + String(_nextSvcNum).padStart(3, '0');
+  var timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  var primaryIcon = items[0].icon;
+  var typeLabel = items.length === 1 ? items[0].type : items.length + ' items';
+
+  var req = {
     id: reqId,
-    type: selectedService,
-    icon: serviceIcons[selectedService] || '🔔',
-    qty: qty,
-    note: note,
+    type: typeLabel,
+    icon: primaryIcon,
+    items: items,
+    note: null,
     time: timeStr,
     date: now.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
     status: 'received',
@@ -2741,37 +2827,47 @@ function submitService() {
   _saveHistory();
   updateServicesBadge();
 
-  // Build confirmation message
-  let msg = selectedService;
-  if (qty) msg += ` · ${qty} ${selectedService === 'Water' ? (qty > 1 ? 'bottles' : 'bottle') : (qty > 1 ? 'towels' : 'towel')}`;
-  if (note) msg += ` · "${note}"`;
-  msg += ' — sent to housekeeping.';
-  document.getElementById('service-success-msg').textContent = msg;
-  document.querySelector('.service-body').style.display = 'none';
+  var parts = items.map(function(it) {
+    var s = it.icon + ' ' + it.type;
+    if (it.qty > 1) s += ' ×' + it.qty;
+    return s;
+  });
+  document.getElementById('service-success-msg').textContent = parts.join(', ') + ' — sent to housekeeping.';
+  document.getElementById('service-body-main').style.display = 'none';
   document.getElementById('submit-bar').style.display = 'none';
   document.getElementById('service-success').style.display = 'flex';
 
-  // Write to Firebase
   _waitDb().then(function(db){
     if(!db)return;
-    db.collection('service_requests').doc(String(reqId)).set({id:reqId,room:String(window.ROOM_NUM||'000'),guest:String(window.GUEST_NAME||'Guest'),type:selectedService,icon:req.icon,qty:qty,note:note||null,status:'received',placed_at:now.toISOString()}).then(function(){
+    db.collection('service_requests').doc(String(reqId)).set({
+      id: reqId, room: String(window.ROOM_NUM||'000'), guest: String(window.GUEST_NAME||'Guest'),
+      type: typeLabel, icon: primaryIcon, items: items,
+      status: 'received', placed_at: now.toISOString()
+    }).then(function(){
       db.collection('service_requests').doc(String(reqId)).onSnapshot(function(doc){
-        if(!doc.exists)return;var r=serviceHistory.find(function(x){return x.id===reqId;});if(!r)return;
-        r.status=doc.data().status;_saveHistory();updateServicesBadge();if(document.getElementById('screen-services').classList.contains('active'))renderServices();
+        if(!doc.exists)return;
+        var r = serviceHistory.find(function(x){ return x.id===reqId; });
+        if(!r)return;
+        r.status = doc.data().status;
+        _saveHistory(); updateServicesBadge();
+        if(document.getElementById('screen-services').classList.contains('active')) renderServices();
       });
     });
   });
 }
 
 function resetService() {
-  selectedService = null;
-  serviceQty = 1;
-  document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
-  document.getElementById('service-note').value = '';
+  svcCart = [];
+  _svcCartIdSeq = 0;
+  var inp = document.getElementById('svc-custom-input');
+  if (inp) inp.value = '';
+  var cartSection = document.getElementById('svc-cart-section');
+  if (cartSection) cartSection.style.display = 'none';
+  var cartItems = document.getElementById('svc-cart-items');
+  if (cartItems) cartItems.innerHTML = '';
   document.getElementById('submit-btn').disabled = true;
-  document.getElementById('svc-qty-row').style.display = 'none';
-  document.getElementById('svc-qty-num').textContent = '1';
-  document.querySelector('.service-body').style.display = 'block';
+  var bodyMain = document.getElementById('service-body-main');
+  if (bodyMain) bodyMain.style.display = 'block';
   document.getElementById('submit-bar').style.display = 'block';
   document.getElementById('service-success').style.display = 'none';
 }
@@ -2829,24 +2925,14 @@ function renderServices() {
       if (i === 1 && r.status === 'received') {
         anim = '<div style="position:absolute;top:6px;left:calc(50% - 5px);width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
       }
+      // After Assigned tick: blinking dot + green line grows from Assigned circle toward Done
+      if (i === 1 && (r.status === 'assigned' || r.status === 'inprogress')) {
+        var _svcPct = r.status === 'inprogress' ? 50 : 15;
+        var _svcDot = '<div id="svc-dot-' + r.id + '" style="position:absolute;right:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:2;"></div>';
+        anim = '<div id="svc-line-' + r.id + '" style="position:absolute;top:11px;left:calc(50% + 11px);height:2px;background:var(--green);z-index:1;width:' + _svcPct + '%;">' + _svcDot + '</div>';
+      }
       return '<div class="tracker-step ' + cls + '">' + anim + '<div class="tracker-dot">' + tick + '</div><div class="tracker-step-name">' + s + '</div></div>';
     }).join('');
-
-    var subtitle = '';
-    if (r.items && Array.isArray(r.items)) {
-      // Multi-item request
-      subtitle = r.items.map(function(it){
-        if (it.type === 'Water') return it.qty > 1 ? it.qty + ' bottles' : '1 bottle';
-        if (it.type === 'Towels') return it.qty > 1 ? it.qty + ' towels' : '1 towel';
-        if (it.type === 'Other') return it.note ? '"' + it.note + '"' : 'Other';
-        return it.type;
-      }).join(' · ');
-      if (r.otherNote && !r.items.find(function(i){return i.type==='Other';})) subtitle += (subtitle?' · ':'"') + r.otherNote + '"';
-    } else if (r.qty && ['Water','Towels'].indexOf(r.type) > -1) {
-      var unit = r.type === 'Water' ? (r.qty > 1 ? r.qty + ' bottles' : '1 bottle') : (r.qty > 1 ? r.qty + ' towels' : '1 towel');
-      subtitle += unit;
-    }
-    if (r.note) subtitle += (subtitle ? ' · ' : '') + '"' + r.note + '"';
 
     var cardCls = isDone ? 'order-card past-card' : 'order-card';
     var pillDot = !isDone ? '<span class="pill-dot pill-dot-green"></span>' : '';
@@ -2877,24 +2963,42 @@ function renderServices() {
         + modifyBtns
       : '';
 
+    // Build item rows — each item on its own line with icon + name + qty
+    var itemsHtml = '';
+    if (r.items && Array.isArray(r.items)) {
+      itemsHtml = '<div style="padding:10px 18px;border-bottom:1px solid var(--card-border);">'
+        + r.items.map(function(it) {
+            var qtyBadge = (it.qty && it.qty > 1)
+              ? '<span style="font-size:12px;color:var(--text-muted);margin-left:4px;">×' + it.qty + '</span>'
+              : '';
+            return '<div style="display:flex;align-items:center;gap:10px;padding:5px 0;">'
+              + '<span style="font-size:18px;width:24px;text-align:center;">' + (it.icon||'🔔') + '</span>'
+              + '<span style="font-size:14px;color:var(--text);flex:1;">' + it.type + '</span>'
+              + qtyBadge
+              + '</div>';
+          }).join('')
+        + '</div>';
+    } else {
+      itemsHtml = '<div style="padding:10px 18px;border-bottom:1px solid var(--card-border);display:flex;align-items:center;gap:10px;">'
+        + '<span style="font-size:18px;">' + (r.icon||'🔔') + '</span>'
+        + '<span style="font-size:14px;color:var(--text);flex:1;">' + r.type + '</span>'
+        + (r.qty ? '<span style="font-size:12px;color:var(--text-muted);">×' + r.qty + '</span>' : '')
+        + '</div>';
+    }
+
     return '<div class="' + cardCls + '">'
       + '<div class="order-card-head">'
       + '<div class="order-card-meta">'
       + '<div class="order-card-id">' + r.id + ' · ' + r.date + ' · ' + r.time + '</div>'
-      + '<div style="display:flex;align-items:center;gap:8px;margin-top:4px;">'
+      + '<div style="font-size:15px;color:var(--text);margin-top:3px;font-family:Cormorant Garamond,serif;">'
       + (r.items && Array.isArray(r.items)
-          ? r.items.map(function(it){ return '<span style="font-size:20px;margin-right:2px;">' + (it.icon||'🔔') + '</span>'; }).join('')
-          : '<span style="font-size:22px;">' + r.icon + '</span>')
-      + '<div><div style="font-size:16px;font-family:Cormorant Garamond,serif;color:var(--text);">'
-      + (r.items && Array.isArray(r.items)
-          ? r.items.map(function(it){ return it.type + (it.qty > 1 ? ' ×'+it.qty : ''); }).join(' · ')
-          : r.type + (r.qty ? ' <span style="color:var(--gold);font-size:14px;">×' + r.qty + '</span>' : ''))
+          ? (r.items.length === 1 ? r.items[0].type : r.items.length + ' items requested')
+          : r.type)
       + '</div>'
-      + (subtitle ? '<div style="font-size:12px;color:var(--text-muted);">' + subtitle + '</div>' : '')
-      + '</div></div>'
       + '</div>'
       + '<div class="order-status-pill ' + (svcCls[r.status]||'status-delivered') + '">' + pillDot + (svcLabel[r.status]||r.status) + '</div>'
       + '</div>'
+      + itemsHtml
       + trackerHtml
       + '</div>';
   }
@@ -2966,6 +3070,7 @@ function renderServices() {
 window.modifySvcRequest = function(reqId) {
   var req = serviceHistory.find(function(r){ return r.id === reqId; });
   if (!req) return;
+
   if (req.status === 'assigned') {
     var ov = document.createElement('div');
     ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;';
@@ -2982,124 +3087,153 @@ window.modifySvcRequest = function(reqId) {
   }
   if (req.status !== 'received') return;
 
-  var typeIcons = { 'Water':'💧','Towels':'🧻','Room Cleaning':'🧹','Other':'🔧' };
-  var qtyTypes = ['Water','Towels'];
-  var allTypes = ['Water','Towels','Room Cleaning','Other'];
+  // All preset services (same as service screen)
+  var presetServices = [
+    { type:'Water',         icon:'💧', countable:true  },
+    { type:'Towels',        icon:'🧻', countable:true  },
+    { type:'Room Cleaning', icon:'🧹', countable:false },
+    { type:'Extra Pillows', icon:'🛏️', countable:true  },
+    { type:'Toiletries',    icon:'🧴', countable:true  },
+    { type:'Iron & Board',  icon:'🫳', countable:false },
+  ];
+  var presetTypes = presetServices.map(function(s){ return s.type; });
 
-  // Build initial items from existing request
-  var modItems = {};
+  // Load existing items into working cart (array of {type,icon,qty,custom,_id})
+  var _seq = 0;
+  var modCart = [];
   if (req.items && Array.isArray(req.items)) {
-    req.items.forEach(function(it){ modItems[it.type] = it.qty || 1; });
-  } else if (req.type && req.type.indexOf(' + ') > -1) {
-    // Already combined type string
-    req.type.split(' + ').forEach(function(t){ modItems[t.trim()] = 1; });
-  } else {
-    modItems[req.type] = req.qty || 1;
-  }
-
-  function updateDisplay() {
-    allTypes.forEach(function(t) {
-      var qty = modItems[t] || 0;
-      var row = document.getElementById('svc-row-' + t.replace(/ /g,'_'));
-      if (!row) return;
-      var minusEl = row.querySelector('.svc-minus');
-      var qtyEl = row.querySelector('.svc-qty');
-      var plusEl = row.querySelector('.svc-plus');
-      var otherInput = document.getElementById('svc-other-input');
-      if (qty > 0) {
-        if (minusEl) minusEl.style.display = '';
-        if (qtyEl) qtyEl.textContent = qty;
-        if (qtyEl) qtyEl.style.display = '';
-        if (plusEl) { plusEl.style.background = 'var(--gold)'; plusEl.style.color = 'var(--dark)'; plusEl.style.borderColor = 'var(--gold)'; }
-      } else {
-        if (minusEl) minusEl.style.display = 'none';
-        if (qtyEl) qtyEl.style.display = 'none';
-        if (plusEl) { plusEl.style.background = 'var(--surface2)'; plusEl.style.color = 'var(--text-muted)'; plusEl.style.borderColor = 'var(--card-border)'; }
-      }
-      // Show Other text input when Other is selected
-      if (t === 'Other' && otherInput) {
-        otherInput.style.display = qty > 0 ? 'block' : 'none';
-      }
+    req.items.forEach(function(it){
+      modCart.push({ _id: ++_seq, type:it.type, icon:it.icon||'🔔', qty:it.qty||1, custom:it.custom||false });
     });
-    var summaryEl = document.getElementById('svc-summary');
-    if (summaryEl) {
-      var sel = Object.keys(modItems).filter(function(t){ return modItems[t]>0; });
-      summaryEl.textContent = sel.length
-        ? sel.map(function(t){ return (qtyTypes.indexOf(t)>-1 ? modItems[t]+'× ' : '') + t; }).join(' · ')
-        : 'Nothing selected';
-    }
+  } else {
+    modCart.push({ _id: ++_seq, type:req.type, icon:req.icon||'🔔', qty:req.qty||1, custom:false });
   }
 
-  var ov = document.getElementById('svc-modify-overlay');
-  if (ov) ov.remove();
+  var ov2 = document.getElementById('svc-modify-overlay');
+  if (ov2) ov2.remove();
   var overlay = document.createElement('div');
   overlay.id = 'svc-modify-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:flex-end;justify-content:center;';
 
-  var rows = allTypes.map(function(t) {
-    var qty = modItems[t] || 0;
-    var tid = t.replace(/ /g,'_');
-    return '<div id="svc-row-' + tid + '" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--card-border);">'
-      + '<div style="display:flex;align-items:center;gap:10px;">'
-      + '<span style="font-size:22px;">' + typeIcons[t] + '</span>'
-      + '<span style="font-size:14px;color:var(--text);">' + t + '</span>'
+  function renderOverlay() {
+    var cartHtml = modCart.length
+      ? modCart.map(function(item) {
+          var nonCountable = ['Room Cleaning','Iron & Board'];
+          var qtyHtml = nonCountable.indexOf(item.type) === -1
+            ? '<button class="mod-svc-minus" data-id="' + item._id + '" style="width:28px;height:28px;border-radius:50%;background:var(--surface2);border:1px solid var(--card-border);color:var(--text-muted);font-size:16px;cursor:pointer;line-height:1;">−</button>'
+              + '<span style="font-size:14px;color:var(--text);min-width:18px;text-align:center;" id="mod-svc-qty-' + item._id + '">' + item.qty + '</span>'
+              + '<button class="mod-svc-plus" data-id="' + item._id + '" style="width:28px;height:28px;border-radius:50%;background:rgba(201,169,110,0.12);border:1px solid rgba(201,169,110,0.35);color:var(--gold);font-size:16px;cursor:pointer;line-height:1;">+</button>'
+            : '';
+          return '<div id="mod-svc-row-' + item._id + '" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--card-border);">'
+            + '<span style="font-size:20px;width:26px;text-align:center;">' + item.icon + '</span>'
+            + '<span style="flex:1;font-size:14px;color:var(--text);">' + item.type + '</span>'
+            + '<div style="display:flex;align-items:center;gap:6px;">'
+            + qtyHtml
+            + '<button class="mod-svc-del" data-id="' + item._id + '" style="width:28px;height:28px;border-radius:50%;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.2);color:#C0392B;font-size:13px;cursor:pointer;margin-left:4px;">✕</button>'
+            + '</div></div>';
+        }).join('')
+      : '<div style="padding:16px 0;text-align:center;font-size:13px;color:var(--text-dim);">No items — add from below</div>';
+
+    var presetHtml = '<div style="margin-top:16px;">'
+      + '<div style="font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;">Add Item</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">'
+      + presetServices.map(function(s){
+          return '<div class="mod-svc-add" data-type="' + s.type + '" data-icon="' + s.icon + '" '
+            + 'style="background:var(--surface2);border:1px solid var(--card-border);border-radius:12px;padding:10px 6px;text-align:center;cursor:pointer;transition:all 0.15s;">'
+            + '<div style="font-size:20px;">' + s.icon + '</div>'
+            + '<div style="font-size:11px;color:var(--text-muted);margin-top:4px;line-height:1.2;">' + s.type + '</div>'
+            + '</div>';
+        }).join('')
       + '</div>'
-      + '<div style="display:flex;align-items:center;gap:8px;">'
-      + '<button class="svc-minus" data-type="' + t + '" style="width:30px;height:30px;border-radius:50%;background:var(--surface2);border:1px solid var(--card-border);color:var(--text);font-size:18px;cursor:pointer;' + (qty===0?'display:none':'') + '">−</button>'
-      + '<span class="svc-qty" style="font-size:14px;color:var(--text);min-width:20px;text-align:center;' + (qty===0?'display:none':'') + '">' + qty + '</span>'
-      + '<button class="svc-plus" data-type="' + t + '" style="width:30px;height:30px;border-radius:50%;background:' + (qty>0?'var(--gold)':'var(--surface2)') + ';border:1px solid ' + (qty>0?'var(--gold)':'var(--card-border)') + ';color:' + (qty>0?'var(--dark)':'var(--text-muted)') + ';font-size:18px;cursor:pointer;">+</button>'
-      + '</div></div>';
-  }).join('');
+      + '<div style="display:flex;gap:8px;margin-top:10px;">'
+      + '<input id="mod-svc-custom-inp" type="text" placeholder="Custom request…" style="flex:1;background:var(--surface2);border:1px solid var(--card-border);border-radius:10px;padding:9px 12px;color:var(--text);font-size:13px;font-family:DM Sans,sans-serif;outline:none;"/>'
+      + '<button id="mod-svc-custom-add" style="padding:9px 14px;background:var(--surface2);border:1px solid rgba(201,169,110,0.35);border-radius:10px;color:var(--gold);font-size:18px;cursor:pointer;">+</button>'
+      + '</div>'
+      + '</div>';
 
-  var sel0 = Object.keys(modItems).filter(function(t){ return modItems[t]>0; });
-  var summary0 = sel0.length ? sel0.map(function(t){ return (qtyTypes.indexOf(t)>-1?modItems[t]+'× ':'')+t; }).join(' · ') : 'Nothing selected';
+    overlay.innerHTML = '<div style="background:var(--surface);border-radius:24px 24px 0 0;padding:20px 20px 28px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;-webkit-overflow-scrolling:touch;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
+      + '<div style="font-family:Cormorant Garamond,serif;font-size:20px;color:var(--text);">Modify Request</div>'
+      + '<button id="svc-mod-close" style="background:var(--surface2);border:1px solid var(--card-border);border-radius:8px;width:30px;height:30px;color:var(--text-muted);font-size:18px;cursor:pointer;">×</button>'
+      + '</div>'
+      + '<div style="font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Current Request</div>'
+      + cartHtml
+      + presetHtml
+      + '<button id="svc-mod-confirm" style="width:100%;margin-top:16px;padding:14px;background:var(--gold);border:none;border-radius:14px;color:var(--dark);font-family:DM Sans,sans-serif;font-size:15px;font-weight:600;cursor:pointer;">Update Request</button>'
+      + '</div>';
 
-  overlay.innerHTML = '<div style="background:var(--surface);border-radius:24px 24px 0 0;padding:24px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto;">'
-    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">'
-    + '<div style="font-family:Cormorant Garamond,serif;font-size:20px;color:var(--text);">Modify Request</div>'
-    + '<button id="svc-mod-close" style="background:var(--surface2);border:1px solid var(--card-border);border-radius:8px;width:30px;height:30px;color:var(--text-muted);font-size:18px;cursor:pointer;">×</button>'
-    + '</div>'
-    + rows
-    + '<input id="svc-other-input" type="text" placeholder="Describe what you need..." style="display:' + (modItems['Other']>0?'block':'none') + ';width:100%;margin-top:8px;padding:10px 12px;background:var(--surface2);border:1px solid var(--card-border);border-radius:10px;color:var(--text);font-size:14px;font-family:DM Sans,sans-serif;outline:none;box-sizing:border-box;" value="' + (req.otherNote||'') + '">'
-    + '<div id="svc-summary" style="font-size:12px;color:var(--text-muted);margin:12px 0 4px;padding-top:8px;border-top:1px solid var(--card-border);">' + summary0 + '</div>'
-    + '<button id="svc-mod-confirm" style="width:100%;margin-top:12px;padding:14px;background:var(--gold);border:none;border-radius:14px;color:var(--dark);font-family:DM Sans,sans-serif;font-size:15px;font-weight:600;cursor:pointer;">Update Request</button>'
-    + '</div>';
+    // Attach listeners
+    overlay.querySelector('#svc-mod-close').addEventListener('click', function(){ overlay.remove(); });
+
+    overlay.querySelectorAll('.mod-svc-del').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = parseInt(this.getAttribute('data-id'));
+        modCart = modCart.filter(function(i){ return i._id !== id; });
+        renderOverlay();
+      });
+    });
+
+    overlay.querySelectorAll('.mod-svc-minus').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = parseInt(this.getAttribute('data-id'));
+        var item = modCart.find(function(i){ return i._id === id; });
+        if (!item) return;
+        if (item.qty > 1) { item.qty--; document.getElementById('mod-svc-qty-' + id).textContent = item.qty; }
+        else { modCart = modCart.filter(function(i){ return i._id !== id; }); renderOverlay(); }
+      });
+    });
+
+    overlay.querySelectorAll('.mod-svc-plus').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = parseInt(this.getAttribute('data-id'));
+        var item = modCart.find(function(i){ return i._id === id; });
+        if (item) { item.qty = Math.min(10, item.qty + 1); document.getElementById('mod-svc-qty-' + id).textContent = item.qty; }
+      });
+    });
+
+    overlay.querySelectorAll('.mod-svc-add').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var type = this.getAttribute('data-type');
+        var icon = this.getAttribute('data-icon');
+        var existing = modCart.find(function(i){ return i.type === type && !i.custom; });
+        var nonCountable = ['Room Cleaning','Iron & Board'];
+        if (existing && nonCountable.indexOf(type) === -1) {
+          existing.qty = Math.min(10, existing.qty + 1);
+        } else if (!existing) {
+          modCart.push({ _id: ++_seq, type:type, icon:icon, qty:1, custom:false });
+        }
+        renderOverlay();
+      });
+    });
+
+    var customAddBtn = overlay.querySelector('#mod-svc-custom-add');
+    if (customAddBtn) customAddBtn.addEventListener('click', function(){
+      var inp = overlay.querySelector('#mod-svc-custom-inp');
+      var val = inp ? inp.value.trim() : '';
+      if (!val) return;
+      modCart.push({ _id: ++_seq, type:val, icon:'🔧', qty:1, custom:true });
+      renderOverlay();
+    });
+
+    var confirmBtn = overlay.querySelector('#svc-mod-confirm');
+    if (confirmBtn) confirmBtn.addEventListener('click', function(){
+      if (!modCart.length) { overlay.remove(); return; }
+      var newItems = modCart.map(function(i){ return { type:i.type, icon:i.icon, qty:i.qty, custom:i.custom||false }; });
+      req.items = newItems;
+      req.type = newItems.length === 1 ? newItems[0].type : newItems.length + ' items';
+      req.icon = newItems[0].icon;
+      req.qty = null;
+      _saveHistory(); renderServices(); updateServicesBadge();
+      overlay.remove();
+      showGuestToast('Request updated!', 'green');
+      _waitDb().then(function(db){
+        if(db) db.collection('service_requests').doc(String(reqId)).update({ items:newItems, type:req.type }).catch(function(){});
+      });
+    });
+  }
 
   document.body.appendChild(overlay);
-
-  document.getElementById('svc-mod-close').addEventListener('click', function(){ overlay.remove(); });
-
-  overlay.querySelectorAll('.svc-plus').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      var t = this.getAttribute('data-type');
-      modItems[t] = (modItems[t] || 0) + 1;
-      updateDisplay();
-    });
-  });
-  overlay.querySelectorAll('.svc-minus').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      var t = this.getAttribute('data-type');
-      if (modItems[t] > 1) modItems[t]--;
-      else delete modItems[t];
-      updateDisplay();
-    });
-  });
-
-  document.getElementById('svc-mod-confirm').addEventListener('click', function(){
-    var selectedItems = Object.keys(modItems).filter(function(t){ return modItems[t]>0; });
-    if (!selectedItems.length) { overlay.remove(); return; }
-    var otherNote = document.getElementById('svc-other-input') ? document.getElementById('svc-other-input').value.trim() : '';
-    req.otherNote = otherNote;
-    req.items = selectedItems.map(function(t){ return {type:t, qty:modItems[t], icon:typeIcons[t], note:(t==='Other'?otherNote:null)}; });
-    req.type = selectedItems.join(' + ');
-    req.icon = selectedItems.map(function(t){ return typeIcons[t]; }).join('');
-    req.qty = null;
-    _saveHistory(); renderServices(); updateServicesBadge();
-    overlay.remove(); showGuestToast('Request updated!','green');
-    _waitDb().then(function(db){
-      if(db) db.collection('service_requests').doc(String(reqId)).update({items:req.items,type:req.type}).catch(function(){});
-    });
-  });
+  renderOverlay();
 };
 
 window.cancelSvcRequest = function(reqId) {
@@ -3725,38 +3859,7 @@ placeOrder = async function(isMerge) {
   }
 };
 
-// ── OVERRIDE submitService — writes to Firebase + attaches listener
-var _origSubmitService = submitService;
-submitService = function() {
-  _origSubmitService();
-  var req = serviceHistory[0];
-  if (!req) return;
-  _waitDb().then(function(db) {
-    if (!db) return;
-    db.collection('service_requests').doc(String(req.id)).set({
-      id:        req.id,
-      room:      String(window.ROOM_NUM || '000'),
-      guest:     String(window.GUEST_NAME || 'Guest'),
-      type:      req.type,
-      icon:      req.icon || '',
-      qty:       req.qty || null,
-      note:      req.note || null,
-      status:    'received',
-      placed_at: new Date().toISOString()
-    }).then(function() {
-      // Attach service listener
-      db.collection('service_requests').doc(String(req.id)).onSnapshot(function(doc) {
-        if (!doc.exists) return;
-        var r = serviceHistory.find(function(x){ return x.id === req.id; });
-        if (!r) return;
-        r.status = doc.data().status;
-        _saveHistory();
-        updateServicesBadge();
-        if (document.getElementById('screen-services').classList.contains('active')) renderServices();
-      });
-    }).catch(function(e){ console.warn('Service insert:', e.message); });
-  });
-};
+// submitService writes to Firebase directly — no override needed
 
 // ── Poll every 8s as belt-and-suspenders fallback
 setInterval(function() {
