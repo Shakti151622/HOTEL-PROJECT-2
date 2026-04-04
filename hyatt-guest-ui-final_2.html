@@ -2301,6 +2301,11 @@ function renderOrders() {
           if(i===1){
             var _eta  = o.eta || 20;
             var _sm   = o.acceptedAt || Date.now();
+            // Apply 10-min cap: when ready and natural remaining > 10 mins, shift reference to readyAt
+            if (o.status === 'ready' && o.readyAt && o.acceptedAt) {
+              var _natRem = _eta - Math.floor((o.readyAt - o.acceptedAt) / 60000);
+              if (_natRem > 10) { _sm = o.readyAt; _eta = 10; }
+            }
             var _em   = Date.now() - _sm;            // elapsed ms
             var _etaMs = _eta * 60000;               // full ETA in ms
             var _stopMs = Math.max(1000, (_eta-1)*60000); // stop 1 min before ETA
@@ -2991,6 +2996,11 @@ function renderServices() {
       if (i === 1 && (r.status === 'assigned' || r.status === 'inprogress')) {
         var _svcEta    = r.eta || 15;
         var _svcRef    = r.assignedAt || r.placedAt || Date.now();
+        // 10-min cap: when inprogress and natural remaining > 10 mins, shift reference to inprogressAt
+        if (r.status === 'inprogress' && r.inprogressAt && r.assignedAt) {
+          var _natRem = _svcEta - Math.floor((r.inprogressAt - r.assignedAt) / 60000);
+          if (_natRem > 10) { _svcRef = r.inprogressAt; _svcEta = 10; }
+        }
         var _svcElMs   = Date.now() - _svcRef;
         var _svcStopMs = Math.max(1000, (_svcEta - 1) * 60000);
         var _atSvcStop = _svcElMs >= _svcStopMs;
