@@ -2250,11 +2250,10 @@ function renderOrders() {
                 _dotAnim = 'animation:line-tip-pulse 0.6s ease-in-out infinite;';
                 _lineAnim2 = _overMin > 0 ? 'animation:_flash 0.8s ease-in-out infinite;' : '';
               } else {
-                // Travelling smoothly 0→35% over (eta-1) minutes
+                // Current position based on elapsed time
                 _pct = (_em / _stopMs) * 85;
-                var _remMs = Math.max(0, _stopMs - _em);
-                // CSS transition covers remaining time so line glides without JS repaints
-                _lineAnim2 = _remMs > 500 ? 'transition:width '+Math.round(_remMs/1000)+'s linear;' : '';
+                // No transition on initial render — 1s interval handles smooth updates
+                _lineAnim2 = '';
                 _dotAnim = 'animation:line-tip-pulse 1s ease-in-out infinite;';
               }
 
@@ -2407,6 +2406,7 @@ function renderOrders() {
       if (lineEl && dotEl) {
         var atStop = elMs >= stopMs;
         var pct = atStop ? 85 : Math.min(85, (elMs/stopMs)*85);
+        lineEl.style.transition = 'width 1.5s linear';
         lineEl.style.width = pct.toFixed(1)+'%';
         lineEl.style.background = col;
         dotEl.style.background = col;
@@ -2676,11 +2676,7 @@ window.editQty = function(idx, delta) {
 
 // confirmModify defined in Firebase section below
 
-// Re-render every 30s so ETA countdown ticks
-setInterval(function(){
-  var hasActive=orderHistory.some(function(o){return o.status==='accepted'||o.status==='preparing';});
-  if(hasActive){updateOrdersBadge();if(document.getElementById('screen-orders').classList.contains('active'))renderOrders();}
-},30000);
+// ETA updates handled by 1s targeted interval — no full re-render needed here
 
 // ── Service
 const serviceIcons = {
@@ -2758,8 +2754,8 @@ function submitService() {
     if(!db)return;
     db.collection('service_requests').doc(String(reqId)).set({id:reqId,room:String(window.ROOM_NUM||'000'),guest:String(window.GUEST_NAME||'Guest'),type:selectedService,icon:req.icon,qty:qty,note:note||null,status:'received',placed_at:now.toISOString()}).then(function(){
       db.collection('service_requests').doc(String(reqId)).onSnapshot(function(doc){
-        if(!doc.exists)return;var r=serviceHistory.find(function(x){return x.id===reqId;});if(!r||doc.data().status===r.status)return;
-        r.status=doc.data().status;updateServicesBadge();if(document.getElementById('screen-services').classList.contains('active'))renderServices();
+        if(!doc.exists)return;var r=serviceHistory.find(function(x){return x.id===reqId;});if(!r)return;
+        r.status=doc.data().status;_saveHistory();updateServicesBadge();if(document.getElementById('screen-services').classList.contains('active'))renderServices();
       });
     });
   });
@@ -3642,6 +3638,35 @@ function attachAllListeners() {
         renderOrders();
       })
       .catch(function(e){ console.warn('[GUEST] attachAllListeners Firestore error:', e); });
+
+    // Also sync + re-attach service request listeners
+    db.collection('service_requests')
+      .where('room', '==', roomNum)
+      .get()
+      .then(function(snap) {
+        snap.docs.forEach(function(doc) {
+          var data = doc.data();
+          if (data.status === 'done' || data.status === 'cancelled') return;
+          var req = serviceHistory.find(function(r){ return r.id === doc.id; });
+          if (!req) return;
+          // Sync current Firebase state
+          req.status = data.status;
+          _saveHistory();
+          // Re-attach live listener
+          db.collection('service_requests').doc(doc.id).onSnapshot(function(d) {
+            if (!d.exists) return;
+            var r2 = serviceHistory.find(function(x){ return x.id === doc.id; });
+            if (!r2) return;
+            r2.status = d.data().status;
+            _saveHistory();
+            updateServicesBadge();
+            if (document.getElementById('screen-services').classList.contains('active')) renderServices();
+          });
+        });
+        updateServicesBadge();
+        if (document.getElementById('screen-services').classList.contains('active')) renderServices();
+      })
+      .catch(function(e){ console.warn('[GUEST] svc sync error:', e); });
   });
 }
 
