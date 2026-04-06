@@ -100,6 +100,304 @@
     -webkit-overflow-scrolling: touch;
   }
 
+  /* ══ DELIVERED ORDER ACTIONS STRIP ══ */
+
+  /* ── DELIVERED ACTIONS WRAPPER ── */
+  .delivered-actions {
+    margin-top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* ── TRAY PICKUP ── theme-aware card ── */
+  .tray-pickup-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 15px 18px;
+    background: var(--surface);
+    border: 2px solid var(--gold);
+    border-radius: 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: all 0.22s ease;
+    position: relative;
+    overflow: hidden;
+    text-align: left;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  }
+  .tray-pickup-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(201,169,110,0.08);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .tray-pickup-btn:active::before { opacity: 1; }
+  .tray-pickup-btn:active { transform: scale(0.985); }
+  .tray-pickup-btn .tray-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .tray-pickup-icon-wrap {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: rgba(201,169,110,0.15);
+    border: 1.5px solid var(--gold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .tray-pickup-text-wrap { display: flex; flex-direction: column; gap: 3px; }
+  .tray-pickup-title { font-size: 14px; font-weight: 700; color: var(--gold); line-height: 1.2; }
+  .tray-pickup-sub { font-size: 11px; color: var(--text-muted); }
+  .tray-pickup-arrow {
+    font-size: 20px;
+    color: var(--gold);
+    flex-shrink: 0;
+    font-weight: bold;
+  }
+  .tray-pickup-btn.sent {
+    background: var(--surface);
+    border-color: var(--green);
+    border-width: 2px;
+    pointer-events: none;
+    box-shadow: 0 4px 16px rgba(76,175,125,0.15);
+  }
+  .tray-pickup-btn.sent .tray-pickup-title { color: var(--green); font-size: 15px; font-weight: 700; }
+  .tray-pickup-btn.sent .tray-pickup-sub { color: var(--green); font-size: 12px; opacity: 0.8; }
+  .tray-pickup-btn.sent .tray-pickup-icon-wrap { 
+    background: rgba(76,175,125,0.15); 
+    border: 1.5px solid var(--green);
+    font-size: 22px;
+  }
+  .tray-pickup-btn.sent .tray-pickup-arrow { display: none; }
+
+  /* ── RATING CARD — theme-aware ── */
+  .rating-section {
+    background: var(--surface);
+    border: 2px solid var(--gold);
+    border-radius: 16px;
+    padding: 16px 16px 14px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+  }
+  .rating-section::before {
+    content: '';
+    position: absolute;
+    top: -20px; right: -20px;
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(201,169,110,0.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .rating-section.rated {
+    background: var(--surface);
+    border-color: var(--green);
+  }
+
+  /* Rating header row */
+  .rating-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .rating-title-col { display: flex; flex-direction: column; gap: 3px; }
+  .rating-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 19px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1;
+  }
+  .rating-subtitle {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.02em;
+  }
+  .rating-badge {
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gold);
+    background: rgba(201,169,110,0.12);
+    border: 1.5px solid var(--gold);
+    border-radius: 20px;
+    padding: 4px 10px;
+    white-space: nowrap;
+    font-weight: 700;
+  }
+
+  /* ── STARS — compact, professional ── */
+  .star-row {
+    display: flex;
+    gap: 5px;
+    justify-content: space-between;
+    margin-bottom: 0;
+  }
+  .star-btn {
+    flex: 1;
+    background: var(--surface2);
+    border: 1.5px solid var(--gold);
+    border-radius: 10px;
+    padding: 8px 2px 7px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.18s ease;
+    -webkit-tap-highlight-color: transparent;
+    position: relative;
+    overflow: hidden;
+  }
+  .star-btn:active { transform: scale(0.90); }
+
+  .star-btn .star-glyph {
+    width: 22px;
+    height: 22px;
+    display: block;
+    transition: transform 0.18s ease;
+    overflow: visible;
+  }
+  .star-btn .star-glyph .star-outline {
+    fill: none;
+    stroke: #F5C842;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    opacity: 1;
+    transition: all 0.18s;
+  }
+  .star-btn .star-glyph .star-fill {
+    fill: #F5C842;
+    stroke: none;
+    opacity: 0;
+    transition: opacity 0.18s;
+  }
+
+  .star-btn .star-label {
+    font-size: 7.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--gold);
+    transition: color 0.18s;
+    line-height: 1;
+    font-weight: 600;
+  }
+
+  /* Selected state */
+  .star-btn.filled {
+    background: var(--surface2);
+    border-color: var(--gold);
+    box-shadow: 0 0 10px rgba(201,169,110,0.20);
+  }
+  .star-btn.filled .star-glyph { transform: scale(1.15); }
+  .star-btn.filled .star-glyph .star-outline { opacity: 0; }
+  .star-btn.filled .star-glyph .star-fill { opacity: 1; }
+  .star-btn.filled .star-label { color: #F5C842; font-weight: 700; }
+
+  @keyframes starBounce {
+    0%   { transform: scale(1); }
+    45%  { transform: scale(1.40); }
+    70%  { transform: scale(0.95); }
+    100% { transform: scale(1.18); }
+  }
+
+  /* Mood prompt line under stars */
+  .rating-mood {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 16px;
+    color: var(--gold);
+    text-align: center;
+    margin: 10px 0 0;
+    min-height: 20px;
+    transition: opacity 0.2s;
+    opacity: 0;
+    font-weight: 600;
+  }
+  .rating-mood.visible { opacity: 1; }
+
+  /* Comment + submit */
+  .rating-form-wrap {
+    margin-top: 12px;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    animation: fadeIn 0.25s ease;
+  }
+  .rating-form-wrap.open { display: flex; }
+  .rating-comment {
+    width: 100%;
+    background: var(--surface2);
+    border: 1.5px solid var(--gold);
+    border-radius: 10px;
+    padding: 11px 13px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    resize: none;
+    outline: none;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+    min-height: 68px;
+  }
+  .rating-comment:focus { border-color: var(--gold); }
+  .rating-comment::placeholder { color: var(--text-dim); }
+  .rating-submit-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--gold);
+    border: none;
+    border-radius: 11px;
+    color: var(--dark);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+    transition: all 0.2s;
+    box-shadow: 0 4px 16px rgba(201,169,110,0.25);
+  }
+  .rating-submit-btn:active { transform: scale(0.97); box-shadow: none; }
+
+  /* Submitted state */
+  .rating-done-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .rating-done-stars {
+    display: flex;
+    gap: 3px;
+  }
+  .rating-done-stars span {
+    font-size: 22px;
+    color: var(--gold);
+  }
+  .rating-done-label {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 16px;
+    color: var(--text);
+  }
+  .rating-done-comment {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+    line-height: 1.45;
+  }
+
   /* ── SCREENS ── */
   .screen {
     display: none;
@@ -1053,6 +1351,27 @@
     letter-spacing: 0.05em; text-align: center;
     white-space: nowrap;
   }
+  .tracker-step-time {
+    font-size: 9.5px; color: #FFFFFF; margin-top: 1px;
+    letter-spacing: 0.03em; text-align: center;
+    white-space: nowrap; opacity: 0.5;
+  }
+  .tracker-step.done .tracker-step-time,
+  .tracker-step.active .tracker-step-time { color: #FFFFFF; opacity: 0.7; }
+  :root.day .tracker-step-time { color: var(--text-muted); opacity: 0.75; }
+  :root.day .tracker-step.done .tracker-step-time,
+  :root.day .tracker-step.active .tracker-step-time { color: var(--text); opacity: 0.85; }
+
+  /* ── Comment row below circles ── */
+  .tracker-comment-row {
+    margin-top: 10px; margin-bottom: 2px;
+    font-size: 13px; color: var(--text-muted);
+    letter-spacing: 0.01em; line-height: 1.4;
+    border-top: 1px solid var(--topbar-border);
+    padding-top: 10px;
+  }
+  :root.day .tracker-comment-row { color: var(--text-muted); }
+
   .tracker-step.done .tracker-step-name,
   .tracker-step.active .tracker-step-name { color: var(--green); font-weight:500; }
 
@@ -2211,10 +2530,22 @@ function renderOrders() {
   const statusLabel = { new: 'Order Placed', accepted: 'Preparing 👨‍🍳', preparing: 'Preparing 👨‍🍳', ready: 'Food is Ready 🍽️', delivered: 'Delivered', rejected: 'Rejected', cancelled: 'Cancelled' };
   const statusClass = { new: 'status-preparing', accepted: 'status-preparing', preparing: 'status-preparing', ready: 'status-food-ready', delivered: 'status-delivered-green', rejected: 'status-rejected', cancelled: 'status-cancelled-red' };
 
-  const stepsDef = ['Placed', 'Accepted', 'Delivered'];
+  const stepsDef = ['Placed', 'Preparing', 'Served'];
   const STATUS_TO_STEP = { new:0, accepted:1, preparing:1, ready:1, delivered:2 };
   function stepIndex(status) {
     return STATUS_TO_STEP[status] !== undefined ? STATUS_TO_STEP[status] : 0;
+  }
+
+  // ── Helper: format a ms/ISO timestamp → "H:MM AM/PM"
+  function _fmtTime(ts) {
+    if (!ts) return '';
+    var _ts2 = typeof ts === 'number' ? ts : new Date(ts).getTime();
+    if (isNaN(_ts2)) return '';
+    var _d = new Date(_ts2);
+    var _h = _d.getHours(), _m = _d.getMinutes();
+    var _ap = _h >= 12 ? 'PM' : 'AM';
+    var _h12 = _h % 12 || 12;
+    return _h12 + ':' + (_m < 10 ? '0' : '') + _m + ' ' + _ap;
   }
   // ── Colour helper based on over-ETA minutes
   function _etaCol(overMin) {
@@ -2225,45 +2556,75 @@ function renderOrders() {
   }
 
   function getEtaHtml(o) {
-    if(o.status==='rejected'||o.status==='cancelled') return '';
-    var eta = o.eta || 20;
-    var acceptedAt = o.acceptedAt || null;
-    var now = Date.now();
-    var col, num;
-    if(!acceptedAt || o.status==='new') {
-      col = 'var(--text-muted)';
-      num = eta+' min';
-    } else {
-      // 10-min shift: when ready and not already late, count from readyAt with 10 min cap
-      var _ref = acceptedAt, _eta = eta;
-      if (o.status === 'ready' && o.readyAt) {
-        var _natRem = eta - Math.floor((o.readyAt - acceptedAt) / 60000);
-        if (_natRem > DELIVERY_ETA_MINS) { _ref = o.readyAt; _eta = DELIVERY_ETA_MINS; }
-      }
-      var elapsedMin = Math.floor((now - _ref) / 60000);
-      var overMin   = elapsedMin - _eta;
-      var remaining = Math.max(0, _eta - elapsedMin);
-      col = _etaCol(overMin);
-      if(o.status==='delivered') {
-        var deliveredAt = o.deliveredAt || now;
-        var tookMin = Math.round((deliveredAt - acceptedAt) / 60000);
-        num = tookMin+' min';
-      } else if(overMin > 0) {
-        num = overMin > 240 ? 'Delayed' : '+'+Math.min(overMin,99)+'m';
-      } else if(remaining === 0) {
-        num = o.status==='ready' ? 'Arriving!' : 'Delivering!';
-      } else {
-        var remSec = Math.max(0, _eta*60 - Math.floor((now - _ref)/1000));
-        var remM = Math.floor(remSec/60);
-        var remS = remSec % 60;
-        num = remM+'m '+(remS<10?'0':'')+remS+'s';
-      }
+    // RIGHT: timer — shown for new/accepted/preparing/ready; hidden for delivered/rejected/cancelled
+    if(o.status==='rejected'||o.status==='cancelled'||o.status==='delivered') return '';
+
+    // 'new' — right-aligned "~X min" in gold
+    if(o.status==='new'||!o.acceptedAt) {
+      var _eta = o.eta || 20;
+      var _clkN='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+      return '<div style="display:flex;align-items:center;justify-content:flex-end;gap:2px;">'
+        + _clkN
+        + '<span id="eta-centre-new-'+o.id+'" style="font-size:15px;font-weight:700;font-family:DM Sans,sans-serif;color:var(--gold);">~'+_eta+' min</span>'
+        + '</div>';
     }
-    var _clock='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="'+col+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
-    return '<div style="text-align:right;display:flex;align-items:center;justify-content:flex-end;gap:2px;">'
+
+    // ready — "Arriving in X:XX" right-aligned green
+    if(o.status==='ready') {
+      var now = Date.now();
+      var readyAt = o.readyAt || now;
+      var delMs  = DELIVERY_ETA_MINS * 60000;
+      var elMs   = now - readyAt;
+      var overMin2 = Math.max(0, Math.floor((elMs - delMs) / 60000));
+      var col2 = _etaCol(overMin2);
+      var txt2;
+      if(overMin2 > 0) {
+        txt2 = '+' + Math.min(overMin2, 99) + 'm overdue';
+      } else {
+        var remSec2 = Math.max(0, delMs - elMs);
+        var remM2 = Math.floor(remSec2 / 60000);
+        var remS2 = Math.floor((remSec2 % 60000) / 1000);
+        txt2 = remM2 + ':' + (remS2 < 10 ? '0' : '') + remS2;
+      }
+      return '<div style="text-align:right;white-space:nowrap;">'
+        + '<span style="font-size:11px;color:var(--text-muted);margin-right:3px;">Arriving in</span>'
+        + '<span style="font-size:15px;font-weight:700;font-family:DM Sans,sans-serif;color:'+col2+';" id="eta-arriving-'+o.id+'">'+txt2+'</span>'
+        + '</div>';
+    }
+
+    // accepted / preparing — countdown timer right-aligned
+    var eta = o.eta || 20;
+    var now = Date.now();
+    var elapsedMin = Math.floor((now - o.acceptedAt) / 60000);
+    var overMin = elapsedMin - eta;
+    var col = _etaCol(overMin);
+    var num;
+    if(overMin > 0) {
+      num = overMin > 240 ? 'Delayed' : '+'+Math.min(overMin,99)+'m';
+    } else {
+      var remSec = Math.max(0, eta*60 - Math.floor((now - o.acceptedAt)/1000));
+      var remM = Math.floor(remSec/60), remS = remSec % 60;
+      num = remM > 0 ? remM+'m '+(remS<10?'0':'')+remS+'s' : (remSec > 0 ? remS+'s' : 'Delivering!');
+    }
+    var _clock='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="'+col+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+    return '<div style="display:flex;align-items:center;justify-content:flex-end;gap:2px;">'
       + _clock
       + '<span id="eta-timer-'+o.id+'" style="font-size:15px;font-weight:700;font-family:DM Sans,sans-serif;color:'+col+';">'+num+'</span>'
       + '</div>';
+  }
+
+  function getStatusCommentHtml(o) {
+    // CENTRE: elegant one-line status comment — changes per stage
+    if(o.status==='rejected'||o.status==='cancelled'||o.status==='delivered') return '';
+    var _comments = {
+      'new':       '👨‍🍳 Kitchen is reviewing your order',
+      'accepted':  '🔥 Preparing your meal',
+      'preparing': '🔥 Preparing your meal',
+      'ready':     '🛎 On its way to your room'
+    };
+    var _txt = _comments[o.status] || '';
+    if (!_txt) return '';
+    return '<span class="tracker-status-comment">'+_txt+'</span>';
   }
 
   function getStatusText(o) {
@@ -2284,29 +2645,42 @@ function renderOrders() {
     const steps = isRejected
       ? '<div style="font-size:12px;color:#C0392B;padding:4px 0;">✕ Order was not accepted</div>'
       : isCancelled
-      ? '<div style="font-size:12px;color:var(--text-muted);padding:4px 0;">Order cancelled</div>'
+      ? '<div style="font-size:12px;color:var(--text-muted);padding:4px 0;">Request cancelled' + (r.cancel_reason ? '<div style="font-size:11px;color:var(--red);margin-top:3px;">Reason: ' + r.cancel_reason + '</div>' : '') + '</div>'
       : stepsDef.map((s, i) => {
           // State-driven rendering per spec — no index arithmetic
           var _s = o.status || 'new';
           var _state = {
             placed:        true,
-            acceptedDone:  (_s==='accepted'||_s==='ready'||_s==='delivered'),
-            acceptedBlink: (_s==='new'),
-            deliveredDone: (_s==='delivered')
+            preparingDone: (_s==='accepted'||_s==='preparing'||_s==='ready'||_s==='delivered'),
+            preparingBlink:(_s==='new'),
+            servedDone:    (_s==='delivered')
           };
           var cls = '';
           if (s === 'Placed') {
             cls = 'done';
-          } else if (s === 'Accepted') {
-            if (_state.acceptedDone)  cls = 'done';
-            else if (_state.acceptedBlink) cls = 'active';
-          } else if (s === 'Delivered') {
-            if (_state.deliveredDone) cls = 'done';
+          } else if (s === 'Preparing') {
+            if (_state.preparingDone)  cls = 'done';
+            else if (_state.preparingBlink) cls = 'active';
+          } else if (s === 'Served') {
+            if (_state.servedDone) cls = 'done';
           }
+          // ── Time label under each step name
+          var _stepTime = '';
+          if (s === 'Placed') {
+            var _pts = o.placedAt ? (typeof o.placedAt === 'number' ? o.placedAt : new Date(o.placedAt).getTime()) : null;
+            _stepTime = _pts ? _fmtTime(_pts) : (o.time || '');
+          } else if (s === 'Preparing') {
+            _stepTime = o.acceptedAt ? _fmtTime(o.acceptedAt) : '';
+          } else if (s === 'Served') {
+            _stepTime = o.deliveredAt ? _fmtTime(o.deliveredAt) : (o.acceptedAt ? _fmtTime(o.acceptedAt + (o.eta||20)*60000) : '');
+          }
+          var _timeLabel = _stepTime
+            ? '<div class="tracker-step-time">'+_stepTime+'</div>'
+            : '<div class="tracker-step-time" style="opacity:0;">--:--</div>';
           var tick = (cls === 'done') ? checkSvgGreen : '';
           var anim='';
           if(i===1 && si===0){
-            // Dot centered on Accepted circle while waiting for acceptance
+            // Dot centered on Preparing circle while waiting for acceptance
             anim='<div style="position:absolute;top:6px;left:calc(50% - 5px);width:10px;height:10px;border-radius:50%;background:var(--green);filter:drop-shadow(0 0 5px rgba(76,175,125,0.8));animation:line-tip-pulse 1s ease-in-out infinite;z-index:4;"></div>';
           }
           if(i===1){
@@ -2346,8 +2720,23 @@ function renderOrders() {
               anim='<div id="eta-line-'+o.id+'" style="position:absolute;top:11px;left:calc(50% + 11px);height:2px;background:'+_lineCol+';z-index:1;width:'+_pct.toFixed(1)+'%;'+_lineAnim2+'">'+_dot2+'</div>';
             }
           }
-          return '<div class="tracker-step '+cls+'"'+(i===1 && si===1 ? ' data-no-green-line="1"' : '')+'>'+anim+'<div class="tracker-dot">'+tick+'</div><div class="tracker-step-name">'+s+'</div></div>';
+          return '<div class="tracker-step '+cls+'"'+(i===1 && si===1 ? ' data-no-green-line="1"' : '')+'>'+anim+'<div class="tracker-dot">'+tick+'</div><div class="tracker-step-name">'+s+'</div>'+_timeLabel+'</div>';
         }).join('');
+
+    // ── Comment row: one cell per step, left-aligned under its circle, only active step has text
+    var _allComments = {
+      'Placed':    { 'new': '👨‍🍳 Kitchen is reviewing your order' },
+      'Preparing': { 'accepted': '🔥 Your meal is being prepared', 'preparing': '🔥 Your meal is being prepared', 'ready': '✅ Ready for delivery!' },
+      'Served':    { 'delivered': '🍽️ Enjoy your meal' }
+    };
+    var _cs = o.status || 'new';
+    var _activeComment = '';
+    Object.keys(_allComments).forEach(function(step) {
+      if (_allComments[step][_cs]) _activeComment = _allComments[step][_cs];
+    });
+    var commentRowHtml = (_activeComment && o.status!=='delivered'&&o.status!=='rejected'&&o.status!=='cancelled')
+      ? '<div class="tracker-comment-row">'+_activeComment+'</div>'
+      : '';
 
     // Cancel/Modify: always for 'new', within 10 mins for 'accepted'
     const minsElapsed = o.acceptedAt ? (Date.now() - o.acceptedAt) / 60000 : 0;
@@ -2371,7 +2760,7 @@ function renderOrders() {
           ${statusLabel[o.status]||o.status}
         </div>
       </div>
-      ${o.status === 'rejected' && o.rejection_reason ? `
+      ${(o.status === 'rejected' || o.status === 'cancelled') && o.rejection_reason ? `
       <div style="margin:8px 0;padding:10px 12px;background:rgba(192,57,43,0.1);border-radius:10px;font-size:13px;color:var(--red);">
         Reason: ${o.rejection_reason}
       </div>` : ''}
@@ -2393,9 +2782,80 @@ function renderOrders() {
           ${etaHtml}
         </div>
         <div class="tracker-steps">${steps}</div>
-
+        ${commentRowHtml}
       </div>` : ''}
       ${modifyBtns}
+      ${o.status === 'delivered' ? (() => {
+        // ── Tray Pickup CTA
+        var trayAlreadySent = o.trayPickupSent === true;
+        var trayHtml = trayAlreadySent
+          ? `<button class="tray-pickup-btn sent" disabled>
+               <div class="tray-left">
+                 <div class="tray-pickup-icon-wrap" style="color:#5DDB9A;font-size:22px;font-weight:700;">✓</div>
+                 <div class="tray-pickup-text-wrap">
+                   <span class="tray-pickup-title">Tray pickup on the way</span>
+                   <span class="tray-pickup-sub">Staff has been notified</span>
+                 </div>
+               </div>
+             </button>`
+          : `<button class="tray-pickup-btn" onclick="requestTrayPickup('${o.id}')">
+               <div class="tray-left">
+                 <div class="tray-pickup-icon-wrap">🍽️</div>
+                 <div class="tray-pickup-text-wrap">
+                   <span class="tray-pickup-title">Request Tray Pickup</span>
+                   <span class="tray-pickup-sub">Done eating? We'll clear it right away</span>
+                 </div>
+               </div>
+               <span class="tray-pickup-arrow">›</span>
+             </button>`;
+
+        // ── Star Rating card
+        var ratingHtml;
+        if (o.rating) {
+          var labels = ['','Poor','Fair','Good','Great','Excellent!'];
+          var starsHtml2 = [1,2,3,4,5].map(function(n){
+            return '<span style="font-size:24px;color:'+(n<=o.rating?'#F5C842':'#5A4A30')+'">★</span>';
+          }).join('');
+          ratingHtml = `<div class="rating-section rated">
+            <div class="rating-header">
+              <div class="rating-title-col">
+                <span class="rating-title" style="color:#FFFFFF;">Your Feedback</span>
+                <span class="rating-subtitle" style="color:#7EC89A;font-weight:600;font-size:12px;">${labels[o.rating] || ''}</span>
+              </div>
+              <div style="display:flex;gap:2px;align-items:center;">${starsHtml2}</div>
+            </div>
+            ${o.ratingComment ? `<div class="rating-done-comment" style="color:#A0C8A8;font-style:italic;font-size:13px;">"${o.ratingComment}"</div>` : ''}
+          </div>`;
+        } else {
+          var starLabels = ['','Terrible','Okay','Good','Great','Loved it'];
+          ratingHtml = `<div class="rating-section" id="rating-section-${o.id}">
+            <div class="rating-header">
+              <div class="rating-title-col">
+                <span class="rating-title">How was your meal?</span>
+                <span class="rating-subtitle">Your feedback helps us improve</span>
+              </div>
+              <span class="rating-badge">30 sec</span>
+            </div>
+            <div class="star-row" id="stars-${o.id}">
+              ${[1,2,3,4,5].map(n => `
+                <button class="star-btn" data-val="${n}" onclick="setStarRating('${o.id}',${n})">
+                  <svg class="star-glyph" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <polygon class="star-outline" points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
+                    <polygon class="star-fill" points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
+                  </svg>
+                  <span class="star-label">${starLabels[n]}</span>
+                </button>`).join('')}
+            </div>
+            <div class="rating-mood" id="rating-mood-${o.id}"></div>
+            <div class="rating-form-wrap" id="rating-form-${o.id}">
+              <textarea class="rating-comment" id="rating-comment-${o.id}" placeholder="Tell us more… (optional)" rows="2"></textarea>
+              <button class="rating-submit-btn" onclick="submitRating('${o.id}')">Share Feedback</button>
+            </div>
+          </div>`;
+        }
+
+        return `<div class="delivered-actions">${trayHtml}${ratingHtml}</div>`;
+      })() : ''}
     </div>`;
   }
 
@@ -2424,25 +2884,62 @@ function renderOrders() {
     var _servicesActive = _servicesScreen && _servicesScreen.classList.contains('active');
     if (!_ordersActive && !_servicesActive) return;
     if (_ordersActive) orderHistory.forEach(function(o){
+      // ── NEW (not yet accepted): update "Expected by" as 5-min windows pass
+      if (o.status === 'new' && !o.acceptedAt) {
+        var _now = Date.now();
+        var _eta = o.eta || 20;
+        var _placedTs = o.placedAt
+          ? (typeof o.placedAt === 'number' ? o.placedAt : new Date(o.placedAt).getTime())
+          : _now;
+        if (isNaN(_placedTs)) _placedTs = _now;
+        var _waitedMs = _now - _placedTs;
+        var _windows  = Math.floor(_waitedMs / (5 * 60000));
+        var _bufMs    = (5 + _windows * 5) * 60000;
+        var _expTs    = _placedTs + _eta * 60000 + _bufMs;
+        var _d = new Date(_expTs);
+        var _h = _d.getHours(), _m = _d.getMinutes();
+        var _ampm = _h >= 12 ? 'PM' : 'AM';
+        var _h12 = _h % 12 || 12;
+        var _mStr = _m < 10 ? '0'+_m : String(_m);
+        // ~X min label is static — no live update needed for 'new' status
+        return;
+      }
       if (o.status!=='accepted'&&o.status!=='preparing'&&o.status!=='ready') return;
       if (!o.acceptedAt) return;
-      var eta    = o.eta || 20;
-      var now    = Date.now();
-      // When ready: shift timer reference to readyAt with 10 min ETA if not already late
-      // If readyAt missing but status is ready, stamp it now so cap always has a reference
-      if (o.status === 'ready' && !o.readyAt) { o.readyAt = Date.now(); _saveHistory(); }
-      var _ref = o.acceptedAt, _eta = eta;
-      if (o.status === 'ready' && o.readyAt) {
-        var _natRem = eta - Math.floor((o.readyAt - o.acceptedAt) / 60000);
-        if (_natRem > DELIVERY_ETA_MINS) { _ref = o.readyAt; _eta = DELIVERY_ETA_MINS; }
+      var now = Date.now();
+
+      if (o.status === 'ready') {
+        // ── READY: update "Arriving in" countdown on the right, centre is blank
+        if (!o.readyAt) { o.readyAt = Date.now(); _saveHistory(); }
+        var delMs   = DELIVERY_ETA_MINS * 60000;
+        var elDel   = now - o.readyAt;
+        var overDel = Math.max(0, Math.floor((elDel - delMs) / 60000));
+        var colDel  = overDel>=20?'#C0392B':overDel>=10?'#E67E22':overDel>=1?'#E0A800':'var(--green)';
+        var txtDel;
+        if (overDel > 0) {
+          txtDel = '+' + Math.min(overDel, 99) + 'm overdue';
+        } else {
+          var remSecDel = Math.max(0, delMs - elDel);
+          var remMDel = Math.floor(remSecDel / 60000);
+          var remSDel = Math.floor((remSecDel % 60000) / 1000);
+          txtDel = remMDel + ':' + (remSDel < 10 ? '0' : '') + remSDel;
+        }
+        var arrivEl = document.getElementById('eta-arriving-'+o.id);
+        if (arrivEl) { arrivEl.textContent = txtDel; arrivEl.style.color = colDel; }
+        // Also update progress line colour
+        var lineElR = document.getElementById('eta-line-'+o.id);
+        var dotElR  = document.getElementById('eta-dot-'+o.id);
+        if (lineElR) { lineElR.style.background = colDel; lineElR.style.width = '68%'; }
+        if (dotElR)  { dotElR.style.background = colDel; dotElR.style.opacity = '1'; }
+        return;
       }
-      var elMs   = now - _ref;
-      eta = _eta;
-      var etaMs  = eta * 60000;   // eta is now _eta (may be 10 if ready-shifted)
+
+      // ── ACCEPTED / PREPARING: update centre countdown + "Expected by" colour
+      var eta    = o.eta || 20;
+      var elMs   = now - o.acceptedAt;
+      var etaMs  = eta * 60000;
       var overMin = Math.max(0, Math.floor((elMs - etaMs) / 60000));
-      // Colour
       var col = overMin>=20?'#C0392B':overMin>=10?'#E67E22':overMin>=1?'#E0A800':'var(--green)';
-      // Timer text
       var num;
       if (overMin > 0) {
         num = overMin > 240 ? 'Delayed' : '+'+Math.min(overMin,99)+'m';
@@ -2450,9 +2947,9 @@ function renderOrders() {
         var remSec = Math.max(0, etaMs - elMs);
         var remM = Math.floor(remSec/60000);
         var remS = Math.floor((remSec%60000)/1000);
-        num = remM > 0 ? remM+'m '+(remS<10?'0':'')+remS+'s' : (remSec>0 ? remS+'s' : (o.status==='ready' ? 'Arriving!' : 'Delivering!'));
+        num = remM > 0 ? remM+'m '+(remS<10?'0':'')+remS+'s' : (remSec>0 ? remS+'s' : 'Delivering!');
       }
-      // Update timer element
+      // Update centre timer (stays green until overdue)
       var timerEl = document.getElementById('eta-timer-'+o.id);
       if (timerEl) {
         timerEl.textContent = num;
@@ -2539,6 +3036,142 @@ function renderOrders() {
 
   }, 1000);
 })();
+
+// ── TRAY PICKUP REQUEST ─────────────────────────────────────────────────────
+function requestTrayPickup(orderId) {
+  var order = orderHistory.find(function(o){ return o.id === orderId; });
+  if (!order || order.trayPickupSent) return;
+
+  order.trayPickupSent = true;
+  _saveHistory();
+
+  // Update the button immediately
+  var btn = document.querySelector('.tray-pickup-btn[onclick*="' + orderId + '"]');
+  if (btn) {
+    btn.classList.add('sent');
+    btn.disabled = true;
+    btn.removeAttribute('onclick');
+    btn.innerHTML = '<div class="tray-left">'
+      + '<div class="tray-pickup-icon-wrap" style="color:#5DDB9A;font-size:22px;font-weight:700;">✓</div>'
+      + '<div class="tray-pickup-text-wrap">'
+      + '<span class="tray-pickup-title">Tray pickup on the way</span>'
+      + '<span class="tray-pickup-sub">Staff has been notified</span>'
+      + '</div></div>';
+  }
+
+  showGuestToast('Tray pickup requested. We\'ll be right there!', 'green');
+
+  // ── Build a proper service request (same shape as submitService)
+  var now = new Date();
+  var _svcNums = serviceHistory.map(function(r){ return parseInt((r.id||'0').replace('REQ-','').replace('SH-','')||'0'); });
+  var _nextSvcNum = (_svcNums.length ? Math.max.apply(null, _svcNums.filter(Number.isFinite)) : 0) + 1;
+  var reqId = 'REQ-' + String(_nextSvcNum).padStart(3, '0');
+  var timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  var trayItems = [{ type: 'Tray Pickup', icon: '🍽️', qty: 1, custom: false, linkedOrderId: orderId }];
+
+  var req = {
+    id: reqId,
+    type: 'Tray Pickup',
+    icon: '🍽️',
+    items: trayItems,
+    note: 'Tray pickup for order ' + orderId,
+    time: timeStr,
+    date: now.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+    status: 'received',
+    placedAt: Date.now(),
+    linkedOrderId: orderId
+  };
+  serviceHistory.unshift(req);
+  _saveHistory();
+  updateServicesBadge();
+
+  // Write to Firebase service_requests collection
+  _waitDb().then(function(db){
+    if (!db) return;
+    db.collection('service_requests').doc(String(reqId)).set({
+      id: reqId,
+      room: String(window.ROOM_NUM || '000'),
+      guest: String(window.GUEST_NAME || 'Guest'),
+      type: 'Tray Pickup',
+      icon: '🍽️',
+      items: trayItems,
+      note: 'Tray pickup for order ' + orderId,
+      status: 'received',
+      placed_at: now.toISOString(),
+      linkedOrderId: orderId
+    }).catch(function(e){ console.warn('Tray pickup write failed:', e && e.message || e); });
+  });
+}
+window.requestTrayPickup = requestTrayPickup;
+
+// ── STAR RATING ──────────────────────────────────────────────────────────────
+function setStarRating(orderId, val) {
+  var starsContainer = document.getElementById('stars-' + orderId);
+  if (!starsContainer) return;
+  var btns = starsContainer.querySelectorAll('.star-btn');
+  btns.forEach(function(btn) {
+    var bv = parseInt(btn.getAttribute('data-val'), 10);
+    if (bv <= val) { btn.classList.add('filled'); }
+    else { btn.classList.remove('filled'); }
+  });
+  starsContainer.setAttribute('data-selected', val);
+
+  // Mood message
+  var moods = ['','We\'re sorry to hear that','We\'ll strive to do better','Glad you enjoyed it','Wonderful to hear!','You made our day ✨'];
+  var moodEl = document.getElementById('rating-mood-' + orderId);
+  if (moodEl) { moodEl.textContent = moods[val] || ''; moodEl.classList.add('visible'); }
+
+  // Show comment + submit
+  var form = document.getElementById('rating-form-' + orderId);
+  if (form) form.classList.add('open');
+}
+window.setStarRating = setStarRating;
+
+function submitRating(orderId) {
+  var order = orderHistory.find(function(o){ return o.id === orderId; });
+  if (!order) return;
+
+  var starsContainer = document.getElementById('stars-' + orderId);
+  var val = starsContainer ? parseInt(starsContainer.getAttribute('data-selected') || '0', 10) : 0;
+  if (!val) { showGuestToast('Please tap a star to rate.', 'red'); return; }
+
+  var commentEl = document.getElementById('rating-comment-' + orderId);
+  var comment = commentEl ? commentEl.value.trim() : '';
+
+  order.rating = val;
+  if (comment) order.ratingComment = comment;
+  _saveHistory();
+
+  // Replace widget with done state
+  var section = document.getElementById('rating-section-' + orderId);
+  if (section) {
+    var labels = ['','Poor','Fair','Good','Great','Excellent!'];
+    var starsHtml = [1,2,3,4,5].map(function(n){
+      return '<span style="font-size:24px;color:'+(n<=val?'#F5C842':'#5A4A30')+'">' + (n<=val?'★':'★') + '</span>';
+    }).join('');
+    section.classList.add('rated');
+    section.innerHTML =
+        '<div class="rating-header" style="margin-bottom:' + (comment?'10px':'0') + ';">'
+      +   '<div class="rating-title-col">'
+      +     '<span class="rating-title" style="color:#FFFFFF;">Your Feedback</span>'
+      +     '<span class="rating-subtitle" style="color:#7EC89A;font-weight:600;font-size:12px;">' + (labels[val]||'') + '</span>'
+      +   '</div>'
+      +   '<div style="display:flex;gap:2px;align-items:center;">' + starsHtml + '</div>'
+      + '</div>'
+      + (comment ? '<div class="rating-done-comment" style="color:#A0C8A8;font-style:italic;font-size:13px;">"' + comment + '"</div>' : '');
+  }
+
+  showGuestToast('Thank you — your feedback means a lot to us!', 'green');
+
+  _waitDb().then(function(db){
+    if (!db) return;
+    var updateData = { rating: val };
+    if (comment) updateData.rating_comment = comment;
+    db.collection('orders').doc(String(orderId)).update(updateData)
+      .catch(function(e){ console.warn('Rating update failed:', e && e.message || e); });
+  });
+}
+window.submitRating = submitRating;
 
 // ── CANCEL / MODIFY ORDER
 function cancelOrder(orderId) {
@@ -2933,9 +3566,13 @@ function submitService() {
         var _d = doc.data();
         r.status = _d.status;
         if (_d.eta) r.eta = _d.eta;
+        if (_d.cancel_reason) r.cancel_reason = _d.cancel_reason;
         if ((_d.status === 'assigned' || _d.status === 'inprogress') && _d.assigned_at && !r.assignedAt) {
           var _ts = typeof _d.assigned_at === 'number' ? _d.assigned_at : new Date(_d.assigned_at).getTime();
           if (!isNaN(_ts)) r.assignedAt = _ts;
+        }
+        if (_d.status === 'cancelled') {
+          showGuestToast('Request cancelled: ' + (_d.cancel_reason || 'contact reception'), 'red');
         }
         _saveHistory(); updateServicesBadge();
         if(document.getElementById('screen-services').classList.contains('active')) renderServices();
@@ -3830,6 +4467,8 @@ function attachOrderListener(orderId) {
         showGuestToast('Delivered · Enjoy your meal!', 'green');
       else if (data.status === 'rejected')
         showGuestToast('Not accepted: ' + (data.rejection_reason || 'contact reception'), 'red');
+      else if (data.status === 'cancelled')
+        showGuestToast('Order cancelled: ' + (data.rejection_reason || 'contact reception'), 'red');
 
     }, function(err) {
       console.warn('Order listener error:', err);
@@ -3934,12 +4573,16 @@ function attachAllListeners() {
             var _d2 = d.data();
             r2.status = _d2.status;
             if (_d2.eta) r2.eta = _d2.eta;
+            if (_d2.cancel_reason) r2.cancel_reason = _d2.cancel_reason;
             if ((_d2.status === 'assigned' || _d2.status === 'inprogress') && _d2.assigned_at && !r2.assignedAt) {
               r2.assignedAt = typeof _d2.assigned_at === 'number' ? _d2.assigned_at : new Date(_d2.assigned_at).getTime();
             }
             if (_d2.status === 'inprogress' && _d2.inprogress_at && !r2.inprogressAt) {
               var _ipts2 = typeof _d2.inprogress_at === 'number' ? _d2.inprogress_at : new Date(_d2.inprogress_at).getTime();
               if (!isNaN(_ipts2)) r2.inprogressAt = _ipts2;
+            }
+            if (_d2.status === 'cancelled') {
+              showGuestToast('Request cancelled: ' + (_d2.cancel_reason || 'contact reception'), 'red');
             }
             _saveHistory();
             updateServicesBadge();

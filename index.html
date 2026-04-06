@@ -2570,42 +2570,82 @@ function renderOrders() {
   }
 
   // Timer display: elapsed since accepted_at, shown for accepted/preparing/ready
+  var DELIVERY_ETA_MINS_GUEST = typeof DELIVERY_ETA_MINS !== 'undefined' ? DELIVERY_ETA_MINS : 10;
+
+  function _etaColGuest(overMin) {
+    if (overMin >= 20) return '#C0392B';
+    if (overMin >= 10) return '#E67E22';
+    if (overMin >= 1)  return '#E0A800';
+    return 'var(--green)';
+  }
+
   function guestTimerHtml(o) {
-    if (!o.acceptedAt && !o.accepted_at) return '';
+    // centre: countdown (accepted/preparing only) | right: varies by status
     var accepted = o.acceptedAt || (o.accepted_at ? new Date(o.accepted_at).getTime() : null);
-    if (!accepted) return '';
     var eta = o.eta || 25;
-    // When ready: if not already over ETA, pin remaining time to 10 min from when ready was pressed
-    var _ref = accepted;
-    var _eta = eta;
-    if (o.status === 'ready' && o.readyAt) {
-      var _naturalRemaining = eta - Math.floor((o.readyAt - accepted) / 60000);
-      if (_naturalRemaining > 10) {
-        // Shift reference so remaining = 10 min from readyAt
-        _ref = o.readyAt;
-        _eta = 10;
-      }
-      // If already late (naturalRemaining <= 0) or under 10 min, keep original reference
+    var now = Date.now();
+
+    if (o.status === 'new' || !accepted) {
+      // Before acceptance — right shows "X min" estimate, centre empty
+      var _clk = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+      var rightNew = '<div style="display:flex;align-items:center;justify-content:flex-end;gap:2px;">'
+        + _clk
+        + '<span style="font-size:15px;font-weight:600;font-family:DM Sans,sans-serif;color:var(--text-muted);">'+eta+' min</span>'
+        + '</div>';
+      return { centre: '', right: rightNew };
     }
-    var elapsedMs  = Date.now() - _ref;
-    var elapsedMin = Math.floor(elapsedMs / 60000);
-    var elapsedSec = Math.floor((elapsedMs % 60000) / 1000);
-    var remaining  = Math.max(0, _eta - elapsedMin);
-    var pct        = Math.min(100, Math.round((elapsedMs / (_eta * 60000)) * 100));
-    var barCol     = pct < 70 ? 'var(--green)' : pct < 90 ? '#E0A800' : 'var(--red)';
-    var timeStr    = (elapsedMin > 0 ? elapsedMin + 'm ' : '') + (elapsedMin < 60 ? elapsedSec + 's' : '');
-    return '<div style="padding:12px 18px 8px;">'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
-        + '<span style="font-size:11px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;">Time elapsed</span>'
-        + '<span style="font-size:13px;font-weight:600;color:' + barCol + ';">'
-          + timeStr
-          + (remaining > 0 ? ' · ~' + remaining + ' min remaining' : ' · Almost ready!')
-        + '</span>'
-      + '</div>'
-      + '<div style="height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;">'
-        + '<div style="height:100%;width:' + pct + '%;background:' + barCol + ';border-radius:2px;transition:width 1s linear;"></div>'
-      + '</div>'
-    + '</div>';
+
+    if (o.status === 'ready') {
+      // Centre empty. Right: "Arriving in 9:47" single line
+      var readyAt = o.readyAt || now;
+      var delMs   = DELIVERY_ETA_MINS_GUEST * 60000;
+      var elDel   = now - readyAt;
+      var overDel = Math.max(0, Math.floor((elDel - delMs) / 60000));
+      var col     = _etaColGuest(overDel);
+      var txt;
+      if (overDel > 0) {
+        txt = '+' + Math.min(overDel, 99) + 'm overdue';
+      } else {
+        var remSec = Math.max(0, delMs - elDel);
+        var remM = Math.floor(remSec / 60000);
+        var remS = Math.floor((remSec % 60000) / 1000);
+        txt = remM + ':' + (remS < 10 ? '0' : '') + remS;
+      }
+      var rightReady = '<div style="text-align:right;white-space:nowrap;">'
+        + '<span style="font-size:12px;color:var(--text-muted);margin-right:4px;">Arriving in</span>'
+        + '<span style="font-size:15px;font-weight:700;font-family:DM Sans,sans-serif;color:'+col+';" id="eta-arriving-'+o.id+'">'+txt+'</span>'
+        + '</div>';
+      return { centre: '', right: rightReady };
+    }
+
+    // accepted / preparing — green centre countdown + gold "Expected by" single line
+    var elMs    = now - accepted;
+    var overMin = Math.max(0, Math.floor((elMs - eta*60000) / 60000));
+    var col2    = _etaColGuest(overMin);
+    var num;
+    if (overMin > 0) {
+      num = overMin > 240 ? 'Delayed' : '+'+Math.min(overMin,99)+'m';
+    } else {
+      var remSec2 = Math.max(0, eta*60 - Math.floor(elMs/1000));
+      var remM2 = Math.floor(remSec2/60), remS2 = remSec2 % 60;
+      num = remM2 > 0 ? remM2+'m '+(remS2<10?'0':'')+remS2+'s' : (remSec2>0 ? remS2+'s' : 'Delivering!');
+    }
+    var clock = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="'+col2+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+    var centreHtml = '<div style="display:flex;align-items:center;justify-content:center;gap:2px;">'
+      + clock
+      + '<span id="eta-timer-'+o.id+'" style="font-size:15px;font-weight:700;font-family:DM Sans,sans-serif;color:'+col2+';">'+num+'</span>'
+      + '</div>';
+    var expectedTs = accepted + eta * 60000;
+    var d = new Date(expectedTs);
+    var h = d.getHours(), m = d.getMinutes();
+    var ampm = h >= 12 ? 'PM' : 'AM';
+    var h12 = h % 12 || 12;
+    var mStr = m < 10 ? '0'+m : String(m);
+    var rightHtml = '<div style="text-align:right;white-space:nowrap;">'
+      + '<span style="font-size:12px;color:var(--text-muted);margin-right:4px;">Expected by</span>'
+      + '<span style="font-size:15px;font-weight:700;font-family:DM Sans,sans-serif;color:var(--gold);" id="eta-expected-'+o.id+'">'+h12+':'+mStr+' '+ampm+'</span>'
+      + '</div>';
+    return { centre: centreHtml, right: rightHtml };
   }
 
   function renderCard(o) {
@@ -2631,9 +2671,7 @@ function renderOrders() {
     var pillLabel = { new:'Order Placed', accepted:'Preparing 👨‍🍳', preparing:'Preparing 👨‍🍳', ready:'Food is Ready 🍽️', delivered:'Delivered', rejected:'Declined', cancelled:'Cancelled' }[o.status] || o.status;
     var pillClass = { new:'status-preparing', accepted:'status-preparing', preparing:'status-preparing', ready:'status-food-ready', delivered:'status-delivered', rejected:'status-rejected', cancelled:'status-rejected' }[o.status] || '';
 
-    // Timer block (only while kitchen is working)
-    var timerBlock = (o.status === 'accepted' || o.status === 'preparing' || o.status === 'ready')
-      ? guestTimerHtml(o) : '';
+    // Timer/ETA now inline in tracker header
 
     var msgHtml = '';
 
@@ -2664,12 +2702,18 @@ function renderOrders() {
                 + '<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">' + (o.rejection_reason || 'Please contact reception for details.') + '</div>'
               + '</div>'
             + '</div>'
-          : '<div class="order-tracker">'
-              + '<div class="tracker-label">Order Status</div>'
+          : (function(){
+            var _t = (o.status==='accepted'||o.status==='preparing'||o.status==='ready') ? guestTimerHtml(o) : {centre:'',right:''};
+            return '<div class="order-tracker">'
+              + '<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin-bottom:12px;">'
+                + '<div class="tracker-label">Order Status</div>'
+                + _t.centre
+                + _t.right
+              + '</div>'
               + '<div class="tracker-steps">' + steps + '</div>'
             + '</div>'
-            + timerBlock
-            + msgHtml
+            + msgHtml;
+          })()
         )
       + '<div class="order-card-footer">'
         + '<div class="order-total-label">Total</div>'
@@ -2703,6 +2747,54 @@ if (!window._guestTimerInterval) {
       if (screen && screen.classList.contains('active')) renderOrders();
     }
   }, 15000);
+}
+
+// ── 1s targeted updater for "Arriving in" countdown (ready orders) + centre timer
+if (!window._guestArrivingInterval) {
+  window._guestArrivingInterval = setInterval(function() {
+    var screen = document.getElementById('screen-orders');
+    if (!screen || !screen.classList.contains('active')) return;
+    var now = Date.now();
+    orderHistory.forEach(function(o) {
+      if (o.status === 'ready') {
+        // Update "Arriving in" countdown
+        if (!o.readyAt) return;
+        var delMs   = DELIVERY_ETA_MINS_GUEST * 60000;
+        var elDel   = now - o.readyAt;
+        var overDel = Math.max(0, Math.floor((elDel - delMs) / 60000));
+        var col     = _etaColGuest(overDel);
+        var txt;
+        if (overDel > 0) {
+          txt = '+' + Math.min(overDel, 99) + 'm overdue';
+        } else {
+          var remSec = Math.max(0, delMs - elDel);
+          var remM = Math.floor(remSec / 60000);
+          var remS = Math.floor((remSec % 60000) / 1000);
+          txt = remM + ':' + (remS < 10 ? '0' : '') + remS;
+        }
+        var arrivEl = document.getElementById('eta-arriving-' + o.id);
+        if (arrivEl) { arrivEl.textContent = txt; arrivEl.style.color = col; }
+      } else if (o.status === 'accepted' || o.status === 'preparing') {
+        // Update centre countdown timer
+        if (!o.acceptedAt) return;
+        var eta = o.eta || 25;
+        var elMs = now - o.acceptedAt;
+        var overMin = Math.max(0, Math.floor((elMs - eta*60000) / 60000));
+        var col2 = _etaColGuest(overMin);
+        var num;
+        if (overMin > 0) {
+          num = overMin > 240 ? 'Delayed' : '+'+Math.min(overMin,99)+'m';
+        } else {
+          var remSec2 = Math.max(0, eta*60 - Math.floor(elMs/1000));
+          var remM2 = Math.floor(remSec2/60), remS2 = remSec2 % 60;
+          num = remM2 > 0 ? remM2+'m '+(remS2<10?'0':'')+remS2+'s' : (remSec2>0 ? remS2+'s' : 'Delivering!');
+        }
+        var timerEl = document.getElementById('eta-timer-' + o.id);
+        if (timerEl) { timerEl.textContent = num; timerEl.style.color = col2; }
+        // "Expected by" stays gold — no colour override
+      }
+    });
+  }, 1000);
 }
 
 // ── Service
@@ -2896,6 +2988,19 @@ function renderServices() {
 
     var msgHtml = '';
 
+    // Build items list if multiple items exist
+    var itemsListHtml = '';
+    if (Array.isArray(r.items) && r.items.length > 1) {
+      itemsListHtml = '<div style="padding:8px 16px 10px;border-bottom:1px solid var(--card-border);">'
+        + r.items.map(function(it) {
+            return '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;">'
+              + '<span style="font-size:16px;width:22px;text-align:center;">' + (it.icon || '\uD83D\uDECE') + '</span>'
+              + '<span style="font-size:13px;color:var(--text);">' + it.type + (it.qty > 1 ? ' <span style="color:var(--gold);">\u00d7' + it.qty + '</span>' : '') + '</span>'
+              + '</div>';
+          }).join('')
+        + '</div>';
+    }
+
     return '<div class="order-card">'
       + '<div class="svc-card-head">'
         + '<div class="svc-type-icon">' + r.icon + '</div>'
@@ -2906,6 +3011,7 @@ function renderServices() {
         + '</div>'
         + '<div class="order-status-pill ' + (svcStatusClass[r.status] || '') + '">' + (svcStatusLabel[r.status] || r.status) + '</div>'
       + '</div>'
+      + itemsListHtml
       + (isDone
           ? '<div style="padding:12px 18px;display:flex;align-items:center;gap:8px;">'
               + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>'
@@ -4284,6 +4390,9 @@ var SETUP_SQL = '-- Firebase does not need SQL setup. Collections are created au
 
 // ROOMS_DATA replaced by buildRoomsData()
 
+// ── Delivery ETA (minutes after Mark Ready) — change this to adjust delivery window
+var DELIVERY_ETA_MINS = 10;
+
 var orderFilter='all',svcFilter='all';
 var orders=[];  // starts empty — demo orders only shown when not connected to Supabase
 var _demoOrders=[
@@ -4324,9 +4433,6 @@ async function loadOrdersFromSupabase(){
   try {
     var snap = await db.collection('orders').limit(300).get();
     var _sRank = {new:0,accepted:1,ready:2,delivered:3,rejected:4,cancelled:4};
-    // Today's midnight in ms — only show today's active orders
-    var todayMidnight = new Date(); todayMidnight.setHours(0,0,0,0);
-    var todayMs = todayMidnight.getTime();
     var terminal = ['delivered','rejected','cancelled'];
     var fetched = snap.docs.map(function(doc){
       var d = doc.data(); d.id = doc.id; return rowToOrder(d);
@@ -4336,11 +4442,7 @@ async function loadOrdersFromSupabase(){
         if (typeof ohArchive === 'function') ohArchive(o);
         return false;
       }
-      // Archive active orders from before today — staff Tasks only shows today's orders
-      if (o.placedAt && o.placedAt < todayMs) {
-        if (typeof ohArchive === 'function') ohArchive(o);
-        return false;
-      }
+      // Keep active orders regardless of date — don't archive unfinished orders
       return true;
     });
     fetched.forEach(function(dbO){
@@ -4385,21 +4487,9 @@ function subscribeRealtime(){
             if (typeof ohArchive === 'function') ohArchive(o);
             return;
           }
-          // Skip orders from before today — staff Tasks only shows today
-          var _todayMid = new Date(); _todayMid.setHours(0,0,0,0);
-          if (o.placedAt && o.placedAt < _todayMid.getTime()) {
-            if (typeof ohArchive === 'function') ohArchive(o);
-            return;
-          }
+          // Keep active orders regardless of date — don't archive unfinished orders
           if (!orders.find(function(x){ return x.id===o.id; })) {
-            // Don't re-add if already archived in order history
-            var _alreadyArchived = false;
-            try {
-              Object.values(OH._food||{}).forEach(function(arr){
-                if(arr.find(function(a){ return a.id===o.id; })) _alreadyArchived=true;
-              });
-            } catch(e){}
-            if (!_alreadyArchived) orders.unshift(o);
+            orders.unshift(o);
           }
           return;
         }
@@ -4497,6 +4587,7 @@ function rowToService(row){
   return {id:row.id, room:String(row.room), guest:row.guest||'Guest',
     type:row.type, icon:row.icon||'🔔', qty:row.qty||null,
     note:row.note||'', status:row.status||'received',
+    items:Array.isArray(row.items)?row.items:[],
     placedAt:placedAt, assignedAt:assignedAt, assigned_at:row.assigned_at||null,
     fromSupa:true};
 }
@@ -4575,10 +4666,7 @@ function handleRealtimeEvent(payload){
   var evt=payload.eventType,row=payload.new||{},old=payload.old||{};
   if(evt==='INSERT'){
     var o=rowToOrder(row);
-    // Don't re-insert if already archived
-    var _inArch=false;
-    try{Object.values(OH._food||{}).forEach(function(arr){if(arr.find(function(a){return a.id===o.id;}))_inArch=true;});}catch(e){}
-    if(!_inArch && !orders.find(function(x){return x.id===o.id;})){
+    if(!orders.find(function(x){return x.id===o.id;})){
       orders.unshift(o);renderOrders();updateStats();
       // Step 1: New order alert — sound + highlight
       showToast('order','New Order — Room '+o.room,'₹'+o.total+' · '+o.items.length+' item'+(o.items.length!==1?'s':''),4000);
@@ -5255,7 +5343,7 @@ async function advanceOrderWithUndo(id, toStatus) {
           if (_o && _o.status === 'ready') {
             advanceOrderWithUndo(_id, 'delivered');
           }
-        }, 10 * 60 * 1000); // 10 minutes
+        }, DELIVERY_ETA_MINS * 60 * 1000); // auto-deliver after DELIVERY_ETA_MINS
       })(id);
     }
     db.collection('orders').doc(String(id)).update(updateData)
@@ -6160,6 +6248,16 @@ function renderTasks() {
           + '</div>'
         + '</div>'
       + '</div>'
+      + (Array.isArray(s.items) && s.items.length > 0
+          ? '<div style="padding:8px 14px;border-top:1px solid var(--card-border);border-bottom:1px solid var(--card-border);">'
+              + s.items.map(function(it){
+                  return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+                    + '<span style="font-size:16px;width:22px;text-align:center;">'+(it.icon||'\uD83D\uDD14')+'</span>'
+                    + '<span style="font-size:13px;color:var(--text);">'+(it.type||'')+(it.qty>1?' <span style="color:var(--gold);">&times;'+it.qty+'</span>':'')+'</span>'
+                    + '</div>';
+                }).join('')
+            + '</div>'
+          : '')
       + ((s.status==='assigned'||s.status==='inprogress') ? svcEtaRow(s) : '')
       + '<div style="display:flex;gap:8px;padding:10px 12px;">'+ac+'</div>'
     + '</div>';
@@ -7121,6 +7219,9 @@ function ohStore() { return OH._type === 'service' ? OH._svc : OH._food; }
 // ── Archive food order ───────────────────────────────────────────────
 function ohArchive(order) {
   if (!order || !order.id) return;
+  // Never archive active orders — only terminal ones
+  var _termOrd = ['delivered','rejected','cancelled'];
+  if (_termOrd.indexOf(order.status) === -1) return;
   var key = ohDateKey(order.placedAt || Date.now());
   if (!OH._food[key]) OH._food[key] = [];
   if (!OH._food[key].find(function(o) { return o.id === order.id; })) {
@@ -7150,6 +7251,9 @@ function ohArchive(order) {
 // ── Archive service request ──────────────────────────────────────────
 function ohArchiveSvc(svc) {
   if (!svc || !svc.id) return;
+  // Never archive active service requests — only terminal ones
+  var _termSvc = ['done','cancelled'];
+  if (_termSvc.indexOf(svc.status) === -1) return;
   var key = ohDateKey(svc.placedAt || Date.now());
   if (!OH._svc[key]) OH._svc[key] = [];
   if (!OH._svc[key].find(function(s) { return s.id === svc.id; })) {
@@ -7178,10 +7282,13 @@ function ohMidnightCheck() {
   _ohLastDay = today;
   var ord = (typeof orders   !== 'undefined') ? orders   : [];
   var svc = (typeof services !== 'undefined') ? services : [];
-  ord.forEach(function(o) { ohArchive(o); });
-  svc.forEach(function(s) { ohArchiveSvc(s); });
-  if (typeof orders   !== 'undefined') orders   = [];
-  if (typeof services !== 'undefined') services = [];
+  // At midnight: archive only terminal orders/services, keep active ones visible
+  var terminalOrd = ['delivered','rejected','cancelled'];
+  var terminalSvc = ['done','cancelled'];
+  ord.forEach(function(o) { if (terminalOrd.indexOf(o.status) !== -1) ohArchive(o); });
+  svc.forEach(function(s) { if (terminalSvc.indexOf(s.status) !== -1) ohArchiveSvc(s); });
+  if (typeof orders   !== 'undefined') orders   = orders.filter(function(o){ return terminalOrd.indexOf(o.status) === -1; });
+  if (typeof services !== 'undefined') services = services.filter(function(s){ return terminalSvc.indexOf(s.status) === -1; });
   if (typeof renderTasks === 'function') renderTasks();
   ohUpdateSettingsSub();
 }
@@ -7222,6 +7329,50 @@ setInterval(function() {
   var svc = (typeof services !== 'undefined') ? services : [];
   svc.forEach(function(s) { if (s.status === 'done') ohArchiveSvc(s); });
 }, 10000);
+
+// ── Auto-cancel: food orders unaccepted >15 min, service requests unassigned >15 min ──
+setInterval(function() {
+  var TIMEOUT_MS = 15 * 60 * 1000;
+  var reason = 'Request timed out — not accepted within 15 minutes';
+  var db = (typeof getDb === 'function') ? getDb() : null;
+
+  // Food orders: cancel if still 'new' after 15 mins
+  var ord = (typeof orders !== 'undefined') ? orders : [];
+  ord.forEach(function(o) {
+    if (o.status !== 'new') return;
+    var age = Date.now() - (o.placedAt || 0);
+    if (age < TIMEOUT_MS) return;
+    o.status = 'cancelled';
+    o.rejection_reason = reason;
+    if (typeof renderTasks === 'function') renderTasks();
+    if (typeof updateStats === 'function') updateStats();
+    if (typeof ohArchive === 'function') ohArchive(o);
+    showToast('order', 'Order Auto-Cancelled — Room ' + o.room, reason, 4000);
+    if (db) db.collection('orders').doc(String(o.id)).update({
+      status: 'cancelled',
+      rejection_reason: reason
+    }).catch(function(e) { console.warn('Auto-cancel order error:', e); });
+  });
+
+  // Service requests: cancel if still 'received' after 15 mins
+  var svc = (typeof services !== 'undefined') ? services : [];
+  svc.forEach(function(s) {
+    if (s.status !== 'received') return;
+    var age = Date.now() - (s.placedAt || 0);
+    if (age < TIMEOUT_MS) return;
+    s.status = 'cancelled';
+    s.cancel_reason = reason;
+    if (typeof renderTasks === 'function') renderTasks();
+    if (typeof renderStaffServices === 'function') renderStaffServices();
+    if (typeof updateStats === 'function') updateStats();
+    if (typeof ohArchiveSvc === 'function') ohArchiveSvc(s);
+    showToast('service', 'Service Auto-Cancelled — Room ' + s.room, reason, 4000);
+    if (db) db.collection('service_requests').doc(String(s.id)).update({
+      status: 'cancelled',
+      cancel_reason: reason
+    }).catch(function(e) { console.warn('Auto-cancel svc error:', e); });
+  });
+}, 60000); // check every minute
 
 // ── Type toggle ──────────────────────────────────────────────────────
 function ohSetType(t) {
