@@ -110,15 +110,15 @@
     gap: 10px;
   }
 
-  /* ── TRAY PICKUP ── theme-aware card ── */
+  /* ── TRAY PICKUP ── always dark card, high contrast ── */
   .tray-pickup-btn {
     display: flex;
     align-items: center;
     justify-content: space-between;
     width: 100%;
     padding: 15px 18px;
-    background: var(--surface);
-    border: 2px solid var(--gold);
+    background: #1A1710;
+    border: 2px solid #C9A96E;
     border-radius: 14px;
     font-family: 'DM Sans', sans-serif;
     font-size: 14px;
@@ -129,7 +129,7 @@
     position: relative;
     overflow: hidden;
     text-align: left;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35);
   }
   .tray-pickup-btn::before {
     content: '';
@@ -150,8 +150,8 @@
     width: 40px;
     height: 40px;
     border-radius: 10px;
-    background: rgba(201,169,110,0.15);
-    border: 1.5px solid var(--gold);
+    background: rgba(201,169,110,0.25);
+    border: 1.5px solid rgba(201,169,110,0.6);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -159,39 +159,39 @@
     flex-shrink: 0;
   }
   .tray-pickup-text-wrap { display: flex; flex-direction: column; gap: 3px; }
-  .tray-pickup-title { font-size: 14px; font-weight: 700; color: var(--gold); line-height: 1.2; }
-  .tray-pickup-sub { font-size: 11px; color: var(--text-muted); }
+  .tray-pickup-title { font-size: 14px; font-weight: 700; color: #F5C842; line-height: 1.2; }
+  .tray-pickup-sub { font-size: 11px; color: #D4C4A8; }
   .tray-pickup-arrow {
     font-size: 20px;
-    color: var(--gold);
+    color: #C9A96E;
     flex-shrink: 0;
     font-weight: bold;
   }
   .tray-pickup-btn.sent {
-    background: var(--surface);
-    border-color: var(--green);
+    background: #0A1F12;
+    border-color: #4CAF7D;
     border-width: 2px;
     pointer-events: none;
-    box-shadow: 0 4px 16px rgba(76,175,125,0.15);
+    box-shadow: 0 4px 20px rgba(76,175,125,0.25);
   }
-  .tray-pickup-btn.sent .tray-pickup-title { color: var(--green); font-size: 15px; font-weight: 700; }
-  .tray-pickup-btn.sent .tray-pickup-sub { color: var(--green); font-size: 12px; opacity: 0.8; }
+  .tray-pickup-btn.sent .tray-pickup-title { color: #5DDB9A; font-size: 15px; font-weight: 700; }
+  .tray-pickup-btn.sent .tray-pickup-sub { color: #7EC8A0; font-size: 12px; opacity: 1; }
   .tray-pickup-btn.sent .tray-pickup-icon-wrap { 
-    background: rgba(76,175,125,0.15); 
-    border: 1.5px solid var(--green);
+    background: rgba(76,175,125,0.30); 
+    border: 1.5px solid #4CAF7D;
     font-size: 22px;
   }
   .tray-pickup-btn.sent .tray-pickup-arrow { display: none; }
 
-  /* ── RATING CARD — theme-aware ── */
+  /* ── RATING CARD — always dark, always readable ── */
   .rating-section {
-    background: var(--surface);
-    border: 2px solid var(--gold);
+    background: #1A1710;
+    border: 2px solid #C9A96E;
     border-radius: 16px;
     padding: 16px 16px 14px;
     position: relative;
     overflow: hidden;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.40);
   }
   .rating-section::before {
     content: '';
@@ -199,12 +199,12 @@
     top: -20px; right: -20px;
     width: 80px; height: 80px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(201,169,110,0.15) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(201,169,110,0.20) 0%, transparent 70%);
     pointer-events: none;
   }
   .rating-section.rated {
-    background: var(--surface);
-    border-color: var(--green);
+    background: #0F1A12;
+    border-color: #4CAF7D;
   }
 
   /* Rating header row */
@@ -219,21 +219,21 @@
     font-family: 'Cormorant Garamond', serif;
     font-size: 19px;
     font-weight: 600;
-    color: var(--text);
+    color: #FFFFFF;
     line-height: 1;
   }
   .rating-subtitle {
     font-size: 11px;
-    color: var(--text-muted);
+    color: #B0A090;
     letter-spacing: 0.02em;
   }
   .rating-badge {
     font-size: 10px;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: var(--gold);
-    background: rgba(201,169,110,0.12);
-    border: 1.5px solid var(--gold);
+    color: #F5C842;
+    background: rgba(245,200,66,0.15);
+    border: 1.5px solid #C9A96E;
     border-radius: 20px;
     padding: 4px 10px;
     white-space: nowrap;
@@ -249,8 +249,8 @@
   }
   .star-btn {
     flex: 1;
-    background: var(--surface2);
-    border: 1.5px solid var(--gold);
+    background: #26211A;
+    border: 1.5px solid #C9A96E;
     border-radius: 10px;
     padding: 8px 2px 7px;
     cursor: pointer;
@@ -291,7 +291,7 @@
     font-size: 7.5px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--gold);
+    color: #C9A96E;
     transition: color 0.18s;
     line-height: 1;
     font-weight: 600;
@@ -299,9 +299,9 @@
 
   /* Selected state */
   .star-btn.filled {
-    background: var(--surface2);
-    border-color: var(--gold);
-    box-shadow: 0 0 10px rgba(201,169,110,0.20);
+    background: #2E2512;
+    border-color: #F5C842;
+    box-shadow: 0 0 10px rgba(245,200,66,0.25);
   }
   .star-btn.filled .star-glyph { transform: scale(1.15); }
   .star-btn.filled .star-glyph .star-outline { opacity: 0; }
@@ -319,7 +319,7 @@
   .rating-mood {
     font-family: 'Cormorant Garamond', serif;
     font-size: 16px;
-    color: var(--gold);
+    color: #F5C842;
     text-align: center;
     margin: 10px 0 0;
     min-height: 20px;
@@ -340,11 +340,11 @@
   .rating-form-wrap.open { display: flex; }
   .rating-comment {
     width: 100%;
-    background: var(--surface2);
-    border: 1.5px solid var(--gold);
+    background: #26211A;
+    border: 1.5px solid #C9A96E;
     border-radius: 10px;
     padding: 11px 13px;
-    color: var(--text);
+    color: #FFFFFF;
     font-family: 'DM Sans', sans-serif;
     font-size: 13px;
     resize: none;
@@ -353,22 +353,22 @@
     box-sizing: border-box;
     min-height: 68px;
   }
-  .rating-comment:focus { border-color: var(--gold); }
-  .rating-comment::placeholder { color: var(--text-dim); }
+  .rating-comment:focus { border-color: #F5C842; }
+  .rating-comment::placeholder { color: #8A7A60; }
   .rating-submit-btn {
     width: 100%;
     padding: 14px;
-    background: var(--gold);
+    background: #C9A96E;
     border: none;
     border-radius: 11px;
-    color: var(--dark);
+    color: #0D0D0D;
     font-family: 'DM Sans', sans-serif;
     font-size: 15px;
     font-weight: 700;
     cursor: pointer;
     letter-spacing: 0.03em;
     transition: all 0.2s;
-    box-shadow: 0 4px 16px rgba(201,169,110,0.25);
+    box-shadow: 0 4px 20px rgba(201,169,110,0.40);
   }
   .rating-submit-btn:active { transform: scale(0.97); box-shadow: none; }
 
@@ -384,16 +384,16 @@
   }
   .rating-done-stars span {
     font-size: 22px;
-    color: var(--gold);
+    color: #F5C842;
   }
   .rating-done-label {
     font-family: 'Cormorant Garamond', serif;
     font-size: 16px;
-    color: var(--text);
+    color: #FFFFFF;
   }
   .rating-done-comment {
     font-size: 12px;
-    color: var(--text-muted);
+    color: #B0A090;
     font-style: italic;
     line-height: 1.45;
   }
@@ -3050,13 +3050,7 @@ function requestTrayPickup(orderId) {
   if (btn) {
     btn.classList.add('sent');
     btn.disabled = true;
-    btn.removeAttribute('onclick');
-    btn.innerHTML = '<div class="tray-left">'
-      + '<div class="tray-pickup-icon-wrap" style="color:#5DDB9A;font-size:22px;font-weight:700;">✓</div>'
-      + '<div class="tray-pickup-text-wrap">'
-      + '<span class="tray-pickup-title">Tray pickup on the way</span>'
-      + '<span class="tray-pickup-sub">Staff has been notified</span>'
-      + '</div></div>';
+    btn.innerHTML = '<span class="tray-icon">✓</span> Tray pickup requested';
   }
 
   showGuestToast('Tray pickup requested. We\'ll be right there!', 'green');
@@ -4541,17 +4535,7 @@ function attachAllListeners() {
         updateOrdersBadge();
         renderOrders();
       })
-      .catch(function(e){
-        console.warn('[GUEST] attachAllListeners Firestore error:', e);
-        // Firestore rules block .where() queries — fall back to individual listeners
-        // for every non-terminal order already in localStorage orderHistory
-        console.log('[GUEST] Falling back to per-order listeners from localStorage');
-        var TERMINAL = ['delivered','cancelled','rejected'];
-        orderHistory.forEach(function(o) {
-          if (TERMINAL.indexOf(o.status) !== -1) return;
-          attachOrderListener(String(o.id));
-        });
-      });
+      .catch(function(e){ console.warn('[GUEST] attachAllListeners Firestore error:', e); });
 
     // Also sync + re-attach service request listeners
     db.collection('service_requests')
