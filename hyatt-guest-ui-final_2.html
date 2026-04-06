@@ -4541,7 +4541,17 @@ function attachAllListeners() {
         updateOrdersBadge();
         renderOrders();
       })
-      .catch(function(e){ console.warn('[GUEST] attachAllListeners Firestore error:', e); });
+      .catch(function(e){
+        console.warn('[GUEST] attachAllListeners Firestore error:', e);
+        // Firestore rules block .where() queries — fall back to individual listeners
+        // for every non-terminal order already in localStorage orderHistory
+        console.log('[GUEST] Falling back to per-order listeners from localStorage');
+        var TERMINAL = ['delivered','cancelled','rejected'];
+        orderHistory.forEach(function(o) {
+          if (TERMINAL.indexOf(o.status) !== -1) return;
+          attachOrderListener(String(o.id));
+        });
+      });
 
     // Also sync + re-attach service request listeners
     db.collection('service_requests')
@@ -4598,12 +4608,33 @@ function attachAllListeners() {
 
 // ── On page load: sync + attach
 window.addEventListener('load', function() {
+  // Always attach individual listeners for every non-terminal order in localStorage
+  // This is the guaranteed path — works even if Firestore .where() rules block attachAllListeners
+  var TERMINAL = ['delivered','cancelled','rejected'];
+  _waitDb().then(function(db) {
+    if (!db) return;
+    orderHistory.forEach(function(o) {
+      if (TERMINAL.indexOf(o.status) !== -1) return;
+      attachOrderListener(String(o.id));
+    });
+  });
+  // Also run full sync (will add new orders from other devices if rules allow)
   attachAllListeners();
 });
 
 // ── On visibility change (phone wake / tab switch): re-sync
 document.addEventListener('visibilitychange', function() {
   if (document.visibilityState === 'visible') {
+    // Re-attach per-order listeners first (guaranteed path)
+    var TERMINAL = ['delivered','cancelled','rejected'];
+    _waitDb().then(function(db) {
+      if (!db) return;
+      orderHistory.forEach(function(o) {
+        if (TERMINAL.indexOf(o.status) !== -1) return;
+        if (_activeListeners[String(o.id)]) return; // already listening
+        attachOrderListener(String(o.id));
+      });
+    });
     attachAllListeners();
   }
 });
