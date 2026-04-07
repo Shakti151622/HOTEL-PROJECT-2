@@ -2872,7 +2872,18 @@ function renderOrders() {
       ${o.status === 'delivered' ? (() => {
         // ── Tray Pickup CTA
         var trayAlreadySent = o.trayPickupSent === true;
-        var trayHtml = trayAlreadySent
+        var trayPickupDone  = o.trayPickupDone  === true;
+        var trayHtml = trayPickupDone
+          ? `<button class="tray-pickup-btn sent" disabled style="background:rgba(76,175,125,0.15);border-color:rgba(76,175,125,0.35);">
+               <div class="tray-left">
+                 <div class="tray-pickup-icon-wrap" style="background:rgba(76,175,125,0.2);color:#4CAF7D;font-size:22px;font-weight:700;">✓</div>
+                 <div class="tray-pickup-text-wrap">
+                   <span class="tray-pickup-title" style="color:var(--green);">Tray Collected</span>
+                   <span class="tray-pickup-sub">Our staff has picked up the tray</span>
+                 </div>
+               </div>
+             </button>`
+          : trayAlreadySent
           ? `<button class="tray-pickup-btn sent" disabled>
                <div class="tray-left">
                  <div class="tray-pickup-icon-wrap" style="color:#FFFFFF;font-size:22px;font-weight:700;">✓</div>
@@ -3172,6 +3183,29 @@ function requestTrayPickup(orderId) {
   // Write to Firebase service_requests collection
   _waitDb().then(function(db){
     if (!db) return;
+
+    // ── Attach listener IMMEDIATELY (don't wait for .set to resolve — reduces notification delay)
+    db.collection('service_requests').doc(String(reqId)).onSnapshot(function(doc) {
+      if (!doc.exists) return;
+      var _td = doc.data();
+      var _req = serviceHistory.find(function(x){ return x.id === reqId; });
+      if (_req) { _req.status = _td.status; _saveHistory(); }
+      if (_td.status === 'done') {
+        // Mark the linked order's tray as collected
+        var _lo = orderHistory.find(function(x){ return x.id === orderId; });
+        if (_lo && !_lo.trayPickupDone) {
+          _lo.trayPickupDone = true;
+          _saveHistory();
+        }
+        showGuestToast('Tray collected — thanks! 🍽️', 'green');
+        if (document.getElementById('screen-orders') && document.getElementById('screen-orders').classList.contains('active')) renderOrders();
+      }
+      if (_td.status === 'cancelled') {
+        showGuestToast('Tray pickup cancelled — contact reception', 'red');
+      }
+    });
+
+    // Write to Firestore (non-blocking — listener already attached above)
     db.collection('service_requests').doc(String(reqId)).set({
       id: reqId,
       room: String(window.ROOM_NUM || '000'),
@@ -3268,6 +3302,82 @@ function submitRating(orderId) {
   });
 }
 window.submitRating = submitRating;
+
+// ── SERVICE RATING ───────────────────────────────────────────────────────────
+function setSvcRating(reqId, val) {
+  var starsContainer = document.getElementById('svc-stars-' + reqId);
+  if (!starsContainer) return;
+  var btns = starsContainer.querySelectorAll('.star-btn');
+  btns.forEach(function(btn) {
+    var bv = parseInt(btn.getAttribute('data-val'), 10);
+    btn.classList.toggle('filled', bv <= val);
+  });
+  starsContainer.setAttribute('data-selected', val);
+
+  var moodEl = document.getElementById('svc-rating-mood-' + reqId);
+  var moods = ['','😞 Not good','😐 Could be better','😊 Good stay','😄 Great service','🤩 Outstanding!'];
+  if (moodEl) { moodEl.textContent = moods[val] || ''; moodEl.classList.add('visible'); }
+
+  var form = document.getElementById('svc-rating-form-' + reqId);
+  if (form) form.classList.add('open');
+}
+window.setSvcRating = setSvcRating;
+
+function submitSvcRating(reqId) {
+  var req = serviceHistory.find(function(r){ return r.id === reqId; });
+  if (!req) return;
+
+  var starsContainer = document.getElementById('svc-stars-' + reqId);
+  var val = starsContainer ? parseInt(starsContainer.getAttribute('data-selected') || '0', 10) : 0;
+  if (!val) { showGuestToast('Please tap a star to rate.', 'red'); return; }
+
+  var commentEl = document.getElementById('svc-rating-comment-' + reqId);
+  var comment = commentEl ? commentEl.value.trim() : '';
+
+  req.svcRating = val;
+  if (comment) req.svcRatingComment = comment;
+  _saveHistory();
+
+  // Replace widget with done state inline
+  var section = document.getElementById('svc-rating-section-' + reqId);
+  if (section) {
+    var labels = ['','Poor','Fair','Good','Great','Excellent!'];
+    var starsHtml = [1,2,3,4,5].map(function(n){
+      return '<span style="font-size:24px;color:'+(n<=val?'#F5C842':'var(--text-dim)')+'">★</span>';
+    }).join('');
+    section.classList.add('rated');
+    section.innerHTML =
+        '<div class="rating-header" style="margin-bottom:' + (comment?'10px':'0') + ';">'
+      +   '<div class="rating-title-col">'
+      +     '<span class="rating-title" style="color:var(--text);">Your Feedback</span>'
+      +     '<span class="rating-subtitle" style="color:#7EC89A;font-weight:600;font-size:12px;">' + (labels[val]||'') + '</span>'
+      +   '</div>'
+      +   '<div style="display:flex;gap:2px;align-items:center;">' + starsHtml + '</div>'
+      + '</div>'
+      + (comment ? '<div class="rating-done-comment" style="color:var(--text-muted);font-style:italic;font-size:13px;">"' + comment + '"</div>' : '');
+  }
+
+  showGuestToast('Thank you — your feedback means a lot to us!', 'green');
+
+  _waitDb().then(function(db){
+    if (!db) return;
+    var ratingData = {
+      reqId:          String(reqId),
+      room:           String(window.ROOM_NUM || '000'),
+      guest:          String(window.GUEST_NAME || 'Guest'),
+      type:           req.type || '',
+      rating:         val,
+      rating_comment: comment || '',
+      submitted_at:   new Date().toISOString()
+    };
+    db.collection('service_ratings').doc(String(reqId)).set(ratingData)
+      .catch(function(e){ console.warn('Svc rating write failed:', e && e.message || e); });
+    // Also try updating the service_requests doc in case it still exists
+    db.collection('service_requests').doc(String(reqId)).update({ rating: val, rating_comment: comment || '' })
+      .catch(function(){});
+  });
+}
+window.submitSvcRating = submitSvcRating;
 
 // ── CANCEL / MODIFY ORDER
 function cancelOrder(orderId) {
@@ -3670,6 +3780,19 @@ function submitService() {
         if (_d.status === 'cancelled') {
           showGuestToast('Request cancelled: ' + (_d.cancel_reason || 'contact reception'), 'red');
         }
+            if (_d.status === 'done' && _d.type === 'Tray Pickup') {
+              // Find the linked food order and mark tray as collected
+              var _linkedId = _d.linkedOrderId || (_d.items && _d.items[0] && _d.items[0].linkedOrderId);
+              if (_linkedId) {
+                var _lo = orderHistory.find(function(x){ return x.id === _linkedId; });
+                if (_lo && !_lo.trayPickupDone) {
+                  _lo.trayPickupDone = true;
+                  _saveHistory();
+                }
+              }
+              showGuestToast('Tray collected — thanks! 🍽️', 'green');
+              if (document.getElementById('screen-orders') && document.getElementById('screen-orders').classList.contains('active')) renderOrders();
+            }
         _saveHistory(); updateServicesBadge();
         if(document.getElementById('screen-services').classList.contains('active')) renderServices();
       });
@@ -3806,6 +3929,53 @@ function renderServices() {
         + modifyBtns
       : '';
 
+    // ── Rating card for done service requests
+    var svcRatingHtml = '';
+    if (r.status === 'done') {
+      var _svcRatingLabels = ['','Poor','Fair','Good','Great','Excellent!'];
+      if (r.svcRating) {
+        var _svcStarsHtml = [1,2,3,4,5].map(function(n){
+          return '<span style="font-size:24px;color:'+(n<=r.svcRating?'#F5C842':'var(--text-dim)')+'">\u2605</span>';
+        }).join('');
+        svcRatingHtml = '<div class="rating-section rated" style="margin:12px 18px 4px;">'
+          + '<div class="rating-header">'
+          + '<div class="rating-title-col">'
+          + '<span class="rating-title" style="color:var(--text);">Your Feedback</span>'
+          + '<span class="rating-subtitle" style="color:#7EC89A;font-weight:600;font-size:12px;">' + (_svcRatingLabels[r.svcRating]||'') + '</span>'
+          + '</div>'
+          + '<div style="display:flex;gap:2px;align-items:center;">' + _svcStarsHtml + '</div>'
+          + '</div>'
+          + (r.svcRatingComment ? '<div class="rating-done-comment" style="color:var(--text-muted);font-style:italic;font-size:13px;">&quot;' + r.svcRatingComment + '&quot;</div>' : '')
+          + '</div>';
+      } else {
+        svcRatingHtml = '<div class="rating-section" id="svc-rating-section-' + r.id + '" style="margin:12px 18px 4px;">'
+          + '<div class="rating-header">'
+          + '<div class="rating-title-col">'
+          + '<span class="rating-title">How was the service?</span>'
+          + '<span class="rating-subtitle">Your feedback helps us improve</span>'
+          + '</div>'
+          + '<span class="rating-badge">30 sec</span>'
+          + '</div>'
+          + '<div class="star-row" id="svc-stars-' + r.id + '">'
+          + [1,2,3,4,5].map(function(n){
+              return '<button class="star-btn" data-val="' + n + '" onclick="setSvcRating(\'' + r.id + '\',' + n + ')">'
+                + '<svg class="star-glyph" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+                + '<polygon class="star-outline" points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>'
+                + '<polygon class="star-fill" points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>'
+                + '</svg>'
+                + '<span class="star-label">' + _svcRatingLabels[n] + '</span>'
+                + '</button>';
+            }).join('')
+          + '</div>'
+          + '<div class="rating-mood" id="svc-rating-mood-' + r.id + '"></div>'
+          + '<div class="rating-form-wrap" id="svc-rating-form-' + r.id + '">'
+          + '<textarea class="rating-comment" id="svc-rating-comment-' + r.id + '" placeholder="Tell us more\u2026 (optional)" rows="2"></textarea>'
+          + '<button class="rating-submit-btn" onclick="submitSvcRating(\'' + r.id + '\')">Share Feedback</button>'
+          + '</div>'
+          + '</div>';
+      }
+    }
+
     // Build item rows — each item on its own line with icon + name + qty
     var itemsHtml = '';
     if (r.items && Array.isArray(r.items)) {
@@ -3843,6 +4013,7 @@ function renderServices() {
       + '</div>'
       + itemsHtml
       + trackerHtml
+      + svcRatingHtml
       + '</div>';
   }
 
@@ -4453,6 +4624,7 @@ function _initDb(){
     if(typeof firebase==='undefined'||!firebase.firestore){ return; }
     var app=(firebase.apps&&firebase.apps.length)?firebase.app():firebase.initializeApp({apiKey:"AIzaSyAb1G6UATyCR0l_8kDyO3VpRgMwDJ5l7UI",authDomain:"roocan-16ea0.firebaseapp.com",projectId:"roocan-16ea0",storageBucket:"roocan-16ea0.firebasestorage.app",messagingSenderId:"521412270728",appId:"1:521412270728:web:c2564cf45855e2a6961d3d"});
     _db=firebase.firestore();
+    try { _db.settings({ experimentalForceLongPolling: true, merge: true }); } catch(e) {}
   } catch(e){ console.warn('FB init:',e.message); _firebaseUnavailable=true; }
 }
 document.addEventListener('DOMContentLoaded',function(){try{_initDb();}catch(e){}});
@@ -4656,8 +4828,29 @@ function attachAllListeners() {
       .then(function(snap) {
         snap.docs.forEach(function(doc) {
           var data = doc.data();
-          if (data.status === 'done' || data.status === 'cancelled') return;
           var req = serviceHistory.find(function(r){ return r.id === doc.id; });
+
+          // If already done: check if it was a tray pickup and mark trayPickupDone on the linked order
+          // (handles page-reload case where the listener was lost but status is already done in Firestore)
+          if (data.status === 'done') {
+            if (data.type === 'Tray Pickup') {
+              var _linkedId = data.linkedOrderId || (data.items && data.items[0] && data.items[0].linkedOrderId);
+              if (_linkedId) {
+                var _lo = orderHistory.find(function(x){ return x.id === _linkedId; });
+                if (_lo && !_lo.trayPickupDone) {
+                  _lo.trayPickupDone = true;
+                  _saveHistory();
+                }
+              }
+            }
+            if (req) { req.status = 'done'; _saveHistory(); }
+            return; // No need to attach a live listener for already-done requests
+          }
+          if (data.status === 'cancelled') {
+            if (req) { req.status = 'cancelled'; _saveHistory(); }
+            return;
+          }
+
           if (!req) return;
           // Sync current Firebase state
           req.status = data.status;
@@ -4689,6 +4882,18 @@ function attachAllListeners() {
             }
             if (_d2.status === 'cancelled') {
               showGuestToast('Request cancelled: ' + (_d2.cancel_reason || 'contact reception'), 'red');
+            }
+            if (_d2.status === 'done' && _d2.type === 'Tray Pickup') {
+              var _linkedId2 = _d2.linkedOrderId || (_d2.items && _d2.items[0] && _d2.items[0].linkedOrderId);
+              if (_linkedId2) {
+                var _lo2 = orderHistory.find(function(x){ return x.id === _linkedId2; });
+                if (_lo2 && !_lo2.trayPickupDone) {
+                  _lo2.trayPickupDone = true;
+                  _saveHistory();
+                }
+              }
+              showGuestToast('Tray collected — thanks! 🍽️', 'green');
+              if (document.getElementById('screen-orders') && document.getElementById('screen-orders').classList.contains('active')) renderOrders();
             }
             _saveHistory();
             updateServicesBadge();
