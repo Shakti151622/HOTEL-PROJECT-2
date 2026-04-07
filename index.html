@@ -1657,6 +1657,15 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 .analytics-grid{display:grid;grid-template-columns:2fr 1fr;gap:20px;}
 .analytics-card{background:var(--surface);border:1px solid var(--card-border);border-radius:16px;padding:22px 24px;}
 .analytics-card-title{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:500;color:var(--text);margin-bottom:20px;letter-spacing:0.02em;}
+.period-btn{padding:6px 14px;border-radius:20px;border:1px solid var(--card-border);background:var(--surface2);color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;transition:all 0.15s;letter-spacing:0.02em;white-space:nowrap;}
+.period-btn:hover{border-color:var(--gold);color:var(--gold);}
+.period-btn.active{background:var(--gold);border-color:var(--gold);color:var(--dark);font-weight:600;}
+.review-card{padding:14px 0;border-bottom:1px solid var(--card-border);}
+.review-card:last-child{border-bottom:none;}
+.review-room{font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--gold);}
+.review-stars span{font-size:16px;}
+.review-comment{font-size:13px;color:var(--text-muted);font-style:italic;margin:4px 0;}
+.review-meta{font-size:10px;color:var(--text-dim);}
 .bar-chart{display:flex;flex-direction:column;gap:10px;} .bar-row{display:flex;align-items:center;gap:12px;}
 .bar-label{font-size:12px;color:var(--text-muted);width:140px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bar-track{flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;}
@@ -4088,20 +4097,65 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
     </div>
 
     <div class="view" id="view-analytics">
-      <div class="stats-row">
-        <div class="stat-card amber"><div class="stat-label">Orders/Week</div><div class="stat-value">127</div><div class="stat-change up">↑ 18%</div></div>
-        <div class="stat-card green"><div class="stat-label">Revenue/Week</div><div class="stat-value" style="font-size:26px;">₹38.2k</div><div class="stat-change up">↑ ₹4.1k</div></div>
-        <div class="stat-card blue"><div class="stat-label">Satisfaction</div><div class="stat-value">4.8</div><div class="stat-change up">⭐ Excellent</div></div>
-        <div class="stat-card red"><div class="stat-label">Avg Order</div><div class="stat-value" style="font-size:26px;">₹301</div><div class="stat-change up">↑ ₹22</div></div>
+
+      <!-- ── Period filter bar ── -->
+      <!-- ── Period filter bar ── -->
+      <div id="analytics-filter-bar" style="margin-bottom:18px;background:var(--surface);border:1px solid var(--card-border);border-radius:14px;overflow:hidden;">
+        <!-- Scrollable pill row -->
+        <div style="display:flex;gap:6px;padding:12px 14px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;">
+          <button class="period-btn active" data-period="today"  onclick="setAnalyticsPeriod('today')" >Today</button>
+          <button class="period-btn"        data-period="week"   onclick="setAnalyticsPeriod('week')"  >This Week</button>
+          <button class="period-btn"        data-period="month"  onclick="setAnalyticsPeriod('month')" >This Month</button>
+          <button class="period-btn"        data-period="custom" onclick="setAnalyticsPeriod('custom')">Custom Date</button>
+          <button class="period-btn"        data-period="range"  onclick="setAnalyticsPeriod('range')" >Date Range</button>
+        </div>
+        <!-- Date pickers (shown conditionally below pills) -->
+        <div id="filter-custom-date" style="display:none;padding:0 14px 12px;gap:8px;align-items:center;">
+          <span style="font-size:12px;color:var(--text-muted);">Date:</span>
+          <input type="date" id="analytics-date-input" style="background:var(--surface2);border:1px solid var(--card-border);border-radius:8px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:13px;flex:1;" onchange="renderAnalytics()">
+        </div>
+        <div id="filter-custom-range" style="display:none;padding:0 14px 12px;gap:8px;align-items:center;flex-wrap:wrap;">
+          <span style="font-size:12px;color:var(--text-muted);">From:</span>
+          <input type="date" id="analytics-from-input" style="background:var(--surface2);border:1px solid var(--card-border);border-radius:8px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:13px;" onchange="renderAnalytics()">
+          <span style="font-size:12px;color:var(--text-muted);">To:</span>
+          <input type="date" id="analytics-to-input"   style="background:var(--surface2);border:1px solid var(--card-border);border-radius:8px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:13px;" onchange="renderAnalytics()">
+        </div>
+        <!-- Period label -->
+        <div id="analytics-period-label" style="font-size:11px;color:var(--text-muted);padding:0 14px 10px;"></div>
       </div>
+
+      <!-- ── Live stat cards ── -->
+      <div class="stats-row">
+        <div class="stat-card amber"><div class="stat-label">Orders</div><div class="stat-value" id="stat-orders-today">—</div><div class="stat-change" id="stat-orders-today-sub">in period</div></div>
+        <div class="stat-card green"><div class="stat-label">Revenue</div><div class="stat-value" id="stat-revenue-today" style="font-size:26px;">—</div><div class="stat-change" id="stat-revenue-today-sub">delivered only</div></div>
+        <div class="stat-card blue" onclick="openAllReviewsPage();" style="cursor:pointer;position:relative;"><div class="stat-label">Satisfaction</div><div class="stat-value" id="stat-satisfaction">—</div><div class="stat-change" id="stat-satisfaction-sub">No ratings yet</div><div style="position:absolute;bottom:8px;right:10px;font-size:9px;color:var(--text-dim);letter-spacing:0.05em;">ALL REVIEWS ›</div></div>
+        <div class="stat-card red"><div class="stat-label">Avg Order</div><div class="stat-value" id="stat-avg-order" style="font-size:26px;">—</div><div class="stat-change" id="stat-avg-order-sub">per order</div></div>
+      </div>
+
+      <!-- ── Charts row 1 ── -->
       <div class="analytics-grid">
         <div class="analytics-card"><div class="analytics-card-title">Top Ordered Items</div><div class="bar-chart" id="top-items-chart"></div></div>
         <div class="analytics-card"><div class="analytics-card-title">Key Metrics</div><div class="metric-list" id="metrics-list"></div></div>
       </div>
       <div style="height:16px"></div>
+
+      <!-- ── Charts row 2 ── -->
       <div class="analytics-grid">
         <div class="analytics-card"><div class="analytics-card-title">Service Breakdown</div><div class="bar-chart" id="svc-breakdown-chart"></div></div>
         <div class="analytics-card"><div class="analytics-card-title">Hourly Volume</div><div class="bar-chart" id="hourly-chart"></div></div>
+      </div>
+      <div style="height:16px"></div>
+
+      <!-- ── Guest Reviews panel ── -->
+      <div class="analytics-card" id="reviews-panel" style="padding:22px 24px;scroll-margin-top:80px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+          <div class="analytics-card-title" style="margin-bottom:0;">Recent Reviews</div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div id="reviews-summary" style="font-size:12px;color:var(--text-muted);"></div>
+            <button onclick="openAllReviewsPage()" style="padding:6px 14px;background:transparent;border:1px solid rgba(201,169,110,0.35);border-radius:8px;color:var(--gold);font-family:'DM Sans',sans-serif;font-size:11px;letter-spacing:0.08em;cursor:pointer;white-space:nowrap;transition:all 0.15s;" onmouseover="this.style.background='rgba(201,169,110,0.08)'" onmouseout="this.style.background='transparent'">VIEW ALL ›</button>
+          </div>
+        </div>
+        <div id="reviews-list"></div>
       </div>
     </div>
 
@@ -4418,7 +4472,9 @@ function rowToOrder(row){
     items:Array.isArray(row.items)?row.items:[], total:row.total||0,
     status:row.status||'new', rejection_reason:row.rejection_reason||null,
     placedAt:placedAt, accepted_at: row.accepted_at||null,
-    acceptedAt: acceptedAt, fromSupa:true};
+    acceptedAt: acceptedAt, fromSupa:true,
+    rating: row.rating || null,
+    ratingComment: row.rating_comment || null};
 }
 function setConnBadge(state,label){var b=document.getElementById('conn-badge'),l=document.getElementById('conn-label');if(!b)return;b.className='conn-badge '+state;l.textContent=label;}
 async function connectSupabase(){
@@ -4531,6 +4587,58 @@ function subscribeRealtime(){
       });
       if (_svcsInitialLoad) { _svcsInitialLoad = false; renderStaffServices(); updateUrgencyStrip(); }
     }, function(err){ console.warn('Services snapshot error:', err); });
+
+  // ── Ratings realtime — separate collection so archiving orders doesn't break ratings ──
+  if (!OH._ratings) OH._ratings = {};
+  var _ratingsInitialLoad = true; // skip toasts for reviews that already exist on first load
+  db.collection('ratings').onSnapshot(function(snapshot) {
+    var changed = false;
+    snapshot.docChanges().forEach(function(change) {
+      if (change.type === 'removed') return;
+      var d = change.doc.data();
+      var orderId     = String(d.orderId || change.doc.id);
+      var rating      = d.rating || 0;
+      var comment     = d.rating_comment || '';
+      var room        = d.room || '';
+      var guest       = d.guest || 'Guest';
+      var submittedAt = d.submitted_at || null;
+      var submittedMs = submittedAt ? new Date(submittedAt).getTime() : Date.now();
+
+      if (!rating) return;
+
+      // Always store in dedicated _ratings store (keyed by orderId)
+      OH._ratings[orderId] = {
+        orderId: orderId, rating: rating, comment: comment,
+        room: room, guest: guest, submittedAt: submittedMs
+      };
+      changed = true;
+
+      // ── NEW REVIEW POPUP NOTIFICATION ──
+      // Only fire toast for genuinely new/incoming reviews, not on initial page load
+      if (!_ratingsInitialLoad && (change.type === 'added' || change.type === 'modified')) {
+        var starEmoji = rating >= 5 ? '🌟' : rating >= 4 ? '⭐' : rating >= 3 ? '😊' : rating >= 2 ? '😐' : '😞';
+        var stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
+        var toastTitle = starEmoji + ' New Review — Room ' + (room || '?');
+        var toastMsg = stars + (comment ? ' · "' + comment.slice(0, 60) + (comment.length > 60 ? '…' : '') + '"' : ' · ' + (rating >= 4 ? 'Great experience!' : rating >= 3 ? 'Mixed feedback' : 'Needs attention'));
+        showToast('review', toastTitle, toastMsg, 6000);
+      }
+
+      // Also update in archived food history if present
+      Object.keys(OH._food).forEach(function(day) {
+        var idx = OH._food[day].findIndex(function(o){ return o.id === orderId; });
+        if (idx !== -1) {
+          OH._food[day][idx].rating        = rating;
+          OH._food[day][idx].ratingComment = comment;
+        }
+      });
+    });
+    if (_ratingsInitialLoad) _ratingsInitialLoad = false;
+    if (changed) {
+      ohSave();
+      var av = document.getElementById('view-analytics');
+      if (av && av.classList.contains('active')) renderAnalytics();
+    }
+  }, function(err){ console.warn('Ratings snapshot error:', err); });
 
   // ── Checkins realtime ──
   _chkUnsub = db.collection('checkins')
@@ -4701,6 +4809,7 @@ function handleRealtimeEvent(payload){
     orders=orders.filter(function(x){return x.id!==old.id;});
     stopAlertBeep(old.id);renderOrders();updateStats();
   }
+  // Ratings are now handled by the dedicated 'ratings' collection listener
 }
 // acceptOrder defined below with undo support
 
@@ -4865,13 +4974,331 @@ function getGuestBaseUrl(){
   return 'https://shakti151622.github.io/HOTEL-PROJECT-2/hyatt-guest-ui-final_2.html';
 }
 function renderRooms(){var data=(typeof buildRoomsData==='function')?buildRoomsData():[];var grid=document.getElementById('rooms-grid');if(!grid)return;grid.innerHTML=data.map(function(r){var dots='';if(r.orders>0)dots+='<div class="room-dot order">'+r.orders+'🍽</div>';if(r.services>0)dots+='<div class="room-dot service">'+r.services+'🛎</div>';var isOccupied=r.status==='occupied'||r.status==='checkout';var _hn=localStorage.getItem('hyatt_hotel_name')||'';var fixedUrl=getGuestBaseUrl()+'?room='+encodeURIComponent(r.num)+(_hn?'&hotel='+encodeURIComponent(_hn):'');var qrSrc='https://chart.googleapis.com/chart?chs=72x72&cht=qr&chl='+encodeURIComponent(fixedUrl)+'&choe=UTF-8&chld=M|0';return'<div class="room-tile '+r.status+'" onclick="showRoomQR(\''+r.num+'\')">'+'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'+'<div class="room-number">'+r.num+'</div>'+'</div>'+'<div class="room-guest">'+(r.guest||'Vacant')+'</div>'+'<div style="display:flex;justify-content:center;margin:6px 0 4px;">'+'<div style="background:white;border-radius:6px;padding:3px;display:inline-block;position:relative;">'+'<img src="'+qrSrc+'" width="66" height="66" style="display:block;border-radius:2px;" loading="lazy" alt="QR '+r.num+'">'+'<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;background:white;border-radius:3px;display:flex;align-items:center;justify-content:center;">'+'<div style="width:10px;height:10px;background:#C9A96E;border-radius:2px;"></div>'+'</div>'+'</div>'+'</div>'+'<div class="room-status-row"><div class="room-checkout" style="font-size:10px;color:var(--text-dim)">'+r.checkout+'</div>'+'<div class="room-actions-active">'+dots+'</div></div>'+(isOccupied?'<button onclick="event.stopPropagation()" style="width:100%;margin-top:6px;background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.2);border-radius:8px;color:var(--red);font-size:11px;padding:5px;cursor:pointer;letter-spacing:0.04em;">Check Out</button>':'')+'</div>';}).join('');}
-function renderAnalytics(){var items=[{name:'Paneer Butter Masala',val:42,pct:84},{name:'Chicken Biryani',val:38,pct:76},{name:'Dal Tadka',val:31,pct:62},{name:'Veg Biryani',val:27,pct:54},{name:'Butter Chicken',val:24,pct:48},{name:'Cold Coffee',val:19,pct:38}];document.getElementById('top-items-chart').innerHTML=items.map(function(i){return'<div class="bar-row"><div class="bar-label">'+i.name+'</div><div class="bar-track"><div class="bar-fill" style="width:'+i.pct+'%"></div></div><div class="bar-val">'+i.val+'</div></div>';}).join('');document.getElementById('metrics-list').innerHTML=[{name:'Avg. Order Value',val:'₹301',cls:'amber'},{name:'Orders / Room / Day',val:'2.4',cls:''},{name:'Peak Hour',val:'8–9 PM',cls:'amber'},{name:'Repeat Orders',val:'68%',cls:'green'},{name:'Fastest Delivery',val:'11 min',cls:'green'},{name:'Slowest Delivery',val:'38 min',cls:''}].map(function(m){return'<div class="metric-row"><div class="metric-name">'+m.name+'</div><div class="metric-val '+m.cls+'">'+m.val+'</div></div>';}).join('');var svc=[{name:'Room Cleaning',val:24,pct:80,cls:''},{name:'Towels',val:18,pct:60,cls:'green'},{name:'Water',val:14,pct:47,cls:'blue'},{name:'Other',val:8,pct:27,cls:''}];document.getElementById('svc-breakdown-chart').innerHTML=svc.map(function(i){return'<div class="bar-row"><div class="bar-label">'+i.name+'</div><div class="bar-track"><div class="bar-fill '+i.cls+'" style="width:'+i.pct+'%"></div></div><div class="bar-val">'+i.val+'</div></div>';}).join('');var hours=[{name:'7–8 AM',val:3,pct:15},{name:'8–9 AM',val:9,pct:45},{name:'12–1 PM',val:14,pct:70},{name:'1–2 PM',val:11,pct:55},{name:'7–8 PM',val:18,pct:90},{name:'8–9 PM',val:20,pct:100},{name:'9–10 PM',val:16,pct:80},{name:'10–11 PM',val:8,pct:40}];document.getElementById('hourly-chart').innerHTML=hours.map(function(i){return'<div class="bar-row"><div class="bar-label">'+i.name+'</div><div class="bar-track"><div class="bar-fill blue" style="width:'+i.pct+'%"></div></div><div class="bar-val">'+i.val+'</div></div>';}).join('');}
-function updateStats(){var allActive=orders.filter(function(o){return o.status!=='delivered';});var n=allActive.length;var _sa=document.getElementById('stat-active');if(_sa)_sa.textContent=n;var _ob=document.getElementById('orders-badge');if(_ob)_ob.textContent=n;var db=document.getElementById('desk-orders-badge');if(db)db.textContent=n>0?n:'';var _oc=document.getElementById('orders-count');if(_oc)_oc.textContent=n+' active';var rev=orders.filter(function(o){return o.status==='delivered';}).reduce(function(s,o){return s+o.total;},0)+4820;var _sr=document.getElementById('stat-revenue');if(_sr)_sr.textContent=rev.toLocaleString('en-IN');updateUrgencyStrip();}
+// ── Analytics period state ──────────────────────────────────────────
+var _analyticsPeriod = 'today'; // today | week | month | custom | range
+
+function setAnalyticsPeriod(period) {
+  _analyticsPeriod = period;
+  document.querySelectorAll('.period-btn').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-period') === period);
+  });
+  var customDate  = document.getElementById('filter-custom-date');
+  var customRange = document.getElementById('filter-custom-range');
+  if (customDate)  customDate.style.display  = period === 'custom' ? 'flex' : 'none';
+  if (customRange) customRange.style.display = period === 'range'  ? 'flex' : 'none';
+  // hide period label when no filter shown
+  var lbl = document.getElementById('analytics-period-label'); if(lbl && period==='today') lbl.textContent='';
+  // Set sensible defaults for date inputs
+  if (period === 'custom' && document.getElementById('analytics-date-input')) {
+    var todayStr = new Date().toISOString().slice(0,10);
+    if (!document.getElementById('analytics-date-input').value)
+      document.getElementById('analytics-date-input').value = todayStr;
+  }
+  if (period === 'range') {
+    var todayStr2 = new Date().toISOString().slice(0,10);
+    var weekStr   = new Date(Date.now()-6*86400000).toISOString().slice(0,10);
+    if (!document.getElementById('analytics-from-input').value)
+      document.getElementById('analytics-from-input').value = weekStr;
+    if (!document.getElementById('analytics-to-input').value)
+      document.getElementById('analytics-to-input').value = todayStr2;
+  }
+  renderAnalytics();
+}
+window.setAnalyticsPeriod = setAnalyticsPeriod;
+
+function _getPeriodOrders() {
+  var all = _getAllArchivedOrders();
+  var now = Date.now();
+  var labelEl = document.getElementById('analytics-period-label');
+
+  function startOfDay(d) { var x=new Date(d); x.setHours(0,0,0,0); return x.getTime(); }
+
+  if (_analyticsPeriod === 'today') {
+    var start = startOfDay(now);
+    if (labelEl) labelEl.textContent = new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'});
+    return all.filter(function(o){ return (o.placedAt||0) >= start; });
+  }
+  if (_analyticsPeriod === 'week') {
+    var d = new Date(); d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0);
+    if (labelEl) labelEl.textContent = 'This week · ' + d.toLocaleDateString('en-IN',{day:'numeric',month:'short'}) + ' onwards';
+    return all.filter(function(o){ return (o.placedAt||0) >= d.getTime(); });
+  }
+  if (_analyticsPeriod === 'month') {
+    var m = new Date(); m.setDate(1); m.setHours(0,0,0,0);
+    if (labelEl) labelEl.textContent = new Date().toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+    return all.filter(function(o){ return (o.placedAt||0) >= m.getTime(); });
+  }
+  if (_analyticsPeriod === 'custom') {
+    var val = document.getElementById('analytics-date-input') && document.getElementById('analytics-date-input').value;
+    if (!val) { if(labelEl) labelEl.textContent='Pick a date'; return all; }
+    var dayStart = startOfDay(new Date(val+'T00:00:00'));
+    var dayEnd   = dayStart + 86400000;
+    if (labelEl) labelEl.textContent = new Date(val+'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    return all.filter(function(o){ return (o.placedAt||0) >= dayStart && (o.placedAt||0) < dayEnd; });
+  }
+  if (_analyticsPeriod === 'range') {
+    var from = document.getElementById('analytics-from-input') && document.getElementById('analytics-from-input').value;
+    var to   = document.getElementById('analytics-to-input')   && document.getElementById('analytics-to-input').value;
+    if (!from || !to) { if(labelEl) labelEl.textContent='Pick date range'; return all; }
+    var fromMs = startOfDay(new Date(from+'T00:00:00'));
+    var toMs   = startOfDay(new Date(to+'T00:00:00')) + 86400000;
+    var days   = Math.round((toMs - fromMs) / 86400000);
+    if (labelEl) labelEl.textContent = new Date(from+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'}) + ' – ' + new Date(to+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) + ' (' + days + ' days)';
+    return all.filter(function(o){ return (o.placedAt||0) >= fromMs && (o.placedAt||0) < toMs; });
+  }
+  return all;
+}
+
+function _getAllArchivedOrders() {
+  // Merge all days from OH._food into a flat array
+  var all = [];
+  Object.keys(OH._food || {}).forEach(function(day) {
+    (OH._food[day] || []).forEach(function(o) { all.push(o); });
+  });
+  return all;
+}
+
+function _getTodayKey() {
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function renderAnalytics() {
+  var allOrders    = _getAllArchivedOrders();   // full history — for charts & reviews
+  var periodOrders = _getPeriodOrders();         // filtered by selected period — for stat cards
+
+  // ── Stat cards (period-filtered) ────────────────────────────────
+  var periodDelivered = periodOrders.filter(function(o){ return o.status==='delivered'; });
+  var periodRev       = periodDelivered.reduce(function(s,o){ return s+o.total; }, 0);
+  var periodCount     = periodOrders.length;
+  var avgOrder        = periodDelivered.length ? Math.round(periodRev / periodDelivered.length) : 0;
+
+  // ── Ratings — filtered by the SAME period as orders ──────────────
+  // Determine period start/end from periodOrders timestamps, or compute directly
+  var _rNow = Date.now();
+  function _rStartOfDay(d) { var x=new Date(d); x.setHours(0,0,0,0); return x.getTime(); }
+  var _rPeriodStart = 0, _rPeriodEnd = Infinity;
+  if (_analyticsPeriod === 'today') {
+    _rPeriodStart = _rStartOfDay(_rNow);
+  } else if (_analyticsPeriod === 'week') {
+    var _rWk = new Date(); _rWk.setDate(_rWk.getDate() - _rWk.getDay()); _rWk.setHours(0,0,0,0);
+    _rPeriodStart = _rWk.getTime();
+  } else if (_analyticsPeriod === 'month') {
+    var _rMo = new Date(); _rMo.setDate(1); _rMo.setHours(0,0,0,0);
+    _rPeriodStart = _rMo.getTime();
+  } else if (_analyticsPeriod === 'custom') {
+    var _rCv = document.getElementById('analytics-date-input') && document.getElementById('analytics-date-input').value;
+    if (_rCv) { _rPeriodStart = _rStartOfDay(new Date(_rCv+'T00:00:00')); _rPeriodEnd = _rPeriodStart + 86400000; }
+  } else if (_analyticsPeriod === 'range') {
+    var _rFrom = document.getElementById('analytics-from-input') && document.getElementById('analytics-from-input').value;
+    var _rTo   = document.getElementById('analytics-to-input')   && document.getElementById('analytics-to-input').value;
+    if (_rFrom && _rTo) { _rPeriodStart = _rStartOfDay(new Date(_rFrom+'T00:00:00')); _rPeriodEnd = _rStartOfDay(new Date(_rTo+'T00:00:00')) + 86400000; }
+  }
+
+  function _rInPeriod(ts) { return (ts||0) >= _rPeriodStart && (ts||0) < _rPeriodEnd; }
+
+  var allRatings = Object.values(OH._ratings || {}).filter(function(r){ return _rInPeriod(r.submittedAt); });
+  var totalAvgRating = allRatings.length
+    ? (allRatings.reduce(function(s,r){ return s + (r.rating||0); }, 0) / allRatings.length)
+    : 0;
+  var ratingLabel = totalAvgRating >= 4.5 ? '⭐ Excellent'
+    : totalAvgRating >= 3.5 ? '⭐ Good'
+    : totalAvgRating >= 2.5 ? '😐 Average'
+    : totalAvgRating > 0    ? '😞 Needs Work'
+    : 'No reviews yet';
+
+  // Also merge from archived orders that have ratings (pre-ratings-collection data)
+  var archiveRated = periodOrders.filter(function(o){ return o.rating && o.rating > 0 && !OH._ratings[o.id]; });
+  var combinedRatingsCount = allRatings.length + archiveRated.length;
+  var combinedAvgRating = combinedRatingsCount
+    ? ((allRatings.reduce(function(s,r){ return s+(r.rating||0); },0)
+        + archiveRated.reduce(function(s,o){ return s+(o.rating||0); },0))
+       / combinedRatingsCount)
+    : 0;
+  if (combinedRatingsCount > allRatings.length) {
+    totalAvgRating = combinedAvgRating;
+    ratingLabel = totalAvgRating >= 4.5 ? '⭐ Excellent'
+      : totalAvgRating >= 3.5 ? '⭐ Good'
+      : totalAvgRating >= 2.5 ? '😐 Average'
+      : totalAvgRating > 0    ? '😞 Needs Work' : 'No reviews yet';
+  }
+
+  // Avg order — only real orders with total > 0
+  var realDelivered = periodDelivered.filter(function(o){ return o.total > 0; });
+  var realAvgOrder  = realDelivered.length ? Math.round(realDelivered.reduce(function(s,o){ return s+o.total; },0) / realDelivered.length) : 0;
+
+  function _set(id, val) { var el=document.getElementById(id); if(el) el.textContent=val; }
+  _set('stat-orders-today',     periodCount || '0');
+  _set('stat-orders-today-sub', periodDelivered.length + ' delivered');
+  _set('stat-revenue-today',    periodRev ? '₹' + periodRev.toLocaleString('en-IN') : '₹0');
+  _set('stat-revenue-today-sub', realDelivered.length + ' orders delivered');
+  _set('stat-satisfaction',     combinedRatingsCount ? totalAvgRating.toFixed(1) : '—');
+  _set('stat-satisfaction-sub', combinedRatingsCount ? ratingLabel + ' · ' + combinedRatingsCount + ' reviews' : 'No reviews yet');
+  _set('stat-avg-order',        realAvgOrder ? '₹' + realAvgOrder.toLocaleString('en-IN') : '—');
+  _set('stat-avg-order-sub',    realDelivered.length + ' delivered orders');
+
+  // ── Top Items chart (period) ─────────────────────────────────────
+  var itemCounts = {};
+  periodOrders.forEach(function(o) {
+    (o.items || []).forEach(function(i) {
+      var name = i.name || 'Unknown';
+      itemCounts[name] = (itemCounts[name] || 0) + (i.qty || 1);
+    });
+  });
+  var topItems = Object.keys(itemCounts).map(function(n){ return {name:n, val:itemCounts[n]}; })
+    .sort(function(a,b){ return b.val - a.val; }).slice(0, 8);
+  var maxItem = topItems.length ? topItems[0].val : 1;
+  var topEl = document.getElementById('top-items-chart');
+  if (topEl) {
+    topEl.innerHTML = topItems.length
+      ? topItems.map(function(i){
+          return '<div class="bar-row"><div class="bar-label">'+i.name+'</div>'
+            +'<div class="bar-track"><div class="bar-fill" style="width:'+Math.round(i.val/maxItem*100)+'%"></div></div>'
+            +'<div class="bar-val">'+i.val+'</div></div>';
+        }).join('')
+      : '<div style="color:var(--text-dim);font-size:13px;padding:20px 0;">No orders yet</div>';
+  }
+
+  // ── Key Metrics ──────────────────────────────────────────────────
+  var peakHour = '—', peakCount = 0;
+  var hourBuckets = {};
+  periodOrders.forEach(function(o) {
+    if (!o.placedAt) return;
+    var h = new Date(o.placedAt).getHours();
+    hourBuckets[h] = (hourBuckets[h] || 0) + 1;
+    if (hourBuckets[h] > peakCount) { peakCount = hourBuckets[h]; peakHour = h + ':00–' + (h+1) + ':00'; }
+  });
+  var uniqueRooms = new Set(periodOrders.map(function(o){ return o.room; })).size;
+  var metrics = [
+    {name:'Avg. Order Value',    val: avgOrder ? '₹'+avgOrder.toLocaleString('en-IN') : '—', cls:'amber'},
+    {name:'Total Orders',        val: String(periodOrders.length),                            cls:''},
+    {name:'Peak Hour',           val: peakHour,                                               cls:'amber'},
+    {name:'Unique Rooms',        val: String(uniqueRooms),                                    cls:''},
+    {name:'Avg Rating',          val: totalAvgRating ? totalAvgRating.toFixed(1)+' / 5' : '—', cls:'green'},
+    {name:'Reviews Received',    val: String(combinedRatingsCount),                            cls:'green'},
+  ];
+  var mlEl = document.getElementById('metrics-list');
+  if (mlEl) mlEl.innerHTML = metrics.map(function(m){
+    return '<div class="metric-row"><div class="metric-name">'+m.name+'</div><div class="metric-val '+m.cls+'">'+m.val+'</div></div>';
+  }).join('');
+
+  // ── Service Breakdown ────────────────────────────────────────────
+  var svcCounts = {};
+  Object.keys(OH._svc || {}).forEach(function(day) {
+    (OH._svc[day] || []).forEach(function(s) {
+      var t = s.svcType || s.type || 'Other';
+      svcCounts[t] = (svcCounts[t] || 0) + 1;
+    });
+  });
+  var svcItems = Object.keys(svcCounts).map(function(n){ return {name:n, val:svcCounts[n]}; })
+    .sort(function(a,b){ return b.val - a.val; }).slice(0, 6);
+  var maxSvc = svcItems.length ? svcItems[0].val : 1;
+  var svcEl = document.getElementById('svc-breakdown-chart');
+  if (svcEl) {
+    svcEl.innerHTML = svcItems.length
+      ? svcItems.map(function(i){
+          return '<div class="bar-row"><div class="bar-label">'+i.name+'</div>'
+            +'<div class="bar-track"><div class="bar-fill green" style="width:'+Math.round(i.val/maxSvc*100)+'%"></div></div>'
+            +'<div class="bar-val">'+i.val+'</div></div>';
+        }).join('')
+      : '<div style="color:var(--text-dim);font-size:13px;padding:20px 0;">No service requests yet</div>';
+  }
+
+  // ── Hourly Volume ────────────────────────────────────────────────
+  var hLabels = ['6–7 AM','7–8 AM','8–9 AM','9–10 AM','10–11 AM','11 AM–12','12–1 PM','1–2 PM','2–3 PM','3–4 PM','4–5 PM','5–6 PM','6–7 PM','7–8 PM','8–9 PM','9–10 PM','10–11 PM','11 PM–12'];
+  var hVals = new Array(18).fill(0);
+  periodOrders.forEach(function(o) {
+    if (!o.placedAt) return;
+    var h = new Date(o.placedAt).getHours();
+    if (h >= 6) hVals[h - 6]++;
+  });
+  var maxH = Math.max.apply(null, hVals) || 1;
+  var hourEl = document.getElementById('hourly-chart');
+  if (hourEl) {
+    var nonZero = hVals.map(function(v,i){ return {label:hLabels[i],val:v,pct:Math.round(v/maxH*100)}; })
+      .filter(function(x){ return x.val > 0; });
+    hourEl.innerHTML = nonZero.length
+      ? nonZero.map(function(i){
+          return '<div class="bar-row"><div class="bar-label">'+i.label+'</div>'
+            +'<div class="bar-track"><div class="bar-fill blue" style="width:'+i.pct+'%"></div></div>'
+            +'<div class="bar-val">'+i.val+'</div></div>';
+        }).join('')
+      : '<div style="color:var(--text-dim);font-size:13px;padding:20px 0;">No order data yet</div>';
+  }
+
+  // ── Guest Reviews — merge OH._ratings + archived orders with ratings ──
+  var reviewsEl  = document.getElementById('reviews-list');
+  var summaryEl  = document.getElementById('reviews-summary');
+
+  // Build unified reviews list: start with dedicated ratings store (period-filtered)
+  var reviewMap = {};
+  Object.values(OH._ratings || {}).filter(function(r){ return _rInPeriod(r.submittedAt); }).forEach(function(r) {
+    reviewMap[r.orderId] = {
+      id: r.orderId, room: r.room, guest: r.guest,
+      rating: r.rating, ratingComment: r.comment,
+      placedAt: r.submittedAt
+    };
+  });
+  // Merge/override with archived order data (period-filtered)
+  periodOrders.filter(function(o){ return o.rating && o.rating > 0; }).forEach(function(o) {
+    reviewMap[o.id] = o;
+  });
+  var reviews = Object.values(reviewMap).sort(function(a,b){ return (b.placedAt||0) - (a.placedAt||0); });
+  if (summaryEl) summaryEl.textContent = reviews.length ? reviews.length + ' review' + (reviews.length!==1?'s':'') + ' · avg ' + (totalAvgRating||0).toFixed(1) + ' ★' : '';
+  if (reviewsEl) {
+    if (!reviews.length) {
+      reviewsEl.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text-dim);font-size:13px;">No guest reviews yet — they appear here when guests rate their orders</div>';
+    } else {
+      var starLabels = ['','Poor','Fair','Good','Great','Excellent'];
+      var show5 = reviews.slice(0, 5);
+      reviewsEl.innerHTML = show5.map(function(o) {
+        var stars = [1,2,3,4,5].map(function(n){
+          return '<span style="font-size:16px;color:'+(n<=o.rating?'#F5C842':'rgba(201,169,110,0.25)')+'">★</span>';
+        }).join('');
+        var d = o.placedAt ? new Date(o.placedAt).toLocaleDateString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}) : '';
+        return '<div style="padding:14px 0;border-bottom:1px solid var(--card-border);">'
+          + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">'
+          +   '<div style="display:flex;align-items:center;gap:10px;">'
+          +     '<div style="font-family:Cormorant Garamond,serif;font-size:16px;color:var(--gold);">Room '+o.room+'</div>'
+          +     '<div style="font-size:12px;color:var(--text-muted);">'+o.guest+'</div>'
+          +   '</div>'
+          +   '<div style="text-align:right;">'
+          +     '<div>'+stars+'</div>'
+          +     '<div style="font-size:10px;color:var(--text-dim);margin-top:2px;">'+starLabels[o.rating]+'</div>'
+          +   '</div>'
+          + '</div>'
+          + (o.ratingComment ? '<div style="font-size:13px;color:var(--text-muted);font-style:italic;margin-bottom:4px;">\"'+o.ratingComment+'\"</div>' : '')
+          + '<div style="font-size:10px;color:var(--text-dim);">'+o.id+' · '+d+'</div>'
+          + '</div>';
+      }).join('');
+      if (reviews.length > 5) {
+        reviewsEl.innerHTML += '<div style="text-align:center;padding:16px 0 4px;">'
+          + '<button onclick="openAllReviewsPage()" style="padding:10px 24px;background:transparent;border:1px solid rgba(201,169,110,0.35);border-radius:10px;color:var(--gold);font-family:\'DM Sans\',sans-serif;font-size:12px;letter-spacing:0.08em;cursor:pointer;transition:all 0.15s;">'
+          + 'VIEW ALL ' + reviews.length + ' REVIEWS ›'
+          + '</button></div>';
+      }
+    }
+  }
+}
+function updateStats(){
+  var allActive=orders.filter(function(o){return o.status!=='delivered'&&o.status!=='cancelled'&&o.status!=='rejected';});
+  var n=allActive.length;
+  var _sa=document.getElementById('stat-active');if(_sa)_sa.textContent=n;
+  var _ob=document.getElementById('orders-badge');if(_ob)_ob.textContent=n;
+  var db=document.getElementById('desk-orders-badge');if(db)db.textContent=n>0?n:'';
+  var _oc=document.getElementById('orders-count');if(_oc)_oc.textContent=n+' active';
+  var rev=orders.filter(function(o){return o.status==='delivered';}).reduce(function(s,o){return s+o.total;},0);
+  var _sr=document.getElementById('stat-revenue');if(_sr)_sr.textContent=rev.toLocaleString('en-IN');
+  updateUrgencyStrip();
+  // Refresh analytics if that tab is visible
+  var analyticsView = document.getElementById('view-analytics');
+  if (analyticsView && analyticsView.classList.contains('active')) renderAnalytics();
+}
 var orderCounter=4;
 var roomPool=['101','207','301','303','105'];
 var menuPool=[{name:'Butter Chicken',price:340},{name:'Egg Fried Rice',price:210},{name:'Masala Chai',price:60},{name:'Mango Lassi',price:120},{name:'Chicken Tikka',price:380},{name:'Fresh Lime Soda',price:90}];
 function simulateNewOrder(){var room=roomPool[Math.floor(Math.random()*roomPool.length)];var numItems=Math.floor(Math.random()*2)+1;var items=[],total=0;for(var i=0;i<numItems;i++){var m=menuPool[Math.floor(Math.random()*menuPool.length)];var qty=Math.floor(Math.random()*2)+1;items.push({name:m.name,qty:qty,price:m.price});total+=m.price*qty;}var id='ORD-'+String(orderCounter).padStart(3,'0');orderCounter++;orders.unshift({id:id,room:room,guest:'Guest',items:items,total:total,status:'new',placedAt:Date.now()});renderOrders();updateStats();showToast('order','New Order — Room '+room,'₹'+total+' · '+items.length+' item'+(items.length>1?'s':''));}
-function showToast(type,title,msg,duration){var container=document.getElementById('alert-container');var toast=document.createElement('div');toast.className='alert-toast';duration=duration||1500;var ic=type==='order'?'var(--amber)':' var(--blue)';var svg=type==='order'?'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+ic+'" stroke-width="2" stroke-linecap="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>':' <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+ic+'" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>';var now=new Date();toast.innerHTML='<div class="toast-icon '+type+'">'+svg+'</div><div class="toast-body"><div class="toast-title">'+title+'</div><div class="toast-msg">'+msg+'</div><div class="toast-time">'+now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true})+'</div></div><button class="toast-close" onclick="this.parentElement.remove()">×</button>';container.appendChild(toast);setTimeout(function(){toast.classList.add('fade-out');setTimeout(function(){if(toast.parentElement)toast.remove();},300);},duration);}
+function showToast(type,title,msg,duration){var container=document.getElementById('alert-container');var toast=document.createElement('div');toast.className='alert-toast';duration=duration||1500;var ic=type==='order'?'var(--amber)':type==='review'?'#C9A96E':' var(--blue)';var svg=type==='order'?'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+ic+'" stroke-width="2" stroke-linecap="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>':type==='review'?'<svg width="16" height="16" viewBox="0 0 24 24" fill="'+ic+'" stroke="'+ic+'" stroke-width="1"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>':'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+ic+'" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>';if(type==='review'){toast.style.borderColor='rgba(201,169,110,0.4)';}var titleStyle=type==='review'?'color:#C9A96E;':'';var iconBg=type==='review'?'background:rgba(201,169,110,0.15);':'';var now=new Date();toast.innerHTML='<div class="toast-icon '+type+'" style="'+iconBg+'">'+svg+'</div><div class="toast-body"><div class="toast-title" style="'+titleStyle+'">'+title+'</div><div class="toast-msg">'+msg+'</div><div class="toast-time">'+now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true})+'</div></div><button class="toast-close" onclick="this.parentElement.remove()">×</button>';container.appendChild(toast);setTimeout(function(){toast.classList.add('fade-out');setTimeout(function(){if(toast.parentElement)toast.remove();},300);},duration);}
 function animateBars(){document.querySelectorAll('.bar-fill').forEach(function(b){var w=b.style.width;b.style.width='0';setTimeout(function(){b.style.width=w;},50);});}
 var currentQRUrl='',currentQRRoom='';
 function showRoomQR(roomNum){
@@ -7170,8 +7597,9 @@ window.fmSaveToGuest=fmSaveToGuest; window.fmInit=fmInit;
 
 var OH = {
   LS_FOOD:   'shakti_oh_food_v1',
+  LS_RATINGS:'shakti_oh_ratings_v1',
   LS_SVC:    'shakti_oh_svc_v1',
-  MAX_DAYS:  7,
+  MAX_DAYS:  90,
   _food:     {},   // { 'YYYY-MM-DD': [order, …] }
   _svc:      {},   // { 'YYYY-MM-DD': [request, …] }
   _activeDay: null,
@@ -7197,13 +7625,15 @@ function ohDayLabel(key) {
 
 // ── Load / Save ─────────────────────────────────────────────────────
 function ohLoad() {
-  try { var r = localStorage.getItem(OH.LS_FOOD); OH._food = r ? JSON.parse(r) : {}; } catch(e) { OH._food = {}; }
-  try { var r = localStorage.getItem(OH.LS_SVC);  OH._svc  = r ? JSON.parse(r) : {}; } catch(e) { OH._svc  = {}; }
+  try { var r = localStorage.getItem(OH.LS_FOOD);    OH._food    = r ? JSON.parse(r) : {}; } catch(e) { OH._food    = {}; }
+  try { var r = localStorage.getItem(OH.LS_SVC);     OH._svc     = r ? JSON.parse(r) : {}; } catch(e) { OH._svc     = {}; }
+  try { var r = localStorage.getItem(OH.LS_RATINGS); OH._ratings = r ? JSON.parse(r) : {}; } catch(e) { OH._ratings = {}; }
   ohPrune();
 }
 function ohSave() {
-  try { localStorage.setItem(OH.LS_FOOD, JSON.stringify(OH._food)); } catch(e) {}
-  try { localStorage.setItem(OH.LS_SVC,  JSON.stringify(OH._svc));  } catch(e) {}
+  try { localStorage.setItem(OH.LS_FOOD,    JSON.stringify(OH._food));    } catch(e) {}
+  try { localStorage.setItem(OH.LS_SVC,     JSON.stringify(OH._svc));     } catch(e) {}
+  try { localStorage.setItem(OH.LS_RATINGS, JSON.stringify(OH._ratings)); } catch(e) {}
   ohUpdateSettingsSub();
 }
 function ohPrune() {
@@ -7234,7 +7664,9 @@ function ohArchive(order) {
       total:      order.total || 0,
       status:     order.status || 'delivered',
       placedAt:   order.placedAt || Date.now(),
-      archivedAt: Date.now()
+      archivedAt: Date.now(),
+      rating:        order.rating || null,
+      ratingComment: order.ratingComment || order.rating_comment || null
     });
     ohSave();
     // Delete from Firestore so it never reappears after reconnect
@@ -7670,6 +8102,146 @@ function ohUpdateSettingsSub() {
   }, 2000);
 })();
 
+// ══════════════ ALL REVIEWS PAGE ══════════════
+var _arStarFilter = 0; // 0 = all
+
+function _getAllReviews() {
+  var reviewMap = {};
+  // From dedicated ratings collection
+  Object.values(OH._ratings || {}).forEach(function(r) {
+    if (!r.rating) return;
+    reviewMap[r.orderId] = {
+      id: r.orderId, room: r.room, guest: r.guest,
+      rating: r.rating, ratingComment: r.comment,
+      placedAt: r.submittedAt
+    };
+  });
+  // Merge from archived food orders
+  Object.values(OH._food || {}).forEach(function(dayArr) {
+    (dayArr || []).forEach(function(o) {
+      if (o.rating && o.rating > 0 && !reviewMap[o.id]) reviewMap[o.id] = o;
+    });
+  });
+  return Object.values(reviewMap).sort(function(a,b){ return (b.placedAt||0)-(a.placedAt||0); });
+}
+
+function openAllReviewsPage() {
+  var overlay = document.getElementById('all-reviews-overlay');
+  if (!overlay) return;
+  _arStarFilter = 0;
+  // Reset filter buttons
+  document.querySelectorAll('.ar-star-btn').forEach(function(btn) {
+    var isAll = btn.dataset.stars === '0';
+    btn.style.background = isAll ? 'var(--gold)' : 'transparent';
+    btn.style.color = isAll ? 'var(--dark)' : 'var(--text-muted)';
+  });
+  // Reset search
+  var srch = document.getElementById('ar-search');
+  if (srch) srch.value = '';
+  var srt = document.getElementById('ar-sort');
+  if (srt) srt.value = 'newest';
+  overlay.style.display = 'block';
+  overlay.scrollTop = 0;
+  arRender();
+}
+
+function closeAllReviewsPage() {
+  var overlay = document.getElementById('all-reviews-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function arFilterStars(n) {
+  _arStarFilter = n;
+  document.querySelectorAll('.ar-star-btn').forEach(function(btn) {
+    var match = parseInt(btn.dataset.stars) === n;
+    btn.style.background = match ? 'var(--gold)' : 'transparent';
+    btn.style.color = match ? 'var(--dark)' : 'var(--text-muted)';
+    btn.style.borderColor = match ? 'rgba(201,169,110,0.35)' : 'rgba(201,169,110,0.25)';
+    btn.style.fontWeight = match ? '500' : '400';
+  });
+  arRender();
+}
+
+function arRender() {
+  var allReviews = _getAllReviews();
+  var search = (document.getElementById('ar-search') && document.getElementById('ar-search').value || '').toLowerCase().trim();
+  var sort = (document.getElementById('ar-sort') && document.getElementById('ar-sort').value) || 'newest';
+
+  // Apply star filter
+  var filtered = allReviews.filter(function(r) {
+    if (_arStarFilter === 2) return (r.rating||0) <= 2;
+    if (_arStarFilter > 0)  return (r.rating||0) === _arStarFilter;
+    return true;
+  });
+  // Apply search filter
+  if (search) {
+    filtered = filtered.filter(function(r) {
+      return String(r.room||'').toLowerCase().includes(search)
+        || (r.guest||'').toLowerCase().includes(search)
+        || (r.ratingComment||'').toLowerCase().includes(search);
+    });
+  }
+  // Apply sort
+  filtered.sort(function(a,b) {
+    if (sort === 'oldest')  return (a.placedAt||0) - (b.placedAt||0);
+    if (sort === 'highest') return (b.rating||0) - (a.rating||0);
+    if (sort === 'lowest')  return (a.rating||0) - (b.rating||0);
+    return (b.placedAt||0) - (a.placedAt||0); // newest
+  });
+
+  // Subtitle
+  var sub = document.getElementById('ar-subtitle');
+  if (sub) sub.textContent = filtered.length + ' review' + (filtered.length!==1?'s':'') + ' · all time';
+
+  // Avg badge
+  var avgBadge = document.getElementById('ar-avg-badge');
+  if (avgBadge && allReviews.length) {
+    var avg = allReviews.reduce(function(s,r){return s+(r.rating||0);},0) / allReviews.length;
+    avgBadge.innerHTML = '<div style="font-family:Cormorant Garamond,serif;font-size:26px;color:var(--gold);line-height:1;">' + avg.toFixed(1) + '</div>'
+      + '<div style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;">' + allReviews.length + ' TOTAL</div>';
+  } else if (avgBadge) { avgBadge.innerHTML = ''; }
+
+  // List
+  var listEl = document.getElementById('ar-list');
+  if (!listEl) return;
+  if (!filtered.length) {
+    listEl.innerHTML = '<div style="text-align:center;padding:60px 24px;color:var(--text-dim);font-size:14px;">'
+      + (allReviews.length ? 'No reviews match your filter' : 'No guest reviews yet')
+      + '</div>';
+    return;
+  }
+
+  var starLabels = ['','Poor','Fair','Good','Great','Excellent'];
+  listEl.innerHTML = filtered.map(function(o) {
+    var stars = [1,2,3,4,5].map(function(n){
+      return '<span style="font-size:18px;color:'+(n<=(o.rating||0)?'#F5C842':'rgba(201,169,110,0.2)')+'">★</span>';
+    }).join('');
+    var d = o.placedAt ? new Date(o.placedAt).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}) : '';
+    var ratingColor = (o.rating||0)>=4?'var(--green)':(o.rating||0)>=3?'var(--gold)':'var(--red)';
+    return '<div style="padding:18px 0;border-bottom:1px solid var(--card-border);">'
+      + '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px;">'
+      +   '<div>'
+      +     '<div style="font-family:Cormorant Garamond,serif;font-size:18px;color:var(--gold);margin-bottom:2px;">Room '+o.room+'</div>'
+      +     '<div style="font-size:13px;color:var(--text-muted);">'+(o.guest||'Guest')+'</div>'
+      +   '</div>'
+      +   '<div style="text-align:right;">'
+      +     '<div>'+stars+'</div>'
+      +     '<div style="font-size:11px;font-weight:500;color:'+ratingColor+';margin-top:3px;letter-spacing:0.06em;">'+starLabels[o.rating||0]+'</div>'
+      +   '</div>'
+      + '</div>'
+      + (o.ratingComment ? '<div style="font-size:13px;color:var(--text);font-style:italic;line-height:1.5;margin-bottom:8px;padding:10px 14px;background:var(--surface);border-radius:10px;border-left:2px solid rgba(201,169,110,0.3);">\"'+o.ratingComment+'\"</div>' : '')
+      + '<div style="font-size:10px;color:var(--text-dim);">'+(o.id||'')+' · '+d+'</div>'
+      + '</div>';
+  }).join('');
+}
+
+window.openAllReviewsPage = openAllReviewsPage;
+window.closeAllReviewsPage = closeAllReviewsPage;
+window.arFilterStars = arFilterStars;
+window.arRender = arRender;
+
+// ══════════════ END ALL REVIEWS PAGE ══════════════
+
 // Expose
 window.ohShowHistory      = ohShowHistory;
 window.ohHideHistory      = ohHideHistory;
@@ -7680,6 +8252,44 @@ window.ohSetType          = ohSetType;
 window.ohArchive          = ohArchive;
 window.ohArchiveSvc       = ohArchiveSvc;
 </script>
+
+<!-- ══════════════ ALL REVIEWS OVERLAY ══════════════ -->
+<div id="all-reviews-overlay" style="display:none;position:fixed;inset:0;z-index:3000;background:var(--dark);overflow-y:auto;animation:fadeIn 0.25s ease;">
+  <!-- Header -->
+  <div style="position:sticky;top:0;z-index:10;background:var(--dark2);border-bottom:1px solid var(--topbar-border);padding:20px 24px 16px;display:flex;align-items:center;gap:16px;">
+    <button onclick="closeAllReviewsPage()" style="width:42px;height:42px;border:1px solid rgba(201,169,110,0.25);border-radius:12px;background:transparent;color:var(--gold);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">←</button>
+    <div style="flex:1;">
+      <div style="font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--gold);font-weight:500;">All Guest Reviews</div>
+      <div id="ar-subtitle" style="font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text-muted);">All Time</div>
+    </div>
+    <div id="ar-avg-badge" style="text-align:right;"></div>
+  </div>
+
+  <!-- Filter bar: star filter + search + sort -->
+  <div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px;border-bottom:1px solid var(--topbar-border);background:var(--dark2);">
+    <!-- Row 1: star filter pills -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <button class="ar-star-btn" data-stars="0" onclick="arFilterStars(0)" style="padding:7px 14px;border-radius:20px;border:1px solid rgba(201,169,110,0.35);background:var(--gold);color:var(--dark);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;cursor:pointer;transition:all 0.15s;">All</button>
+      <button class="ar-star-btn" data-stars="5" onclick="arFilterStars(5)" style="padding:7px 14px;border-radius:20px;border:1px solid rgba(201,169,110,0.25);background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:11px;cursor:pointer;transition:all 0.15s;">★ 5</button>
+      <button class="ar-star-btn" data-stars="4" onclick="arFilterStars(4)" style="padding:7px 14px;border-radius:20px;border:1px solid rgba(201,169,110,0.25);background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:11px;cursor:pointer;transition:all 0.15s;">★ 4</button>
+      <button class="ar-star-btn" data-stars="3" onclick="arFilterStars(3)" style="padding:7px 14px;border-radius:20px;border:1px solid rgba(201,169,110,0.25);background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:11px;cursor:pointer;transition:all 0.15s;">★ 3</button>
+      <button class="ar-star-btn" data-stars="2" onclick="arFilterStars(2)" style="padding:7px 14px;border-radius:20px;border:1px solid rgba(201,169,110,0.25);background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:11px;cursor:pointer;transition:all 0.15s;">★ ≤2</button>
+    </div>
+    <!-- Row 2: search + sort -->
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input id="ar-search" type="text" placeholder="Search room or guest…" oninput="arRender()" style="flex:1;background:var(--surface);border:1px solid var(--input-border);border-radius:10px;padding:8px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;">
+      <select id="ar-sort" onchange="arRender()" style="background:var(--surface);border:1px solid var(--input-border);border-radius:10px;padding:8px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;cursor:pointer;flex-shrink:0;">
+        <option value="newest">Newest</option>
+        <option value="oldest">Oldest</option>
+        <option value="highest">Highest ★</option>
+        <option value="lowest">Lowest ★</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Reviews list -->
+  <div id="ar-list" style="padding:0 24px 48px;"></div>
+</div>
 
 <!-- ── ON-SCREEN DEBUG CONSOLE ── -->
 <div id="dbg-toggle" onclick="document.getElementById('dbg-panel').style.display=document.getElementById('dbg-panel').style.display==='none'?'block':'none'" style="position:fixed;bottom:80px;left:12px;z-index:9999;background:#1a1a1a;color:#0f0;font-size:11px;font-family:monospace;padding:6px 10px;border-radius:8px;cursor:pointer;opacity:0.85;">🔍 LOG</div>
