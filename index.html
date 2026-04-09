@@ -490,7 +490,7 @@ html[data-mode="guest"] #guest-root { display: block !important; }
     font-size: 16px;
     font-weight: 500;
     cursor: pointer;
-    display: flex; align-items: center; justify-content: space-between;
+    align-items: center; justify-content: space-between;
     pointer-events: all;
     transition: all 0.2s;
     display: none;
@@ -690,7 +690,7 @@ html[data-mode="guest"] #guest-root { display: block !important; }
     border: none;
     font-size: 22px;
     cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
+    align-items: center; justify-content: center;
     box-shadow: 0 4px 24px rgba(201,169,110,0.4);
     z-index: 100;
     transition: all 0.2s;
@@ -1343,8 +1343,6 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 @media(min-width:1025px){
   .content { padding: 28px 32px 32px !important; }
 }
-
-@media(min-width:1025px){ .content{ padding:28px 32px 32px; } }
 
 /* ── BOTTOM NAV ── */
 .bottom-nav {
@@ -2235,6 +2233,17 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 </div>
 
 <!-- ════════════════ ORDERS SCREEN ════════════════ -->
+<!-- ── RI: Second Order Offer Banner (guest side) ── -->
+<div id="ri-second-order-banner" style="display:none;position:fixed;bottom:72px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:400px;z-index:800;background:linear-gradient(135deg,#1A1610,#1E1A12);border:1px solid rgba(201,169,110,0.5);border-radius:16px;padding:14px 16px;align-items:center;gap:12px;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+  <div style="width:36px;height:36px;border-radius:50%;background:rgba(201,169,110,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;">🎁</div>
+  <div style="flex:1;min-width:0;">
+    <div style="font-size:13px;font-weight:600;color:var(--gold);margin-bottom:2px;"><span id="ri-sob-disc">10%</span> off your next order!</div>
+    <div style="font-size:11px;color:var(--text-muted);">Valid for <span id="ri-sob-hours">2</span>h · <span id="ri-sob-timer" style="color:var(--gold);font-weight:600;"></span></div>
+  </div>
+  <button onclick="if(typeof go==='function')go('menu')" style="flex-shrink:0;padding:8px 14px;background:var(--gold);border:none;border-radius:10px;color:var(--dark);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Order Now</button>
+  <button onclick="this.parentElement.style.display='none'" style="position:absolute;top:8px;right:10px;background:transparent;border:none;color:var(--text-dim);font-size:16px;cursor:pointer;padding:0;">×</button>
+</div>
+
 <div class="screen" id="screen-orders">
   <div class="topbar">
     <button class="back-btn" onclick="go('home')">‹</button>
@@ -3454,6 +3463,16 @@ function showGuestNotif(title, msg, type, onClick) {
     try { guestSb.settings({ experimentalForceLongPolling: true, merge: true }); } catch(e) {}
     window._guestDbReady = true;
     console.log('Guest Firebase ready');
+    // Track menu open event for Revenue Intelligence
+    try {
+      var _riRoom = String(window.ROOM_NUM || 'unknown');
+      var _riDate = new Date().toISOString().slice(0,10);
+      guestSb.collection('menu_opens').add({
+        room: _riRoom,
+        date: _riDate,
+        ts: Date.now()
+      }).catch(function(){});
+    } catch(e){}
     // Re-subscribe all active orders from localStorage on connect
     setTimeout(guestResubscribeAll, 500);
   } catch(e) { console.warn('Guest Firebase init error:', e); }
@@ -3714,6 +3733,35 @@ function subscribeGuestOrderUpdates(orderId, localOrder) {
         showGuestNotif('Delivered! Enjoy your meal 🏁','Hope you enjoy it. Tap to view your order.','delivered',function(){ if(typeof go==='function')go('orders'); });
         try { guestRtChannels[orderId](); } catch(e) {}
         delete guestRtChannels[orderId];
+        // ── Second Order Offer ──────────────────────────────────
+        (function() {
+          try {
+            var enabled = localStorage.getItem('ri_second_order_enabled') === '1';
+            if (!enabled) return;
+            var disc  = parseInt(localStorage.getItem('ri_second_order_disc')  || '10');
+            var hours = parseInt(localStorage.getItem('ri_second_order_hours') || '2');
+            // Only show once per session
+            if (sessionStorage.getItem('ri_2nd_offer_shown')) return;
+            sessionStorage.setItem('ri_2nd_offer_shown', '1');
+            setTimeout(function() {
+              var banner = document.getElementById('ri-second-order-banner');
+              if (!banner) return;
+              document.getElementById('ri-sob-disc').textContent  = disc + '%';
+              document.getElementById('ri-sob-hours').textContent = hours + 'h';
+              // Countdown
+              var expiry = Date.now() + hours * 3600 * 1000;
+              banner.style.display = 'flex';
+              var timer = setInterval(function() {
+                var left = expiry - Date.now();
+                if (left <= 0) { banner.style.display = 'none'; clearInterval(timer); return; }
+                var m = Math.floor(left / 60000);
+                var s = Math.floor((left % 60000) / 1000);
+                var el = document.getElementById('ri-sob-timer');
+                if (el) el.textContent = m + ':' + (s < 10 ? '0' : '') + s + ' left';
+              }, 1000);
+            }, 2000);
+          } catch(e) {}
+        })();
       } else if (newStatus === 'rejected') {
         var reason = doc.data().rejection_reason || 'Please contact reception.';
         showGuestNotif('Order Declined ❌', reason, 'rejected', function(){ if(typeof go==='function')go('orders'); });
@@ -4133,6 +4181,66 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
         <div class="stat-card red"><div class="stat-label">Avg Order</div><div class="stat-value" id="stat-avg-order" style="font-size:26px;">—</div><div class="stat-change" id="stat-avg-order-sub">per order</div></div>
       </div>
 
+      <!-- ── Revenue Intelligence: 6 Data Points ── -->
+      <div style="margin-bottom:10px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;">Revenue Intelligence</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+          <div class="stat-card" style="background:var(--surface);border:1px solid var(--card-border);border-radius:14px;padding:14px 12px;text-align:center;">
+            <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Menu Opens</div>
+            <div style="font-size:24px;font-weight:600;color:var(--text);line-height:1;" id="ri-menu-opens">—</div>
+            <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">unique sessions</div>
+          </div>
+          <div class="stat-card" style="background:var(--surface);border:1px solid var(--card-border);border-radius:14px;padding:14px 12px;text-align:center;">
+            <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Conversion</div>
+            <div style="font-size:24px;font-weight:600;line-height:1;" id="ri-conversion" style="color:var(--text);">—</div>
+            <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">orders / opens</div>
+          </div>
+          <div class="stat-card" style="background:var(--surface);border:1px solid var(--card-border);border-radius:14px;padding:14px 12px;text-align:center;">
+            <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Orders/Room</div>
+            <div style="font-size:24px;font-weight:600;line-height:1;" id="ri-orders-per-room" style="color:var(--text);">—</div>
+            <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">frequency</div>
+          </div>
+          <div class="stat-card" style="background:var(--surface);border:1px solid var(--card-border);border-radius:14px;padding:14px 12px;text-align:center;">
+            <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Avg Items</div>
+            <div style="font-size:24px;font-weight:600;line-height:1;" id="ri-avg-items" style="color:var(--text);">—</div>
+            <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">per order</div>
+          </div>
+          <div class="stat-card" style="background:var(--surface);border:1px solid var(--card-border);border-radius:14px;padding:14px 12px;text-align:center;">
+            <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Delivery Time</div>
+            <div style="font-size:24px;font-weight:600;line-height:1;" id="ri-delivery-time" style="color:var(--text);">—</div>
+            <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">avg minutes</div>
+          </div>
+          <div class="stat-card" style="background:var(--surface);border:1px solid var(--card-border);border-radius:14px;padding:14px 12px;text-align:center;">
+            <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Repeat Rate</div>
+            <div style="font-size:24px;font-weight:600;line-height:1;" id="ri-repeat-rate" style="color:var(--text);">—</div>
+            <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">rooms 2+ orders</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Smart Action Panel ── -->
+      <div id="ri-action-panel" style="background:var(--surface);border:1px solid var(--card-border);border-radius:14px;overflow:hidden;margin-bottom:18px;">
+        <div style="padding:14px 16px 10px;border-bottom:1px solid var(--card-border);display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-size:13px;font-weight:600;color:var(--gold);letter-spacing:0.04em;">⚡ Do These Things</div>
+          <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.06em;text-transform:uppercase;" id="ri-panel-period">This period</div>
+        </div>
+        <div id="ri-actions-list" style="padding:6px 0 4px;"></div>
+      </div>
+
+      <!-- ── RI Confirmation Modal ── -->
+      <div id="ri-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);align-items:flex-end;justify-content:center;" onclick="riModalClose(event)">
+        <div id="ri-modal-box" style="background:var(--dark2);border:1px solid var(--card-border);border-radius:20px 20px 0 0;padding:24px 20px 36px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <div style="font-size:15px;font-weight:600;color:var(--gold);" id="ri-modal-title">Action</div>
+            <button onclick="document.getElementById('ri-modal').style.display='none'" style="background:transparent;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;padding:0 4px;">×</button>
+          </div>
+          <div id="ri-modal-body" style="font-size:13px;color:var(--text);line-height:1.7;"></div>
+          <div id="ri-modal-actions" style="display:flex;gap:10px;margin-top:20px;"></div>
+        </div>
+      </div>
+
       <!-- ── Charts row 1 ── -->
       <div class="analytics-grid">
         <div class="analytics-card"><div class="analytics-card-title">Top Ordered Items</div><div class="bar-chart" id="top-items-chart"></div></div>
@@ -4146,6 +4254,21 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
         <div class="analytics-card"><div class="analytics-card-title">Hourly Volume</div><div class="bar-chart" id="hourly-chart"></div></div>
       </div>
       <div style="height:16px"></div>
+
+      <!-- ── Room Revenue Performance ── -->
+      <div class="analytics-grid" style="margin-bottom:16px;">
+        <div class="analytics-card">
+          <div class="analytics-card-title">🏆 Top 3 Rooms</div>
+          <div style="font-size:11px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:14px;margin-top:-12px;">Highest revenue in period</div>
+          <div id="room-top3-list"></div>
+        </div>
+        <div class="analytics-card">
+          <div class="analytics-card-title">📉 Bottom 3 Rooms</div>
+          <div style="font-size:11px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:14px;margin-top:-12px;">Lowest revenue in period</div>
+          <div id="room-bottom3-list"></div>
+        </div>
+      </div>
+
 
       <!-- ── Guest Reviews panel ── -->
       <div class="analytics-card" id="reviews-panel" style="padding:22px 24px;scroll-margin-top:80px;">
@@ -4741,7 +4864,7 @@ function handleCheckinEvent(payload){
     renderRooms();
     showToast('checkin','Check-in · Room '+room, row.guest_name+' just checked in');
   } else if(evt==='UPDATE' && row.status==='checked_out'){
-    var room = String(row.room);
+    room = String(row.room);
     if(STATIC_ROOMS[room]){
       STATIC_ROOMS[room].guest    = '—';
       STATIC_ROOMS[room].status   = 'vacant';
@@ -5000,6 +5123,8 @@ function autoConnect(){
       try { subscribeRealtime(); } catch(e){ console.warn('Realtime init:', e); }
       startConnHealthCheck();
       _autoConnecting = false;
+      // Load menu_opens count for Revenue Intelligence
+      loadMenuOpensCount();
     })
     .catch(function(e){
       console.warn('Firebase connect error:', e && e.message || e);
@@ -5097,6 +5222,14 @@ function setAnalyticsPeriod(period) {
   }
   renderAnalytics();
 }
+window.setAnalyticsPeriod = setAnalyticsPeriod;
+
+// Reload menu opens count when period changes
+var _origSetPeriod = setAnalyticsPeriod;
+setAnalyticsPeriod = function(p) {
+  _origSetPeriod(p);
+  if (typeof loadMenuOpensCount === "function") loadMenuOpensCount();
+};
 window.setAnalyticsPeriod = setAnalyticsPeriod;
 
 function _getPeriodOrders() {
@@ -5230,6 +5363,113 @@ function renderAnalytics() {
   _set('stat-avg-order',        realAvgOrder ? '₹' + realAvgOrder.toLocaleString('en-IN') : '—');
   _set('stat-avg-order-sub',    realDelivered.length + ' delivered orders');
 
+  // ── Revenue Intelligence: 6 Data Points ─────────────────────────
+  (function() {
+    // 1. menu_opens — tracked via RI_menuOpens global (set by Firestore listener), fallback N/A
+    var menuOpens = (typeof RI_menuOpens !== 'undefined' && RI_menuOpens > 0) ? RI_menuOpens : 0;
+
+    // 2. orders — from period
+    var totalOrders = periodOrders.length;
+
+    // 3. unique rooms in period
+    var roomSet = {};
+    periodOrders.forEach(function(o){ if(o.room) roomSet[o.room] = (roomSet[o.room]||0) + 1; });
+    var uniqueRoomCount = Object.keys(roomSet).length;
+
+    // 4. orders_per_room
+    var ordersPerRoom = uniqueRoomCount > 0 ? (totalOrders / uniqueRoomCount) : 0;
+
+    // 5. avg_items_per_order
+    var totalItems = 0;
+    periodOrders.forEach(function(o){ (o.items||[]).forEach(function(i){ totalItems += (i.qty||1); }); });
+    var avgItems = totalOrders > 0 ? (totalItems / totalOrders) : 0;
+
+    // 6. avg_delivery_time — ms between placedAt and delivered_at
+    var delivTimes = [];
+    periodDelivered.forEach(function(o){
+      var placed = o.placedAt || 0;
+      var done   = o.delivered_at || o.completedAt || o.updatedAt || 0;
+      if(placed && done && done > placed) delivTimes.push((done - placed) / 60000);
+    });
+    var avgDelivMin = delivTimes.length ? (delivTimes.reduce(function(s,v){return s+v;},0) / delivTimes.length) : 0;
+
+    // 7. repeat_order_rate
+    var repeatRooms = Object.keys(roomSet).filter(function(r){ return roomSet[r] >= 2; }).length;
+    var repeatRate  = uniqueRoomCount > 0 ? (repeatRooms / uniqueRoomCount) : 0;
+
+    // 8. conversion
+    var conversionRate = menuOpens > 0 ? (totalOrders / menuOpens) : null;
+
+    // ── Update DOM
+    function _ri(id, val) { var e = document.getElementById(id); if(e) e.textContent = val; }
+    function _riColor(id, isGood) {
+      var e = document.getElementById(id);
+      if(e) e.style.color = isGood ? 'var(--green)' : 'var(--red)';
+    }
+
+    _ri('ri-menu-opens', menuOpens > 0 ? menuOpens : 'N/A');
+
+    if(conversionRate !== null) {
+      _ri('ri-conversion', Math.round(conversionRate * 100) + '%');
+      _riColor('ri-conversion', conversionRate >= 0.15);
+    } else {
+      _ri('ri-conversion', '—');
+      var ce = document.getElementById('ri-conversion'); if(ce) ce.style.color = 'var(--text-muted)';
+    }
+
+    _ri('ri-orders-per-room', ordersPerRoom > 0 ? ordersPerRoom.toFixed(1) : '—');
+    if(ordersPerRoom > 0) _riColor('ri-orders-per-room', ordersPerRoom >= 1.5);
+
+    _ri('ri-avg-items', avgItems > 0 ? avgItems.toFixed(1) : '—');
+    if(avgItems > 0) _riColor('ri-avg-items', avgItems >= 2.2);
+
+    _ri('ri-delivery-time', avgDelivMin > 0 ? Math.round(avgDelivMin) + 'm' : '—');
+    if(avgDelivMin > 0) _riColor('ri-delivery-time', avgDelivMin <= 30);
+
+    _ri('ri-repeat-rate', uniqueRoomCount > 0 ? Math.round(repeatRate * 100) + '%' : '—');
+    if(uniqueRoomCount > 0) _riColor('ri-repeat-rate', repeatRate >= 0.3);
+
+    // ── Smart Action Panel
+    var problems = [];
+
+    if(conversionRate !== null && conversionRate < 0.15) {
+      problems.push({ gap: 0.15 - conversionRate, label: 'Low conversion (' + Math.round(conversionRate*100) + '%)', hint: 'Target: 15% · Add combos + highlight top items', action: 'Add Combos', color: 'var(--red)', fn: 'riActionAddCombos()' });
+    }
+    if(ordersPerRoom > 0 && ordersPerRoom < 1.5) {
+      problems.push({ gap: 1.5 - ordersPerRoom, label: 'Low repeat orders (' + ordersPerRoom.toFixed(1) + '/room)', hint: 'Target: 1.5 · Offer discount after first order', action: 'Enable 2nd Order Offer', color: '#E0A800', fn: 'riActionSecondOrder()' });
+    }
+    if(avgItems > 0 && avgItems < 2.2) {
+      problems.push({ gap: 2.2 - avgItems, label: 'Low basket size (' + avgItems.toFixed(1) + ' items)', hint: 'Target: 2.2 · Show frequently ordered with', action: 'Enable Upsell', color: '#E0A800', fn: 'riActionUpsell()' });
+    }
+
+    problems.sort(function(a,b){ return b.gap - a.gap; }).splice(3);
+
+    var listEl = document.getElementById('ri-actions-list');
+    if(!listEl) return;
+
+    if(!problems.length && totalOrders > 0) {
+      listEl.innerHTML = '<div style="padding:16px;text-align:center;font-size:13px;color:var(--green);">✓ All metrics on target — keep it up!</div>';
+      return;
+    }
+    if(!totalOrders) {
+      listEl.innerHTML = '<div style="padding:16px;text-align:center;font-size:12px;color:var(--text-dim);">No order data in this period yet.</div>';
+      return;
+    }
+
+    listEl.innerHTML = problems.map(function(p, i) {
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--card-border);">'
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:12px;font-weight:600;color:'+p.color+';margin-bottom:2px;">'+(i+1)+'. '+p.label+'</div>'
+        + '<div style="font-size:11px;color:var(--text-dim);">'+p.hint+'</div>'
+        + '</div>'
+        + '<button onclick="'+p.fn+'" style="flex-shrink:0;margin-left:12px;padding:8px 14px;background:rgba(201,169,110,0.12);border:1px solid rgba(201,169,110,0.35);border-radius:10px;color:var(--gold);font-family:\'DM Sans\',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.04em;cursor:pointer;white-space:nowrap;" onmouseover="this.style.background=\'rgba(201,169,110,0.22)\'" onmouseout="this.style.background=\'rgba(201,169,110,0.12)\'">'+p.action+' ›</button>'
+        + '</div>';
+    }).join('');
+
+    var rows = listEl.querySelectorAll('[style*="border-bottom"]');
+    if(rows.length) rows[rows.length-1].style.borderBottom = 'none';
+  })();
+
   // ── Top Items chart (period) ─────────────────────────────────────
   var itemCounts = {};
   periodOrders.forEach(function(o) {
@@ -5318,6 +5558,66 @@ function renderAnalytics() {
         }).join('')
       : '<div style="color:var(--text-dim);font-size:13px;padding:20px 0;">No order data yet</div>';
   }
+
+  // ── Room Revenue Performance ─────────────────────────────────────
+  (function() {
+    // Build room revenue map from period orders (delivered only)
+    var roomRev = {};
+    var roomOrders = {};
+    periodDelivered.forEach(function(o) {
+      var r = o.room || 'Unknown';
+      roomRev[r]    = (roomRev[r]    || 0) + (o.total || 0);
+      roomOrders[r] = (roomOrders[r] || 0) + 1;
+    });
+
+    var roomList = Object.keys(roomRev).map(function(r) {
+      return { room: r, rev: roomRev[r], orders: roomOrders[r] || 0 };
+    }).sort(function(a, b) { return b.rev - a.rev; });
+
+    function roomRow(item, rank, isTop) {
+      var medalColor = isTop
+        ? (rank === 1 ? '#F5C842' : rank === 2 ? '#B0BEC5' : '#CD7F32')
+        : 'var(--red)';
+      var bgColor = isTop
+        ? (rank === 1 ? 'rgba(245,200,66,0.07)' : 'rgba(255,255,255,0.03)')
+        : 'rgba(192,57,43,0.05)';
+      var medal = isTop ? (rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉') : '📉';
+      return '<div style="display:flex;align-items:center;gap:12px;padding:11px 14px;'
+        + 'background:'+bgColor+';border-radius:12px;margin-bottom:8px;">'
+        + '<div style="font-size:20px;flex-shrink:0;">'+medal+'</div>'
+        + '<div style="flex:1;min-width:0;">'
+        +   '<div style="font-family:Cormorant Garamond,serif;font-size:18px;color:'+medalColor+';line-height:1;">Room '+item.room+'</div>'
+        +   '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">'+item.orders+' order'+(item.orders!==1?'s':'')+' · avg ₹'+Math.round(item.rev/item.orders).toLocaleString('en-IN')+'/order</div>'
+        + '</div>'
+        + '<div style="font-family:Cormorant Garamond,serif;font-size:20px;color:'+medalColor+';font-weight:500;flex-shrink:0;">₹'+item.rev.toLocaleString('en-IN')+'</div>'
+        + '</div>';
+    }
+
+    var emptyHtml = '<div style="text-align:center;padding:28px 0;color:var(--text-dim);font-size:13px;">No delivered orders in this period</div>';
+
+    var topEl = document.getElementById('room-top3-list');
+    var botEl = document.getElementById('room-bottom3-list');
+
+    if (topEl) {
+      if (!roomList.length) { topEl.innerHTML = emptyHtml; }
+      else {
+        topEl.innerHTML = roomList.slice(0, 3).map(function(item, i) {
+          return roomRow(item, i + 1, true);
+        }).join('');
+      }
+    }
+
+    if (botEl) {
+      if (!roomList.length) { botEl.innerHTML = emptyHtml; }
+      else {
+        // Bottom 3: reverse sorted, exclude rooms already in top 3 if <6 rooms total
+        var bottom = roomList.slice().reverse().slice(0, 3);
+        botEl.innerHTML = bottom.map(function(item, i) {
+          return roomRow(item, i + 1, false);
+        }).join('');
+      }
+    }
+  })();
 
   // ── Guest Reviews — merge OH._ratings + archived orders with ratings ──
   var reviewsEl  = document.getElementById('reviews-list');
@@ -5418,6 +5718,294 @@ var menuPool=[{name:'Butter Chicken',price:340},{name:'Egg Fried Rice',price:210
 function simulateNewOrder(){var room=roomPool[Math.floor(Math.random()*roomPool.length)];var numItems=Math.floor(Math.random()*2)+1;var items=[],total=0;for(var i=0;i<numItems;i++){var m=menuPool[Math.floor(Math.random()*menuPool.length)];var qty=Math.floor(Math.random()*2)+1;items.push({name:m.name,qty:qty,price:m.price});total+=m.price*qty;}var id='ORD-'+String(orderCounter).padStart(3,'0');orderCounter++;orders.unshift({id:id,room:room,guest:'Guest',items:items,total:total,status:'new',placedAt:Date.now()});renderOrders();updateStats();showToast('order','New Order — Room '+room,'₹'+total+' · '+items.length+' item'+(items.length>1?'s':''));}
 function showToast(type,title,msg,duration){var container=document.getElementById('alert-container');var toast=document.createElement('div');toast.className='alert-toast';duration=duration||1500;var ic=type==='order'?'var(--amber)':type==='review'?'#C9A96E':' var(--blue)';var svg=type==='order'?'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+ic+'" stroke-width="2" stroke-linecap="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>':type==='review'?'<svg width="16" height="16" viewBox="0 0 24 24" fill="'+ic+'" stroke="'+ic+'" stroke-width="1"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>':'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+ic+'" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>';if(type==='review'){toast.style.borderColor='rgba(201,169,110,0.4)';}var titleStyle=type==='review'?'color:#C9A96E;':'';var iconBg=type==='review'?'background:rgba(201,169,110,0.15);':'';var now=new Date();toast.innerHTML='<div class="toast-icon '+type+'" style="'+iconBg+'">'+svg+'</div><div class="toast-body"><div class="toast-title" style="'+titleStyle+'">'+title+'</div><div class="toast-msg">'+msg+'</div><div class="toast-time">'+now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true})+'</div></div><button class="toast-close" onclick="this.parentElement.remove()">×</button>';container.appendChild(toast);setTimeout(function(){toast.classList.add('fade-out');setTimeout(function(){if(toast.parentElement)toast.remove();},300);},duration);}
 function animateBars(){document.querySelectorAll('.bar-fill').forEach(function(b){var w=b.style.width;b.style.width='0';setTimeout(function(){b.style.width=w;},50);});}
+
+// ── Revenue Intelligence: Menu Opens Counter ─────────────────────
+var RI_menuOpens = 0;
+var _riMenuOpensLoaded = false;
+
+function loadMenuOpensCount() {
+  var db = getDb(); if (!db) return;
+  // Count menu_opens documents — each guest open writes one doc
+  // Use the current analytics period dates for filtering
+  var now = new Date();
+  var periodStart = null;
+  if (_analyticsPeriod === 'today') {
+    var d = new Date(); d.setHours(0,0,0,0); periodStart = d;
+  } else if (_analyticsPeriod === 'week') {
+    var d = new Date(); d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); periodStart = d;
+  } else if (_analyticsPeriod === 'month') {
+    var d = new Date(); d.setDate(1); d.setHours(0,0,0,0); periodStart = d;
+  } else {
+    var d = new Date(); d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); periodStart = d;
+  }
+  var startMs = periodStart ? periodStart.getTime() : 0;
+  db.collection('menu_opens')
+    .where('ts', '>=', startMs)
+    .get()
+    .then(function(snap) {
+      // Count unique room+date sessions (1 per room per day)
+      var sessions = {};
+      snap.forEach(function(doc) {
+        var d = doc.data();
+        var key = (d.room || 'x') + '_' + (d.date || '');
+        sessions[key] = true;
+      });
+      RI_menuOpens = Object.keys(sessions).length;
+      _riMenuOpensLoaded = true;
+      // Re-render analytics if visible
+      var av = document.getElementById('view-analytics');
+      if (av && av.classList.contains('active')) renderAnalytics();
+    })
+    .catch(function(e){ console.warn('menu_opens fetch:', e && e.message); });
+}
+window.loadMenuOpensCount = loadMenuOpensCount;
+
+// ── Revenue Intelligence: One-Click Actions ───────────────────────
+// ── RI Modal helpers ─────────────────────────────────────────────
+function riShowModal(title, bodyHtml, buttons) {
+  var m = document.getElementById('ri-modal');
+  var t = document.getElementById('ri-modal-title');
+  var b = document.getElementById('ri-modal-body');
+  var a = document.getElementById('ri-modal-actions');
+  if(!m || !t || !b || !a) return;
+  t.textContent = title;
+  b.innerHTML = bodyHtml;
+  a.innerHTML = buttons.map(function(btn) {
+    var bg   = btn.primary ? 'var(--gold)' : 'transparent';
+    var col  = btn.primary ? 'var(--dark)'  : 'var(--text-muted)';
+    var bord = btn.primary ? 'var(--gold)'  : 'rgba(255,255,255,0.15)';
+    return '<button onclick="'+btn.fn+'" style="flex:1;padding:13px;border-radius:12px;border:1.5px solid '+bord+';background:'+bg+';color:'+col+';font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">'+btn.label+'</button>';
+  }).join('');
+  m.style.display = 'flex';
+}
+function riModalClose(e) {
+  if(e.target.id === 'ri-modal') document.getElementById('ri-modal').style.display = 'none';
+}
+function riCloseModal() { document.getElementById('ri-modal').style.display = 'none'; }
+window.riCloseModal = riCloseModal;
+
+// ── Action 1: Add Combos ──────────────────────────────────────────
+function riActionAddCombos() {
+  var all = _getAllArchivedOrders();
+  var counts = {};
+  all.forEach(function(o){ (o.items||[]).forEach(function(i){ var n=i.name||'Unknown'; counts[n]=(counts[n]||0)+(i.qty||1); }); });
+  var top = Object.keys(counts).map(function(n){return{name:n,c:counts[n]};}).sort(function(a,b){return b.c-a.c;}).slice(0,4);
+  var a = top[0] ? top[0].name : null;
+  var b = top[1] ? top[1].name : null;
+  var c = top[2] ? top[2].name : null;
+  var d = top[3] ? top[3].name : null;
+
+  // Get prices from FM.menu
+  function getPrice(name) {
+    if(!name) return 0;
+    var found = 0;
+    FM.ALL_CATS.forEach(function(cat){ (FM.menu[cat.key]||[]).forEach(function(item){ if(item.name===name && item.price) found=item.price; }); });
+    return found;
+  }
+  var p1 = getPrice(a) + getPrice(b);
+  var p2 = getPrice(c) + getPrice(d);
+  var combo1Price = p1 ? Math.round(p1 * 0.87) : 0;
+  var combo2Price = p2 ? Math.round(p2 * 0.87) : 0;
+
+  var noItems = !a && !b;
+  var body = noItems
+    ? '<p style="color:var(--text-muted);">No order history yet to determine top items. Add some orders first.</p>'
+    : '<p style="color:var(--text-muted);margin-bottom:14px;">Based on your top ordered items, these 2 combos will be created and <strong style="color:var(--gold)">pinned to the top</strong> of your menu with 13% bundle discount.</p>'
+      + '<div style="background:var(--surface2);border-radius:12px;padding:14px;margin-bottom:10px;">'
+      + '<div style="font-size:12px;font-weight:600;color:var(--gold);margin-bottom:6px;">Combo 1</div>'
+      + '<div style="font-size:14px;color:var(--text);">'+(a||'—')+' + '+(b||'—')+'</div>'
+      + (combo1Price ? '<div style="font-size:12px;color:var(--green);margin-top:4px;">₹'+combo1Price+' <span style="color:var(--text-dim);text-decoration:line-through;font-size:11px;">₹'+p1+'</span> · save ₹'+(p1-combo1Price)+'</div>' : '')
+      + '</div>'
+      + '<div style="background:var(--surface2);border-radius:12px;padding:14px;">'
+      + '<div style="font-size:12px;font-weight:600;color:var(--gold);margin-bottom:6px;">Combo 2</div>'
+      + '<div style="font-size:14px;color:var(--text);">'+(c||'—')+' + '+(d||'—')+'</div>'
+      + (combo2Price ? '<div style="font-size:12px;color:var(--green);margin-top:4px;">₹'+combo2Price+' <span style="color:var(--text-dim);text-decoration:line-through;font-size:11px;">₹'+p2+'</span> · save ₹'+(p2-combo2Price)+'</div>' : '')
+      + '</div>';
+
+  riShowModal('Add Combos to Menu', body, noItems ? [
+    {label:'OK', fn:'riCloseModal()', primary:true}
+  ] : [
+    {label:'Cancel', fn:'riCloseModal()'},
+    {label:'Add to Menu ✓', fn:'riDoAddCombos()', primary:true}
+  ]);
+}
+window.riActionAddCombos = riActionAddCombos;
+
+function riDoAddCombos() {
+  var all = _getAllArchivedOrders();
+  var counts = {};
+  all.forEach(function(o){ (o.items||[]).forEach(function(i){ var n=i.name||'Unknown'; counts[n]=(counts[n]||0)+(i.qty||1); }); });
+  var top = Object.keys(counts).map(function(n){return{name:n,c:counts[n]};}).sort(function(a,b){return b.c-a.c;}).slice(0,4);
+  function getPrice(name) {
+    if(!name) return 0;
+    var found = 0;
+    FM.ALL_CATS.forEach(function(cat){ (FM.menu[cat.key]||[]).forEach(function(item){ if(item.name===name && item.price) found=item.price; }); });
+    return found;
+  }
+  var combos = [
+    {a: top[0]&&top[0].name, b: top[1]&&top[1].name},
+    {a: top[2]&&top[2].name, b: top[3]&&top[3].name}
+  ];
+  if(!FM.menu['snacks']) FM.menu['snacks'] = [];
+  combos.forEach(function(combo, idx) {
+    if(!combo.a || !combo.b) return;
+    var p = getPrice(combo.a) + getPrice(combo.b);
+    var comboPrice = p ? Math.round(p * 0.87) : 0;
+    // Prepend so it pins to top
+    FM.menu['snacks'].unshift({
+      id: FM.newId(),
+      name: '⭐ Combo '+(idx+1)+': '+combo.a+' + '+combo.b,
+      price: comboPrice || p,
+      veg: true,
+      available: true,
+      discount: 0,
+      sub: 'Combos'
+    });
+  });
+  FM.currentCat = 'snacks';
+  fmSaveData();
+  fmSaveToGuest();
+  if(typeof fmRenderCatStrip === 'function') fmRenderCatStrip();
+  if(typeof fmRenderList === 'function') fmRenderList();
+  if(typeof fmUpdateStats === 'function') fmUpdateStats();
+  riCloseModal();
+  if(typeof showToast === 'function') showToast('service','Combos Added ✓','2 combos pinned to top of menu', 4000);
+  localStorage.setItem(FM.LS_SETUP, '1');
+}
+window.riDoAddCombos = riDoAddCombos;
+
+// ── Action 2: Second Order Offer ─────────────────────────────────
+function riActionSecondOrder() {
+  var current = localStorage.getItem('ri_second_order_enabled') === '1';
+  var currentHours = parseInt(localStorage.getItem('ri_second_order_hours') || '2');
+  var currentDisc  = parseInt(localStorage.getItem('ri_second_order_disc')  || '10');
+
+  var body = "<p style='color:var(--text-muted);margin-bottom:16px;'>After a guest's first order is <strong style='color:var(--text)'>delivered</strong>, they automatically see a discount offer for their next order.</p>"
+    + '<div style="background:var(--surface2);border-radius:12px;padding:14px;margin-bottom:12px;">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
+    + '<span style="font-size:13px;color:var(--text);">Discount</span>'
+    + '<div style="display:flex;gap:6px;">'
+    + [10,15,20].map(function(d){ return '<button onclick="riSoDisc('+d+',this)" id="ri-so-disc-'+d+'" style="padding:6px 12px;border-radius:8px;border:1px solid '+(d===currentDisc?'var(--gold)':'rgba(255,255,255,0.12)')+';background:'+(d===currentDisc?'rgba(201,169,110,0.15)':'transparent')+';color:'+(d===currentDisc?'var(--gold)':'var(--text-muted)')+';font-size:12px;font-weight:600;cursor:pointer;">'+d+'%</button>'; }).join('')
+    + '</div></div>'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;">'
+    + '<span style="font-size:13px;color:var(--text);">Valid for</span>'
+    + '<div style="display:flex;gap:6px;">'
+    + [1,2,3].map(function(h){ return '<button onclick="riSoHours('+h+',this)" id="ri-so-hrs-'+h+'" style="padding:6px 12px;border-radius:8px;border:1px solid '+(h===currentHours?'var(--gold)':'rgba(255,255,255,0.12)')+';background:'+(h===currentHours?'rgba(201,169,110,0.15)':'transparent')+';color:'+(h===currentHours?'var(--gold)':'var(--text-muted)')+';font-size:12px;font-weight:600;cursor:pointer;">'+h+'h</button>'; }).join('')
+    + '</div></div>'
+    + '</div>'
+    + (current ? '<div style="font-size:11px;color:var(--green);text-align:center;margin-bottom:4px;">✓ Currently active</div>' : '');
+
+  riShowModal('2nd Order Offer', body, current ? [
+    {label:'Disable', fn:'riDoDisableSecondOrder()'},
+    {label:'Update Settings ✓', fn:'riDoSecondOrder()', primary:true}
+  ] : [
+    {label:'Cancel', fn:'riCloseModal()'},
+    {label:'Enable Offer ✓', fn:'riDoSecondOrder()', primary:true}
+  ]);
+}
+window.riActionSecondOrder = riActionSecondOrder;
+
+function riSoDisc(d, btn) {
+  [10,15,20].forEach(function(v){ var b=document.getElementById('ri-so-disc-'+v); if(b){ b.style.borderColor=v===d?'var(--gold)':'rgba(255,255,255,0.12)'; b.style.background=v===d?'rgba(201,169,110,0.15)':'transparent'; b.style.color=v===d?'var(--gold)':'var(--text-muted)'; } });
+}
+function riSoHours(h, btn) {
+  [1,2,3].forEach(function(v){ var b=document.getElementById('ri-so-hrs-'+v); if(b){ b.style.borderColor=v===h?'var(--gold)':'rgba(255,255,255,0.12)'; b.style.background=v===h?'rgba(201,169,110,0.15)':'transparent'; b.style.color=v===h?'var(--gold)':'var(--text-muted)'; } });
+}
+window.riSoDisc = riSoDisc; window.riSoHours = riSoHours;
+
+function riDoSecondOrder() {
+  var disc = 10, hours = 2;
+  [10,15,20].forEach(function(d){ var b=document.getElementById('ri-so-disc-'+d); if(b && b.style.color==='var(--gold)') disc=d; });
+  [1,2,3].forEach(function(h){ var b=document.getElementById('ri-so-hrs-'+h); if(b && b.style.color==='var(--gold)') hours=h; });
+  localStorage.setItem('ri_second_order_enabled', '1');
+  localStorage.setItem('ri_second_order_disc', String(disc));
+  localStorage.setItem('ri_second_order_hours', String(hours));
+  riCloseModal();
+  if(typeof showToast === 'function') showToast('service','2nd Order Offer Active ✓', disc+'% off for '+hours+'h after first delivery', 4000);
+}
+function riDoDisableSecondOrder() {
+  localStorage.removeItem('ri_second_order_enabled');
+  riCloseModal();
+  if(typeof showToast === 'function') showToast('service','2nd Order Offer Disabled','', 3000);
+}
+window.riDoSecondOrder = riDoSecondOrder;
+window.riDoDisableSecondOrder = riDoDisableSecondOrder;
+
+// ── Action 3: Enable Upsell ───────────────────────────────────────
+function riActionUpsell() {
+  var all = _getAllArchivedOrders();
+  var counts = {};
+  all.forEach(function(o){ (o.items||[]).forEach(function(i){ var n=i.name||'Unknown'; counts[n]=(counts[n]||0)+(i.qty||1); }); });
+  var top3 = Object.keys(counts).map(function(n){return{name:n,c:counts[n]};}).sort(function(a,b){return b.c-a.c;}).slice(0,3);
+  // Find what else gets ordered alongside each top item
+  function getPairings(targetName) {
+    var paired = {};
+    all.forEach(function(o){
+      var names = (o.items||[]).map(function(i){ return i.name||''; });
+      if(names.indexOf(targetName) !== -1) {
+        names.forEach(function(n){ if(n !== targetName && n) paired[n] = (paired[n]||0)+1; });
+      }
+    });
+    return Object.keys(paired).sort(function(a,b){ return paired[b]-paired[a]; }).slice(0,2);
+  }
+
+  var noItems = !top3.length;
+  var rows = top3.map(function(item){
+    var pairs = getPairings(item.name);
+    var pairText = pairs.length ? pairs.join(', ') : 'No data yet';
+    return '<div style="background:var(--surface2);border-radius:12px;padding:12px 14px;margin-bottom:8px;">'
+      + '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">'+item.name+' <span style="font-size:10px;color:var(--text-dim);">×'+item.c+'</span></div>'
+      + '<div style="font-size:11px;color:var(--text-muted);">Often ordered with: <span style="color:var(--gold);">'+pairText+'</span></div>'
+      + '</div>';
+  }).join('');
+
+  var body = noItems
+    ? '<p style="color:var(--text-muted);">No order history yet to compute pairings.</p>'
+    : '<p style="color:var(--text-muted);margin-bottom:14px;">These upsell tags will be saved. Your guest menu can read them to show "Frequently ordered with" suggestions.</p>' + rows;
+
+  riShowModal('Enable Upsell', body, noItems ? [
+    {label:'OK', fn:'riCloseModal()', primary:true}
+  ] : [
+    {label:'Cancel', fn:'riCloseModal()'},
+    {label:'Save Upsell Tags ✓', fn:'riDoUpsell()', primary:true}
+  ]);
+}
+window.riActionUpsell = riActionUpsell;
+
+function riDoUpsell() {
+  var all = _getAllArchivedOrders();
+  var counts = {};
+  all.forEach(function(o){ (o.items||[]).forEach(function(i){ var n=i.name||'Unknown'; counts[n]=(counts[n]||0)+(i.qty||1); }); });
+  var top3 = Object.keys(counts).map(function(n){return{name:n,c:counts[n]};}).sort(function(a,b){return b.c-a.c;}).slice(0,3);
+  function getPairings(targetName) {
+    var paired = {};
+    all.forEach(function(o){
+      var names = (o.items||[]).map(function(i){ return i.name||''; });
+      if(names.indexOf(targetName) !== -1) {
+        names.forEach(function(n){ if(n !== targetName && n) paired[n] = (paired[n]||0)+1; });
+      }
+    });
+    return Object.keys(paired).sort(function(a,b){ return paired[b]-paired[a]; }).slice(0,2);
+  }
+  // Save upsell map to FM.menu items and localStorage
+  var upsellMap = {};
+  top3.forEach(function(item){
+    var pairs = getPairings(item.name);
+    if(pairs.length) upsellMap[item.name] = pairs;
+    // Also tag the item in FM.menu
+    FM.ALL_CATS.forEach(function(cat){
+      (FM.menu[cat.key]||[]).forEach(function(fmItem){
+        if(fmItem.name === item.name) fmItem.upsell = pairs;
+      });
+    });
+  });
+  localStorage.setItem('ri_upsell_map', JSON.stringify(upsellMap));
+  localStorage.setItem('ri_upsell_enabled', '1');
+  fmSaveData();
+  riCloseModal();
+  if(typeof showToast === 'function') showToast('service','Upsell Tags Saved ✓','Guest menu will show "Ordered with" suggestions', 4000);
+}
+window.riDoUpsell = riDoUpsell;
 var currentQRUrl='',currentQRRoom='';
 function showRoomQR(roomNum){
   currentQRRoom=roomNum;
@@ -5695,7 +6283,7 @@ function undoAction(id, type) {
     }
     if (typeof renderTasks==='function') renderTasks();
     renderStaffServices(); updateUrgencyStrip();
-    var db=getDb(); if(db) db.collection('service_requests').doc(String(id)).update({status:snap.prevStatus}).catch(function(e){console.warn('Undo svc error:',e);});
+    db=getDb(); if(db) db.collection('service_requests').doc(String(id)).update({status:snap.prevStatus}).catch(function(e){console.warn('Undo svc error:',e);});
   }
   showToast('service','↩ Undone','Action reversed');
 }
@@ -5733,8 +6321,8 @@ function showUndoToast(label, id, type) {
   toast.appendChild(label_span);
   toast.appendChild(undoBtn);
   document.body.appendChild(toast);
-  // Auto-dismiss after 1 second
-  setTimeout(function(){ if(toast.parentElement) toast.remove(); }, 1000);
+  // Auto-dismiss after 5 seconds
+  setTimeout(function(){ if(toast.parentElement) toast.remove(); }, 5000);
 }
 
 // ── ACCEPT ORDER
@@ -7816,6 +8404,8 @@ function ohArchive(order) {
       status:     order.status || 'delivered',
       placedAt:   order.placedAt || Date.now(),
       archivedAt: Date.now(),
+      delivered_at:  order.delivered_at || (order.status === 'delivered' ? Date.now() : null),
+      accepted_at:   order.accepted_at || null,
       rating:        order.rating || null,
       ratingComment: order.ratingComment || order.rating_comment || null
     });
