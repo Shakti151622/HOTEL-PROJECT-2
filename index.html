@@ -5576,10 +5576,10 @@ function renderAnalytics() {
 
     function roomRow(item, rank, isTop) {
       var medalColor = isTop
-        ? (rank === 1 ? '#F5C842' : rank === 2 ? '#B0BEC5' : '#CD7F32')
+        ? (rank === 1 ? 'var(--green)' : rank === 2 ? '#B0BEC5' : '#CD7F32')
         : 'var(--red)';
       var bgColor = isTop
-        ? (rank === 1 ? 'rgba(245,200,66,0.07)' : 'rgba(255,255,255,0.03)')
+        ? (rank === 1 ? 'rgba(76,175,125,0.07)' : 'rgba(255,255,255,0.03)')
         : 'rgba(192,57,43,0.05)';
       var medal = isTop ? (rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉') : '📉';
       return '<div style="display:flex;align-items:center;gap:12px;padding:11px 14px;'
