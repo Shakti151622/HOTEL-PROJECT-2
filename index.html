@@ -8552,15 +8552,43 @@ function fimAiParseAndPreview(){
     var modal = document.getElementById('fm-import-modal');
     console.log('[FIM] modal display='+( modal ? modal.style.display : 'NOT FOUND'));
     if(modal) modal.style.display = 'flex';
-    pbInvalidateCache();
-    // Force fresh render so items always appear
-    console.log('[FIM] calling fimRenderPreview('+existingTotal+')');
-    fimRenderPreview(existingTotal);
-    console.log('[FIM] calling fimShowTab(preview)');
-    fimShowTab('preview');
-    var previewPanel = document.getElementById('fim-panel-preview');
-    var previewList  = document.getElementById('fim-preview-list');
-    console.log('[FIM] after showTab: panel.display='+(previewPanel?previewPanel.style.display:'?')+' list.innerHTML.length='+(previewList?previewList.innerHTML.length:0));
+    try {
+      pbInvalidateCache();
+      console.log('[FIM] calling fimRenderPreview('+existingTotal+')');
+      // Build HTML directly here as a fallback — bypass fimRenderPreview entirely
+      var listEl = document.getElementById('fim-preview-list');
+      var statsEl = document.getElementById('fim-preview-stats');
+      if(listEl) {
+        var html = '';
+        var count = 0;
+        Object.keys(_fimParsed).forEach(function(catKey) {
+          var items = _fimParsed[catKey];
+          if(!items||!items.length) return;
+          html += '<div style="padding:10px 0 4px;">';
+          html += '<div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);background:rgba(201,169,110,0.1);border:1px solid rgba(201,169,110,0.2);border-radius:4px;padding:2px 8px;margin-bottom:8px;display:inline-block;">'+catKey+' ('+items.length+')</div>';
+          items.forEach(function(item) {
+            count++;
+            var vc = item.veg ? 'var(--green)' : 'var(--red)';
+            html += '<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);gap:10px;">';
+            html += '<div style="width:44px;height:44px;border-radius:9px;flex-shrink:0;background:var(--surface);border:1px dashed rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-size:16px;">🍽</div>';
+            html += '<div style="width:10px;height:10px;border-radius:2px;border:1.5px solid '+vc+';flex-shrink:0;"></div>';
+            html += '<div style="flex:1;min-width:0;">';
+            html += '<div style="font-size:13px;color:var(--text);">'+String(item.name||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</div>';
+            html += '<div style="font-size:11px;color:var(--gold);">'+(item.price?'₹'+item.price:'—')+'</div>';
+            html += '</div></div>';
+          });
+          html += '</div>';
+        });
+        listEl.innerHTML = html;
+        console.log('[FIM] rendered '+count+' items, html.length='+html.length);
+      }
+      if(statsEl) statsEl.textContent = existingTotal+' items · '+Object.keys(_fimParsed).length+' categories';
+      fimShowTab('preview');
+      console.log('[FIM] fimShowTab done');
+    } catch(err) {
+      console.error('[FIM] CRASH in preview render: '+err.message+' | '+err.stack);
+      fmToast('Preview error: '+err.message, 'red');
+    }
     return;
   }
   var txt = document.getElementById('fm-import-text').value.trim();
