@@ -432,6 +432,8 @@ html[data-mode="guest"] #guest-root { display: block !important; }
   .menu-item-info { flex: 1; }
   .menu-item-name { font-size: 15px; color: var(--text); margin-bottom: 2px; }
   .menu-item-price { font-size: 14px; color: var(--gold); font-weight: 500; }
+  /* ── Item photo thumbnail (shown only when photo exists) ── */
+  .menu-item-photo { width:72px;height:72px;border-radius:12px;object-fit:cover;flex-shrink:0;border:1px solid var(--card-border);background:var(--surface);display:block; }
   .qty-control {
     display: flex; align-items: center; gap: 12px;
   }
@@ -2398,6 +2400,14 @@ function _navigate(screenId) {
   if (screenId === 'services') renderServices();
 }
 
+// ── Picture Bank helpers (shared by guest menu + FM admin view)
+var _pbCache = null;
+function pbLoad(){ if(_pbCache) return _pbCache; try{ _pbCache=JSON.parse(localStorage.getItem('shakti_picture_bank')||'{}'); }catch(e){ _pbCache={}; } return _pbCache; }
+function pbNorm(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,' ').replace(/\s+/g,' ').trim(); }
+function pbGetPhoto(name){ var b=pbLoad(),k=pbNorm(name); if(b[k]) return b[k]; var keys=Object.keys(b); for(var i=0;i<keys.length;i++){ if(k.indexOf(keys[i])>=0||keys[i].indexOf(k)>=0) return b[keys[i]]; } return null; }
+function pbInvalidateCache(){ _pbCache=null; }
+window.pbGetPhoto=pbGetPhoto; window.pbInvalidateCache=pbInvalidateCache;
+
 // ── Menu
 function filterCat(cat, el) {
   currentCat = cat;
@@ -2414,8 +2424,10 @@ function renderMenu(cat) {
       ${items.map((item, i) => {
         const key = cat + '_' + i;
         const qty = cart[key] ? cart[key].qty : 0;
+        const photo = pbGetPhoto(item.name);
         return `
           <div class="menu-item">
+            ${photo ? `<img class="menu-item-photo" src="${photo}" alt="${item.name}" loading="lazy">` : ''}
             <div class="menu-item-info">
               <div class="menu-item-name">${item.name}</div>
               <div class="menu-item-price">₹${item.price}</div>
@@ -3482,19 +3494,76 @@ function showGuestNotif(title, msg, type, onClick) {
 // Called after Firebase connects AND after page load
 function guestResubscribeAll() {
   if (!guestSb) return;
+  var roomNum = String(window.ROOM_NUM || '');
+
   // Orders
   orderHistory.forEach(function(o) {
     if (o.status === 'delivered' || o.status === 'rejected' || o.status === 'cancelled') return;
     if (guestRtChannels[o.id]) return; // already subscribed
     subscribeGuestOrderUpdates(o.id, o);
   });
-  // Service requests
-  serviceHistory.forEach(function(r) {
-    if (r.status === 'done' || r.status === 'cancelled') return;
-    if (guestRtChannels['svc_' + r.id]) return;
-    subscribeGuestServiceUpdates(r.id, r);
-  });
-  // Also fetch current status from Firebase in case we missed changes while offline
+
+  // ── Service requests: always query Firestore by room so we catch any
+  // requests that exist in Firebase but are missing or stale in local memory
+  // (e.g. after page reload, or when staff marked done while app was closed)
+  guestSb.collection('service_requests')
+    .where('room', '==', roomNum)
+    .get()
+    .then(function(snap) {
+      var changed = false;
+      snap.forEach(function(doc) {
+        var data = doc.data();
+        var fbStatus = data.status;
+        if (!fbStatus) return;
+
+        var existing = serviceHistory.find(function(r) { return r.id === doc.id; });
+
+        if (existing) {
+          // Patch stale local status with authoritative Firebase status
+          if (existing.status !== fbStatus) {
+            existing.status = fbStatus;
+            if ((fbStatus === 'assigned' || fbStatus === 'inprogress') && !existing.assignedAt && data.assigned_at) {
+              existing.assignedAt = new Date(data.assigned_at).getTime();
+            }
+            changed = true;
+          }
+          // Reattach listener if still active
+          if (fbStatus !== 'done' && fbStatus !== 'cancelled') {
+            if (!guestRtChannels['svc_' + doc.id]) {
+              subscribeGuestServiceUpdates(doc.id, existing);
+            }
+          }
+        } else if (fbStatus !== 'done' && fbStatus !== 'cancelled' && fbStatus !== 'archived') {
+          // Request exists in Firebase but not in local memory — add it and subscribe
+          var r = {
+            id:        doc.id,
+            type:      data.type || 'Service Request',
+            icon:      data.icon || String.fromCodePoint(0x1F514),
+            qty:       data.qty || null,
+            note:      data.note || '',
+            time:      data.placed_at ? new Date(data.placed_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '',
+            date:      data.placed_at ? new Date(data.placed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '',
+            status:    fbStatus,
+            placedAt:  data.placed_at ? new Date(data.placed_at).getTime() : Date.now(),
+            assignedAt: data.assigned_at ? new Date(data.assigned_at).getTime() : null
+          };
+          serviceHistory.push(r);
+          subscribeGuestServiceUpdates(doc.id, r);
+          changed = true;
+        }
+      });
+
+      if (changed) {
+        updateServicesBadge();
+        if (document.getElementById('screen-services') &&
+            document.getElementById('screen-services').classList.contains('active')) {
+          renderServices();
+        }
+      }
+    })
+    .catch(function(e) { console.warn('[Guest] Service room query error:', e); });
+
+  // Also fetch current status snapshot for any remaining local entries
   guestSyncCurrentStatuses();
 }
 
@@ -3541,8 +3610,20 @@ function guestSyncCurrentStatuses() {
       if ((ns === 'assigned' || ns === 'inprogress') && !r.assignedAt && data.assigned_at) {
         r.assignedAt = new Date(data.assigned_at).getTime();
       }
+      // If terminal, unsubscribe the realtime listener — it's no longer needed
+      if (ns === 'done' || ns === 'cancelled') {
+        var _key = 'svc_' + r.id;
+        if (guestRtChannels[_key]) {
+          try { guestRtChannels[_key](); } catch(e) {}
+          delete guestRtChannels[_key];
+        }
+      }
+      // Always update badge; only re-render screen if visible
       updateServicesBadge();
-      renderServices();
+      if (document.getElementById('screen-services') &&
+          document.getElementById('screen-services').classList.contains('active')) {
+        renderServices();
+      }
     }).catch(function(e){ console.warn('guestSyncCurrentStatuses svc error:', e); });
   });
 }
@@ -3796,6 +3877,10 @@ function subscribeGuestServiceUpdates(reqId, localReq) {
         req.status = newStatus;
         if ((newStatus === 'assigned' || newStatus === 'inprogress') && !req.assignedAt && data.assigned_at) {
           req.assignedAt = new Date(data.assigned_at).getTime();
+        }
+        // Unsubscribe and clean up once terminal
+        if (newStatus === 'done' || newStatus === 'cancelled') {
+          try { if (guestRtChannels[_svcKey]) { guestRtChannels[_svcKey](); delete guestRtChannels[_svcKey]; } } catch(e) {}
         }
         if (document.getElementById('screen-services').classList.contains('active')) renderServices();
         updateServicesBadge();
@@ -7698,29 +7783,160 @@ if (document.readyState === 'complete') {
 </div>
 
 <!-- ══════════════ FM: IMPORTER MODAL ══════════════ -->
-<div id="fm-import-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:400;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)fmCloseImporter()">
-  <div style="background:var(--surface);border-radius:20px;padding:28px 22px;width:100%;max-width:380px;text-align:center;">
-    <div style="font-family:'Cormorant Garamond',serif;font-size:24px;color:var(--text);margin-bottom:6px;">Import Menu</div>
-    <div style="font-size:12px;color:var(--text-muted);margin-bottom:22px;line-height:1.6;">Choose how you want to import your menu. All methods are free — no API keys needed.</div>
-    <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:18px;">
-      <button onclick="fmImportMode('text')" style="width:100%;padding:14px 16px;background:var(--gold);border:none;border-radius:12px;color:var(--dark);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:10px;">
-        <span style="font-size:20px;">⌨</span><span style="flex:1;text-align:left;">Type or Paste Menu</span><span style="opacity:.5;">›</span>
-      </button>
-      <button onclick="fmImportMode('photo')" style="width:100%;padding:13px 16px;background:var(--surface2);border:1px solid rgba(255,255,255,0.08);border-radius:12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:10px;">
-        <span style="font-size:20px;">📷</span><span style="flex:1;text-align:left;">Scan Photo of Menu</span><span style="opacity:.3;">›</span>
-      </button>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <button onclick="fmImportMode('pdf')" style="padding:12px;background:var(--surface2);border:1px solid rgba(255,255,255,0.08);border-radius:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;">📄 PDF</button>
-        <button onclick="fmImportMode('excel')" style="padding:12px;background:var(--surface2);border:1px solid rgba(255,255,255,0.08);border-radius:11px;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;">📊 Excel / CSV</button>
+<!-- ══ EXPANDED IMPORTER MODAL — Picture Bank + Import + Preview ══ -->
+<div id="fm-import-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:600;align-items:flex-end;justify-content:center;" onclick="if(event.target===this)fmCloseImporter()">
+  <div style="background:var(--dark2);border-radius:20px 20px 0 0;width:100%;max-width:480px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;" onclick="event.stopPropagation()">
+
+    <!-- Modal header with tabs -->
+    <div style="padding:16px 18px 0;flex-shrink:0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--text);" id="fim-title">Menu Tools</div>
+        <button onclick="fmCloseImporter()" style="background:transparent;border:none;color:var(--text-muted);font-size:22px;cursor:pointer;padding:0 4px;line-height:1;">✕</button>
+      </div>
+      <!-- Tab strip -->
+      <div style="display:flex;gap:0;background:var(--surface2);border-radius:10px;padding:3px;border:1px solid var(--topbar-border);">
+        <button id="fim-tab-import" onclick="fimShowTab('import')" style="flex:1;padding:7px 4px;border-radius:8px;border:none;background:var(--gold);color:var(--dark);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;">⬆ Import</button>
+        <button id="fim-tab-bank"   onclick="fimShowTab('bank')"   style="flex:1;padding:7px 4px;border-radius:8px;border:none;background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:11px;cursor:pointer;transition:all .15s;">📷 Photos <span id="fim-bank-count" style="font-size:9px;opacity:.7;"></span></button>
+        <button id="fim-tab-preview" onclick="fimShowTab('preview')" style="flex:1;padding:7px 4px;border-radius:8px;border:none;background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:11px;cursor:pointer;transition:all .15s;" id="fim-tab-preview">👁 Preview</button>
       </div>
     </div>
-    <!-- Text input area (shown when text mode selected) -->
-    <div id="fm-import-text-area" style="display:none;text-align:left;margin-bottom:12px;">
-      <div style="font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin-bottom:6px;">Paste or type your menu</div>
-      <textarea id="fm-import-text" rows="8" placeholder="One item per line with price:&#10;&#10;Paneer Butter Masala 250&#10;Dal Tadka 180&#10;Butter Chicken 340&#10;Butter Naan 50&#10;Masala Chai 60&#10;&#10;Prices detected automatically." style="width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:11px 13px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;resize:none;line-height:1.7;box-sizing:border-box;"></textarea>
-      <button onclick="fmProcessText()" style="width:100%;margin-top:8px;padding:13px;background:var(--gold);border:none;border-radius:10px;color:var(--dark);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;">Extract & Import →</button>
+
+    <!-- ── TAB: IMPORT ── -->
+    <div id="fim-panel-import" style="flex:1;overflow-y:auto;padding:20px 18px 32px;display:flex;flex-direction:column;gap:14px;">
+
+      <!-- API Key section -->
+      <div id="fim-key-section" style="background:var(--surface);border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden;">
+        <div id="fim-key-saved-row" style="display:none;padding:11px 14px;align-items:center;gap:10px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4CAF7D" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <span style="flex:1;font-size:12px;color:#4CAF7D;font-family:DM Sans,sans-serif;">OpenAI key saved</span>
+          <button onclick="fimShowKeyInput()" style="font-size:11px;color:var(--text-muted);background:transparent;border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:4px 10px;cursor:pointer;font-family:DM Sans,sans-serif;">Change</button>
+        </div>
+        <div id="fim-key-input-row" style="padding:13px 14px;">
+          <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted);margin-bottom:7px;">OpenAI API Key</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input id="fim-key-input" type="password" placeholder="sk-proj-..." autocomplete="off" spellcheck="false"
+              style="flex:1;background:var(--surface2);border:1.5px solid rgba(255,255,255,0.08);border-radius:9px;padding:10px 12px;color:var(--text);font-family:DM Sans,sans-serif;font-size:13px;outline:none;box-sizing:border-box;"
+              onfocus="this.style.borderColor='rgba(201,169,110,0.4)'" onblur="this.style.borderColor='rgba(255,255,255,0.08)'">
+            <button onclick="fimSaveKey()" style="padding:10px 14px;background:var(--gold);border:none;border-radius:9px;color:var(--dark);font-family:DM Sans,sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">Save</button>
+          </div>
+          <div style="font-size:10px;color:var(--text-dim);margin-top:6px;line-height:1.5;">Stored only on this device. Never sent anywhere except OpenAI.</div>
+        </div>
+      </div>
+
+      <!-- PDF Upload card — Vision powered -->
+      <div onclick="document.getElementById('fim-pdf-input').click()" id="fim-pdf-drop"
+        style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--surface);border:1.5px dashed rgba(201,169,110,0.35);border-radius:12px;cursor:pointer;">
+        <div style="width:42px;height:42px;border-radius:11px;background:rgba(201,169,110,0.1);border:1px solid rgba(201,169,110,0.2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">📄</div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:600;color:var(--gold);">Upload PDF Menu</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Extracts text directly from PDF &mdash; fast, no API key needed</div>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </div>
+      <input type="file" id="fim-pdf-input" accept=".pdf,application/pdf" style="display:none;">
+
+      <!-- Progress panel (hidden until PDF chosen) -->
+      <div id="fim-pdf-progress" style="display:none;background:var(--surface);border:1px solid rgba(201,169,110,0.2);border-radius:12px;overflow:hidden;">
+        <div style="padding:12px 14px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-size:12px;font-weight:600;color:var(--text);" id="fim-prog-title">Processing PDF...</div>
+          <div style="font-size:11px;color:var(--text-muted);" id="fim-prog-count"></div>
+        </div>
+        <!-- Per-page progress list -->
+        <div id="fim-prog-list" style="padding:8px 14px 12px;display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;"></div>
+        <!-- Overall bar -->
+        <div style="padding:0 14px 12px;">
+          <div style="height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;">
+            <div id="fim-prog-bar" style="height:100%;width:0%;background:var(--gold);border-radius:2px;transition:width 0.4s ease;"></div>
+          </div>
+        </div>
+        <!-- Cancel -->
+        <div style="padding:0 14px 12px;text-align:center;">
+          <button onclick="fimCancelPdf()" style="font-size:11px;color:var(--text-dim);background:transparent;border:1px solid rgba(255,255,255,0.08);border-radius:7px;padding:5px 14px;cursor:pointer;font-family:DM Sans,sans-serif;">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Divider -->
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="flex:1;height:1px;background:rgba(255,255,255,0.07);"></div>
+        <span style="font-size:11px;color:var(--text-dim);letter-spacing:0.1em;text-transform:uppercase;">or paste text</span>
+        <div style="flex:1;height:1px;background:rgba(255,255,255,0.07);"></div>
+      </div>
+
+      <!-- Textarea -->
+      <textarea id="fm-import-text" rows="7"
+        placeholder="Breakfast&#10;Aloo Paratha  130&#10;Poha  90&#10;&#10;Starters&#10;Paneer Tikka  240&#10;Samosa  80&#10;&#10;Main Course&#10;Paneer Butter Masala  250&#10;Butter Chicken  340&#10;&#10;Drinks&#10;Masala Chai  60&#10;Cold Coffee  150"
+        style="width:100%;background:var(--surface);border:1.5px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px 16px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;line-height:1.8;outline:none;resize:none;box-sizing:border-box;"
+        onfocus="this.style.borderColor='rgba(201,169,110,0.4)'"
+        onblur="this.style.borderColor='rgba(255,255,255,0.08)'"></textarea>
+
+      <div id="fm-import-text-area" style="display:none;"></div>
+
+      <div id="fim-ai-status" style="display:none;padding:11px 14px;background:rgba(201,169,110,0.08);border:1px solid rgba(201,169,110,0.2);border-radius:10px;font-size:12px;color:var(--gold);text-align:center;font-family:'DM Sans',sans-serif;line-height:1.5;margin-bottom:4px;"></div>
+
     </div>
-    <button onclick="fmCloseImporter()" style="width:100%;padding:11px;background:transparent;border:none;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;">Cancel</button>
+
+    <!-- ── TAB: PICTURE BANK ── -->
+    <div id="fim-panel-bank" style="display:none;flex:1;overflow-y:auto;padding:0 0 24px;">
+      <!-- Upload zone -->
+      <div id="fim-upload-zone" onclick="document.getElementById('fim-file-input').click()" style="margin:14px 18px 0;border:1.5px dashed rgba(201,169,110,0.3);border-radius:14px;padding:20px;text-align:center;cursor:pointer;background:rgba(201,169,110,0.03);transition:all .2s;">
+        <div style="font-size:28px;margin-bottom:6px;">📷</div>
+        <div style="font-size:14px;color:var(--text);font-weight:500;margin-bottom:3px;">Upload Dish Photos</div>
+        <div style="font-size:11px;color:var(--text-muted);">Tap to choose · JPG, PNG, WEBP · auto-resized</div>
+      </div>
+      <input type="file" id="fim-file-input" accept="image/*" multiple style="display:none;">
+      <!-- Search -->
+      <div style="padding:10px 18px 0;">
+        <input id="fim-search" type="text" placeholder="Search dish name…" oninput="fimRenderBank()" style="width:100%;background:var(--surface);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:9px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;box-sizing:border-box;">
+      </div>
+      <div style="padding:10px 18px 4px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted);" id="fim-bank-label">All Photos</div>
+      <!-- Grid -->
+      <div id="fim-bank-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 18px;"></div>
+    </div>
+
+    <!-- ── TAB: PREVIEW ── -->
+    <div id="fim-panel-preview" style="display:none;flex:1;overflow-y:auto;padding:0;">
+      <div style="padding:12px 18px 6px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--topbar-border);">
+        <div id="fim-preview-stats" style="font-size:12px;color:var(--text-muted);"></div>
+        <button onclick="fimPublish()" style="padding:8px 16px;background:var(--green);border:none;border-radius:9px;color:white;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">✓ Publish</button>
+      </div>
+      <div id="fim-preview-list" style="padding:0 18px 80px;"></div>
+    </div>
+
+    <!-- STICKY FOOTER — always visible, never inside a scroll container -->
+    <div style="flex-shrink:0;padding:12px 18px 20px;background:var(--dark2);border-top:1px solid rgba(255,255,255,0.06);" onclick="event.stopPropagation()">
+      <button onclick="event.stopPropagation();fimAiParseAndPreview();" id="fim-ai-btn"
+        style="width:100%;padding:16px;background:var(--gold);border:none;border-radius:12px;color:var(--dark);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;letter-spacing:0.02em;-webkit-tap-highlight-color:transparent;touch-action:manipulation;position:relative;z-index:10;">
+        Parse &amp; Preview &#8594;
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Photo naming sheet (bottom sheet inside the modal flow) -->
+<div id="fim-name-sheet" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:500;align-items:flex-end;justify-content:center;" onclick="if(event.target===this)fimCloseNameSheet()">
+  <div style="background:var(--dark2);border-radius:20px 20px 0 0;padding:22px 20px 36px;width:100%;max-width:480px;">
+    <div style="font-family:'Cormorant Garamond',serif;font-size:18px;color:var(--text);margin-bottom:4px;">Name This Photo</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">Enter the dish name exactly as it appears in the menu</div>
+    <img id="fim-name-preview" src="" style="width:100%;height:140px;object-fit:cover;border-radius:12px;margin-bottom:14px;border:1px solid var(--card-border);">
+    <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;">Dish Name</div>
+    <input id="fim-name-input" type="text" placeholder="e.g. Paneer Butter Masala" style="width:100%;background:var(--surface);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:12px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;box-sizing:border-box;margin-bottom:12px;">
+    <button onclick="fimSavePhoto()" style="width:100%;padding:14px;background:var(--gold);border:none;border-radius:11px;color:var(--dark);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;">Save to Picture Bank</button>
+    <button onclick="fimCloseNameSheet()" style="width:100%;padding:11px;background:transparent;border:none;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;margin-top:4px;">Cancel</button>
+  </div>
+</div>
+
+<!-- Photo assign sheet -->
+<div id="fim-assign-sheet" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:500;align-items:flex-end;justify-content:center;" onclick="if(event.target===this)document.getElementById('fim-assign-sheet').style.display='none'">
+  <div style="background:var(--dark2);border-radius:20px 20px 0 0;padding:0;width:100%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;">
+    <div style="padding:18px 20px 12px;border-bottom:1px solid var(--topbar-border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+      <div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:18px;color:var(--text);">Assign Photo</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="fim-assign-name"></div>
+      </div>
+      <button onclick="document.getElementById('fim-assign-sheet').style.display='none'" style="background:transparent;border:none;color:var(--text-muted);font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <div id="fim-assign-grid" style="overflow-y:auto;padding:12px 16px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;"></div>
   </div>
 </div>
 
@@ -8015,6 +8231,11 @@ function fmRenderList(){
       var fp = fmFinalPrice(item);
       var dimmed = !item.available;
       html += '<div style="display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.04);'+(dimmed?'opacity:.45;':'')+'">'; 
+      // Photo thumbnail
+      var _p = pbGetPhoto(item.name);
+      html += _p
+        ? '<img src="'+_p+'" style="width:46px;height:46px;border-radius:10px;object-fit:cover;flex-shrink:0;margin-right:10px;border:1px solid rgba(255,255,255,0.07);">'
+        : '<div style="width:46px;height:46px;border-radius:10px;flex-shrink:0;margin-right:10px;background:var(--surface2);border:1px dashed rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--text-dim);">🍽</div>';
       // Veg dot
       html += '<div style="width:11px;height:11px;border-radius:2px;border:1.5px solid '+(item.veg?'var(--green)':'var(--red)')+';display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-right:10px;">'
         +'<div style="width:5px;height:5px;border-radius:50%;background:'+(item.veg?'var(--green)':'var(--red)')+'"></div>'
@@ -8033,6 +8254,8 @@ function fmRenderList(){
       // Controls
       if(FM.isAdmin){
         html += '<div style="display:flex;gap:5px;flex-shrink:0;">';
+        // Photo assign
+        html += '<button onclick="fimOpenAssign(\''+item.id+'\',\''+fmEsc(item.name)+'\')" title="Assign photo" style="width:30px;height:30px;border-radius:8px;border:1px solid rgba(201,169,110,0.2);background:rgba(201,169,110,0.06);color:var(--gold);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;">📷</button>';
         // Eye toggle
         html += '<button onclick="fmToggleItem(\''+item.id+'\')" title="'+(dimmed?'Show':'Hide')+' item" style="width:30px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:var(--surface2);color:'+(dimmed?'var(--text-dim)':'var(--text-muted)')+';cursor:pointer;display:flex;align-items:center;justify-content:center;">'
           +(dimmed
@@ -8085,9 +8308,12 @@ function fmDeleteItem(id){
 }
 
 function fmFindItem(id){
-  for(var ck of Object.keys(FM.menu)){
-    for(var item of FM.menu[ck]){
-      if(item.id===id) return {item:item, catKey:ck};
+  var keys = Object.keys(FM.menu);
+  for(var ki=0;ki<keys.length;ki++){
+    var ck = keys[ki];
+    var arr = FM.menu[ck];
+    for(var ii=0;ii<arr.length;ii++){
+      if(arr[ii].id===id) return {item:arr[ii], catKey:ck};
     }
   }
   return null;
@@ -8226,39 +8452,792 @@ function fmSavePriceSheet(){
 // ─────────────────────────────────────────
 function fmOpenImporter(){
   var m = document.getElementById('fm-import-modal');
-  if(m){ m.style.display='flex'; document.getElementById('fm-import-text-area').style.display='none'; }
+  if(!m) return;
+  m.style.display = 'flex';
+  fimRefreshBankCount();
+  // Always hide progress bar on open — stale state from last run
+  var prog = document.getElementById('fim-pdf-progress');
+  if(prog) prog.style.display = 'none';
+  // If PDF results exist, go straight to Preview tab
+  _fimLoadParsed();
+  var total = 0;
+  Object.keys(_fimParsed||{}).forEach(function(k){ total += (_fimParsed[k]||[]).length; });
+  if(total > 0){
+    pbInvalidateCache();
+    fimRenderPreview(total);
+    fimShowTab('preview');
+    var btn = document.getElementById('fim-ai-btn');
+    if(btn){ btn.textContent = 'View Results (' + total + ' items) →'; btn.disabled = false; }
+  } else {
+    fimShowTab('import');
+  }
 }
 function fmCloseImporter(){
   var m=document.getElementById('fm-import-modal'); if(m) m.style.display='none';
 }
+// Legacy compat — old buttons called these
 function fmImportMode(mode){
-  if(mode==='text'){
-    document.getElementById('fm-import-text-area').style.display='block';
-    setTimeout(function(){ document.getElementById('fm-import-text').focus(); },150);
-  } else {
-    fmCloseImporter();
-    fmToast('Open menu_importer.html for '+mode.toUpperCase()+' import — then come back');
-  }
+  if(mode==='text'){ fimShowTab('import'); }
+  else { fmToast('Paste text in the Import tab — most reliable method'); }
 }
 function fmProcessText(){
+  // Legacy: called by old Extract button — redirect to new flow
+  fimParseAndPreview();
+}
+
+// ══════════════════════════════════════════════════════
+// PICTURE BANK + IMPORTER ENGINE  (fim = food importer)
+// ══════════════════════════════════════════════════════
+var _fimParsed = {};   // parsed menu awaiting publish
+// Persist _fimParsed to sessionStorage so it survives modal close/reopen
+function _fimSaveParsed(){ try{ sessionStorage.setItem('_fimParsed', JSON.stringify(_fimParsed)); }catch(e){} }
+function _fimLoadParsed(){ try{ var s=sessionStorage.getItem('_fimParsed'); if(s){ var p=JSON.parse(s); if(p&&typeof p==='object') _fimParsed=p; } }catch(e){} }
+function _fimClearParsed(){ _fimParsed={}; try{ sessionStorage.removeItem('_fimParsed'); }catch(e){} }
+var _fimPendingImg = null;
+var _fimEditingKey  = null;
+var _fimAssignItemId   = null;
+var _fimAssignItemName = null;
+var _fimQueue = [];
+
+// ── Tab switcher
+function fimShowTab(tab) {
+  ['import','bank','preview'].forEach(function(t){
+    var panel = document.getElementById('fim-panel-'+t);
+    var btn   = document.getElementById('fim-tab-'+t);
+    if(!panel||!btn) return;
+    var active = t===tab;
+    panel.style.display = active ? 'flex' : 'none';
+    btn.style.background = active ? 'var(--gold)' : 'transparent';
+    btn.style.color = active ? 'var(--dark)' : 'var(--text-muted)';
+    btn.style.fontWeight = active ? '600' : '400';
+  });
+  if(tab==='bank') fimRenderBank();
+}
+
+// ── Bank count badge
+function fimRefreshBankCount(){
+  var bank = pbLoad();
+  var n = Object.keys(bank).length;
+  var el = document.getElementById('fim-bank-count');
+  if(el) el.textContent = n ? '('+n+')' : '';
+}
+
+// ── Parse menu text and switch to preview tab
+function fimParseAndPreview(){
   var txt = document.getElementById('fm-import-text').value.trim();
   if(!txt){ fmToast('Paste some menu text first','red'); return; }
-  var parsed = fmParseText(txt);
-  if(!parsed.total){ fmToast('No items found — check format','red'); return; }
-  // Merge into FM.menu (don't replace existing)
-  Object.keys(parsed.menu).forEach(function(ck){
+  pbInvalidateCache();
+  _fimClearParsed();
+  _fimParsed = fmParseText(txt).menu;
+  _fimSaveParsed();
+  var total = Object.values(_fimParsed).reduce(function(s,a){ return s+a.length; },0);
+  if(!total){ fmToast('No items found — check format','red'); return; }
+  fimRenderPreview(total);
+  fimShowTab('preview');
+}
+
+// ── AI-powered parse: sends raw text to Claude, gets structured JSON back
+function fimAiParseAndPreview(){
+  // Restore from sessionStorage in case modal was closed/reopened
+  _fimLoadParsed();
+  // If PDF was already processed and _fimParsed has data, go straight to preview
+  var existingTotal = 0;
+  Object.keys(_fimParsed||{}).forEach(function(k){ existingTotal += (_fimParsed[k]||[]).length; });
+  console.log('[FIM] fimAiParseAndPreview called. existingTotal='+existingTotal+' keys='+JSON.stringify(Object.keys(_fimParsed||{})));
+  if(existingTotal > 0){
+    // Always hide progress bar — it may still be visible from PDF run
+    var prog = document.getElementById('fim-pdf-progress');
+    if(prog) prog.style.display = 'none';
+    // Ensure modal is open
+    var modal = document.getElementById('fm-import-modal');
+    console.log('[FIM] modal display='+( modal ? modal.style.display : 'NOT FOUND'));
+    if(modal) modal.style.display = 'flex';
+    pbInvalidateCache();
+    // Force fresh render so items always appear
+    console.log('[FIM] calling fimRenderPreview('+existingTotal+')');
+    fimRenderPreview(existingTotal);
+    console.log('[FIM] calling fimShowTab(preview)');
+    fimShowTab('preview');
+    var previewPanel = document.getElementById('fim-panel-preview');
+    var previewList  = document.getElementById('fim-preview-list');
+    console.log('[FIM] after showTab: panel.display='+(previewPanel?previewPanel.style.display:'?')+' list.innerHTML.length='+(previewList?previewList.innerHTML.length:0));
+    return;
+  }
+  var txt = document.getElementById('fm-import-text').value.trim();
+  if(!txt){ fmToast('Paste some menu text first','red'); return; }
+
+  var btn = document.getElementById('fim-ai-btn');
+  var statusEl = document.getElementById('fim-ai-status');
+
+  btn.disabled = true;
+  btn.textContent = 'Parsing…';
+  statusEl.style.display = 'block';
+  statusEl.textContent = 'Sending to AI — extracting categories, items & prices…';
+
+  var AI_PROMPT = 'I am building a system that converts raw restaurant menu text (extracted from PDF) into a clean, structured, normalized JSON menu.\n\nReturn ONLY valid JSON in this format:\n[\n  {\n    "category": "Category Name",\n    "items": [\n      {\n        "name": "Item Name",\n        "normalized": "normalized item name",\n        "price": 0\n      }\n    ]\n  }\n]\n\nRULES:\n1. Detect category names. If unclear, group logically (Breakfast, Main Course, Beverages etc).\n2. Each item must have name and price.\n3. Price: extract numeric value only, remove currency symbols. If half/full prices exist, use full.\n4. Normalized: lowercase, remove brackets, remove words: full half plate special chef combo, trim spaces.\n   Example: "Paneer Butter Masala (Full)" -> "paneer butter masala"\n5. Remove noise text (tax extra, veg/non-veg labels, page numbers).\n6. No empty categories. No duplicates.\n7. Return JSON only. No explanation. No markdown fences.\n\nRAW MENU TEXT:\n' + txt;
+
+  function onDone(btn, statusEl) {
+    btn.disabled = false;
+    btn.textContent = 'Parse & Preview \u2192';
+  }
+
+  function processResult(data) {
+    var raw = (data.content || []).map(function(b){ return b.text || ''; }).join('');
+    raw = raw.replace(/```json|```/g, '').trim();
+
+    var parsed;
+    try { parsed = JSON.parse(raw); }
+    catch(e) {
+      fmToast('AI returned invalid JSON — try again','red');
+      statusEl.textContent = 'Parse error: ' + e.message;
+      onDone(btn, statusEl);
+      return;
+    }
+
+    pbInvalidateCache();
+    _fimParsed = {};
+    var totalItems = 0;
+    var catMap = [
+      {key:'breakfast',  kw:['breakfast','morning','brunch']},
+      {key:'snacks',     kw:['snack','starter','appetizer','soup']},
+      {key:'mainveg',    kw:['veg','vegetarian','paneer','dal','sabzi','main veg']},
+      {key:'mainnonveg', kw:['non-veg','nonveg','chicken','mutton','fish','seafood','egg','main non']},
+      {key:'sides',      kw:['bread','rice','roti','naan','biryani','side','pulao']},
+      {key:'desserts',   kw:['dessert','sweet','ice cream','halwa','kheer']},
+      {key:'drinks',     kw:['drink','beverage','juice','lassi','chai','tea','coffee','soda','water']},
+      {key:'bar',        kw:['bar','beer','wine','cocktail','mocktail','spirits','whisky']}
+    ];
+
+    parsed.forEach(function(catObj) {
+      if (!catObj.category || !Array.isArray(catObj.items)) return;
+      var catLabel = String(catObj.category).toLowerCase();
+      var catKey = 'mainveg';
+      for (var i = 0; i < catMap.length; i++) {
+        if (catMap[i].kw.some(function(kw){ return catLabel.indexOf(kw) >= 0; })) {
+          catKey = catMap[i].key; break;
+        }
+      }
+      if (!_fimParsed[catKey]) _fimParsed[catKey] = [];
+      catObj.items.forEach(function(item) {
+        if (!item.name) return;
+        var nl = (item.normalized || item.name).toLowerCase();
+        var veg = !FM.NV_KW.some(function(k){ return nl.indexOf(k) >= 0; });
+        _fimParsed[catKey].push({
+          id: FM.newId(), name: item.name, price: item.price || 0,
+          veg: veg, available: true, discount: 0, sub: catObj.category
+        });
+        totalItems++;
+      });
+    });
+
+    if (!totalItems) { fmToast('No items found in AI response','red'); onDone(btn, statusEl); return; }
+
+    statusEl.textContent = '\u2713 ' + totalItems + ' items parsed across ' + parsed.length + ' categories';
+    _fimSaveParsed();
+    fimRenderPreview(totalItems);
+    fimShowTab('preview');
+    onDone(btn, statusEl);
+  }
+
+  var savedKey = localStorage.getItem('fim_openai_key') || '';
+  if(!savedKey){
+    fmToast('Enter your OpenAI key first','red');
+    statusEl.textContent = 'No API key — add it at the top of the Import tab.';
+    fimShowKeyInput();
+    onDone(btn, statusEl);
+    return;
+  }
+
+  fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + savedKey
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      max_tokens: 4000,
+      messages: [{ role: 'user', content: AI_PROMPT }]
+    })
+  })
+  .then(function(res){ return res.json(); })
+  .then(function(data){
+    if(data.error){ throw new Error(data.error.message || 'OpenAI error'); }
+    var raw = ((data.choices||[])[0]||{}).message||{};
+    var fakeData = { content: [{ text: raw.content || '' }] };
+    processResult(fakeData);
+  })
+  .catch(function(err){
+    fmToast('Request failed: ' + (err.message || err), 'red');
+    statusEl.textContent = 'Error: ' + (err.message || err);
+    onDone(btn, statusEl);
+  });
+}
+window.fimAiParseAndPreview = fimAiParseAndPreview;
+
+// ── API Key helpers
+function fimSaveKey(){
+  var val = (document.getElementById('fim-key-input').value || '').trim();
+  if(!val){ fmToast('Paste your OpenAI key first','red'); return; }
+  if(val.indexOf('sk-') !== 0){ fmToast('Key should start with sk-','red'); return; }
+  localStorage.setItem('fim_openai_key', val);
+  document.getElementById('fim-key-input').value = '';
+  fimRefreshKeyUI();
+  fmToast('\u2713 Key saved — ready to parse', 'green');
+}
+function fimShowKeyInput(){
+  document.getElementById('fim-key-saved-row').style.display = 'none';
+  document.getElementById('fim-key-input-row').style.display = 'block';
+  setTimeout(function(){ var i=document.getElementById('fim-key-input'); if(i) i.focus(); }, 150);
+}
+function fimRefreshKeyUI(){
+  var has = !!localStorage.getItem('fim_openai_key');
+  document.getElementById('fim-key-saved-row').style.display = has ? 'flex' : 'none';
+  document.getElementById('fim-key-input-row').style.display = has ? 'none' : 'block';
+}
+window.fimSaveKey = fimSaveKey;
+window.fimShowKeyInput = fimShowKeyInput;
+window.fimRefreshKeyUI = fimRefreshKeyUI;
+
+// Run on importer open — just refresh key UI state
+(function(){
+  var _origOpen = window.fmOpenImporter;
+  window.fmOpenImporter = function(){
+    if(_origOpen) _origOpen();
+    setTimeout(fimRefreshKeyUI, 50);
+  };
+})();
+
+// =====================================================
+// PDF VISION PROCESSOR - page by page via GPT-4o Vision
+// PDF.js renders each page to canvas -> base64 image
+// -> sent to GPT-4o Vision -> JSON per page -> merged
+// =====================================================
+
+var _fimPdfCancelled = false;
+
+function fimCancelPdf(){
+  _fimPdfCancelled = true;
+  document.getElementById('fim-pdf-progress').style.display = 'none';
+  var inp = document.getElementById('fim-pdf-input');
+  if(inp) inp.value = '';
+  fmToast('PDF processing cancelled');
+}
+window.fimCancelPdf = fimCancelPdf;
+
+function fimProgRow(pageNum, status, color){
+  var list = document.getElementById('fim-prog-list');
+  if(!list) return;
+  var id = 'fpr-' + pageNum;
+  var html = '<div id="' + id + '" style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+    + '<div style="width:22px;height:22px;border-radius:6px;background:rgba(201,169,110,0.1);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--gold);flex-shrink:0;">' + pageNum + '</div>'
+    + '<div style="flex:1;font-size:11px;color:' + color + ';font-family:DM Sans,sans-serif;">' + status + '</div>'
+    + '</div>';
+  var existing = document.getElementById(id);
+  if(existing){ existing.outerHTML = html; } else { list.insertAdjacentHTML('beforeend', html); list.scrollTop = list.scrollHeight; }
+}
+
+function fimUpdateBar(done, total){
+  var bar = document.getElementById('fim-prog-bar');
+  var cnt = document.getElementById('fim-prog-count');
+  if(bar) bar.style.width = Math.round((done/total)*100) + '%';
+  if(cnt) cnt.textContent = done + ' / ' + total + ' pages';
+}
+
+// ===== TEXT EXTRACTION WITH COLUMN SUPPORT =====
+async function fimExtractPageStructured(page) {
+  var content = await page.getTextContent();
+  var columns = [];
+  content.items.forEach(function(it) {
+    var x = Math.round(it.transform[4]);
+    // FIX 1: wider column tolerance (80 instead of 40) catches split columns
+    var col = columns.find(function(c) { return Math.abs(c.x - x) < 80; });
+    if (!col) { col = { x: x, items: [] }; columns.push(col); }
+    col.items.push(it);
+  });
+  columns.sort(function(a, b) { return a.x - b.x; });
+  var allLines = [];
+  columns.forEach(function(col) {
+    var rows = {};
+    col.items.forEach(function(it) {
+      var y = Math.round(it.transform[5]);
+      if (!rows[y]) rows[y] = [];
+      rows[y].push(it.str);
+    });
+    var lines = Object.keys(rows)
+      .sort(function(a, b) { return b - a; })
+      .map(function(y) { return rows[y].join(' '); });
+    allLines = allLines.concat(lines);
+  });
+  return allLines;
+}
+
+// ===== MERGE BROKEN LINES =====
+function fimMergeBrokenLines(lines) {
+  var merged = [];
+  for (var i = 0; i < lines.length; i++) {
+    var curr = lines[i].trim();
+    var next = lines[i + 1] ? lines[i + 1].trim() : '';
+    if (/^\d{2,4}(?:\.\d{1,2})?$/.test(next)) {
+      merged.push(curr + ' ' + next);
+      i++;
+    } else {
+      merged.push(curr);
+    }
+  }
+  return merged;
+}
+
+// ===== LOOSE FALLBACK EXTRACTOR (recovers weak pages) =====
+function fimExtractLoose(lines) {
+  var items = [];
+  lines.forEach(function(line) {
+    var clean = line.replace(/\.{2,}/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    // Skip lines already matched by strict extractor or too short
+    if (clean.length < 4) return;
+    var nums = clean.match(/\d{2,4}/g);
+    if (nums && nums.length) {
+      var price = nums[nums.length - 1];
+      var name = clean.replace(new RegExp('\\b' + price + '\\b'), '').replace(/[₹\s]+$/, '').trim();
+      if (name.length > 3) {
+        items.push({ name: name, price: parseInt(price) });
+      }
+    }
+  });
+  return items;
+}
+
+// ===== EXTRACT ITEMS (strict + fallback) =====
+function fimExtractItems(lines) {
+  var items = [];
+  lines.forEach(function(line) {
+    // FIX 2: normalise dots/spaces, allow ₹, allow decimals
+    var clean = line.replace(/\.{2,}/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    var match = clean.match(/^(.+?)\s+(?:₹?\s*)?(\d{2,4}(?:\.\d{1,2})?)(?:\s|$)/);
+    if (match) {
+      items.push({ name: match[1].trim(), price: parseInt(match[2]) });
+    } else {
+      // FIX 3: fallback — grab any trailing number as price
+      var nums = clean.match(/\d{2,4}/g);
+      if (nums && nums.length) {
+        var price = nums[nums.length - 1];
+        var name = clean.replace(new RegExp('\\b' + price + '\\b'), '').replace(/[₹\s]+$/, '').trim();
+        if (name.length > 3) {
+          items.push({ name: name, price: parseInt(price) });
+        }
+      }
+    }
+  });
+  return items;
+}
+
+// ===== SAFE DEDUPE =====
+function fimDeduplicate(items) {
+  var map = new Map();
+  items.forEach(function(item) {
+    var key = item.name.toLowerCase() + '_' + item.price;
+    if (!map.has(key)) map.set(key, item);
+  });
+  return Array.from(map.values());
+}
+
+// ===== VALIDATION =====
+function fimValidate(pagesCount, items) {
+  var perPage = items.length / pagesCount;
+  if (perPage < 8) {
+    console.warn('Low extraction density (' + perPage.toFixed(1) + ' items/page) — possible missing items');
+    return false;
+  }
+  return true;
+}
+
+// ===== CATEGORY DETECTOR (Part 2 fix) =====
+function fimDetectCategory(name) {
+  var n = name.toLowerCase();
+  if (/(tea|coffee|juice|lassi|lemonade|shake|smoothie|drink|beverage|soda|water|chai|mocktail|cocktail)/.test(n)) return 'drinks';
+  if (/(beer|wine|spirit|whisky|whiskey|rum|vodka|gin|bar)/.test(n)) return 'bar';
+  if (/(cake|sweet|dessert|ice.?cream|halwa|kheer|mousse|tiramisu|cheesecake|pudding|brownie|gulab|rasgulla)/.test(n)) return 'desserts';
+  if (/(tikka|kebab|starter|appetis|soup|salad|chaat|pakora|bhel|pani.?puri|nachos|wings)/.test(n)) return 'snacks';
+  if (/(paratha|idli|poha|dosa|upma|omelette|breakfast|toast|waffle|pancake|egg|cereal|muesli)/.test(n)) return 'breakfast';
+  if (/(bread|naan|roti|rice|biryani|pulao|pasta|pizza|burger|sandwich|roll|side|dal.?makhani|butter.?naan)/.test(n)) return 'sides';
+  if (/(chicken|mutton|fish|prawn|seafood|lamb|duck|pork|keema|gosht|non.?veg|boneless|tandoori)/.test(n)) return 'mainnonveg';
+  return 'mainveg';
+}
+
+// ===== CATEGORY MAPPER (fallback keyword list) =====
+var _fimCatMap = [
+  {key:'breakfast',  kw:['breakfast','morning','brunch','bakery','pastry','muffin','croissant']},
+  {key:'snacks',     kw:['snack','starter','appetiser','appetizer','soup','salad','chaat','kebab','tikka']},
+  {key:'mainveg',    kw:['veg','vegetarian','paneer','dal','sabzi','indian']},
+  {key:'mainnonveg', kw:['non-veg','nonveg','chicken','mutton','fish','prawn','seafood','egg','lamb','duck','pork','grill','mains','main course','oriental','chinese']},
+  {key:'sides',      kw:['bread','rice','roti','naan','biryani','side','pulao','pasta','risotto','pizza','burger','sandwich','roll']},
+  {key:'desserts',   kw:['dessert','sweet','ice cream','halwa','kheer','cake','cookie','mousse','cheesecake','tiramisu']},
+  {key:'drinks',     kw:['drink','beverage','juice','lassi','chai','tea','coffee','soda','water']},
+  {key:'bar',        kw:['bar','beer','wine','spirit','whisky','cocktail']}
+];
+
+// ===== MAIN PDF PROCESSOR (text-based, deterministic) =====
+async function fimProcessPdfVision(file) {
+  _fimPdfCancelled = false;
+  _fimClearParsed();
+
+  var btn = document.getElementById('fim-ai-btn');
+  if (btn) { btn.textContent = 'Processing…'; btn.disabled = true; }
+
+  var prog = document.getElementById('fim-pdf-progress');
+  prog.style.display = 'block';
+  document.getElementById('fim-prog-title').textContent = 'Loading ' + file.name + '…';
+  document.getElementById('fim-prog-list').innerHTML = '';
+  document.getElementById('fim-prog-bar').style.width = '0%';
+  document.getElementById('fim-prog-count').textContent = '';
+
+  function loadPdfJs(cb) {
+    if (window.pdfjsLib) { cb(); return; }
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = function() {
+      // FIX: suppress GlobalWorkerOptions warning by setting workerSrc explicitly
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      cb();
+    };
+    s.onerror = function() { fmToast('Could not load PDF reader — check internet', 'red'); };
+    document.head.appendChild(s);
+  }
+
+  loadPdfJs(async function() {
+    try {
+      var arrayBuffer = await file.arrayBuffer();
+      var pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer), disableWorker: true }).promise;
+      var totalPages = pdf.numPages;
+      document.getElementById('fim-prog-title').textContent = file.name + ' — ' + totalPages + ' pages';
+      fimUpdateBar(0, totalPages);
+
+      var allItems = [];
+
+      for (var p = 1; p <= totalPages; p++) {
+        if (_fimPdfCancelled) break;
+        fimProgRow(p, 'Extracting text…', 'var(--gold)');
+        try {
+          var page = await pdf.getPage(p);
+          var lines = await fimExtractPageStructured(page);
+          lines = fimMergeBrokenLines(lines);
+          var items = fimExtractItems(lines);
+
+          // FIX 4: retry weak pages with loose extractor
+          if (items.length < 5) {
+            console.warn('Retrying page ' + p + ' with loose extractor (got ' + items.length + ')');
+            var extra = fimExtractLoose(lines);
+            // merge without duplicating what strict already found
+            var existingKeys = new Set(items.map(function(i) { return i.name.toLowerCase() + '_' + i.price; }));
+            extra.forEach(function(e) {
+              var k = e.name.toLowerCase() + '_' + e.price;
+              if (!existingKeys.has(k)) { items.push(e); existingKeys.add(k); }
+            });
+          }
+
+          if (!items.length) {
+            console.warn('No items detected on page ' + p);
+            fimProgRow(p, 'No items found', 'var(--text-dim)');
+          } else {
+            fimProgRow(p, '✓ ' + items.length + ' items', '#4CAF7D');
+            allItems = allItems.concat(items);
+          }
+        } catch (e) {
+          console.error('Page ' + p + ' failed:', e);
+          fimProgRow(p, 'Error: ' + (e.message || e), '#C0392B');
+        }
+        fimUpdateBar(p, totalPages);
+      }
+
+      if (_fimPdfCancelled) return;
+
+      allItems = fimDeduplicate(allItems);
+
+      if (!allItems.length) {
+        fmToast('No items extracted — check PDF format', 'red');
+        prog.style.display = 'none';
+        if (btn) { btn.textContent = 'Parse & Preview →'; btn.disabled = false; }
+        return;
+      }
+
+      fimValidate(totalPages, allItems);
+
+      // PART 2 FIX: reset _fimParsed fresh, use detectCategory, then save+load
+      _fimParsed = {};
+      allItems.forEach(function(item) {
+        // Use regex-based detector first, fall back to keyword map
+        var catKey = fimDetectCategory(item.name);
+        if (!_fimParsed[catKey]) _fimParsed[catKey] = [];
+        var nl = item.name.toLowerCase();
+        var veg = !FM.NV_KW.some(function(k) { return nl.indexOf(k) >= 0; });
+        _fimParsed[catKey].push({
+          id: FM.newId(), name: item.name, price: item.price,
+          veg: veg, available: true, discount: 0, sub: 'Imported'
+        });
+      });
+
+      // PART 2 FIX: save then immediately reload to ensure data contract is correct
+      _fimSaveParsed();
+      _fimLoadParsed();
+
+      var grandTotal = allItems.length;
+      document.getElementById('fim-prog-bar').style.width = '100%';
+      document.getElementById('fim-prog-title').textContent = '✓ Done! ' + grandTotal + ' items extracted';
+
+      setTimeout(function() {
+        prog.style.display = 'none';
+        if (btn) { btn.textContent = 'View Results (' + grandTotal + ' items) →'; btn.disabled = false; }
+        // Ensure modal stays open when auto-switching to preview
+        var modal = document.getElementById('fm-import-modal');
+        if (modal) modal.style.display = 'flex';
+        // Invalidate cache BEFORE rendering
+        pbInvalidateCache();
+        fimRenderPreview(grandTotal);
+        fimShowTab('preview');
+        fmToast('✓ ' + grandTotal + ' items from ' + totalPages + ' pages', 'green');
+      }, 800);
+
+    } catch (e) {
+      fmToast('PDF error: ' + (e.message || e), 'red');
+      prog.style.display = 'none';
+      if (btn) { btn.textContent = 'Parse & Preview →'; btn.disabled = false; }
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var pdfInput = document.getElementById('fim-pdf-input');
+  if (pdfInput) pdfInput.addEventListener('change', function(e) {
+    var file = e.target.files && e.target.files[0];
+    if (file) fimProcessPdfVision(file);
+    e.target.value = '';
+  });
+});
+
+// ── Preview render
+function fimRenderPreview(total){
+  var photoCount = 0;
+  var bank = pbLoad();
+  var html = '';
+  console.log('[FIM] fimRenderPreview called. total='+total+' _fimParsed keys='+JSON.stringify(Object.keys(_fimParsed||{})));
+  FM.ALL_CATS.forEach(function(cat){
+    var items = _fimParsed[cat.key];
+    console.log('[FIM] cat='+cat.key+' items='+(items?items.length:0));
+    if(!items||!items.length) return;
+    html += '<div style="padding:10px 0 4px;">';
+    html += '<div style="display:inline-block;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);background:rgba(201,169,110,0.1);border:1px solid rgba(201,169,110,0.2);border-radius:4px;padding:2px 8px;margin-bottom:8px;">'+cat.em+' '+cat.label+' ('+items.length+')</div>';
+    items.forEach(function(item){
+      var photo = pbGetPhoto(item.name);
+      if(photo) photoCount++;
+      var vc = item.veg?'var(--green)':'var(--red)';
+      html += '<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);gap:10px;">';
+      html += photo
+        ? '<img src="'+photo+'" style="width:44px;height:44px;border-radius:9px;object-fit:cover;flex-shrink:0;border:1px solid rgba(255,255,255,0.07);">'
+        : '<div style="width:44px;height:44px;border-radius:9px;flex-shrink:0;background:var(--surface);border:1px dashed rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--text-dim);">🍽</div>';
+      html += '<div style="width:10px;height:10px;border-radius:2px;border:1.5px solid '+vc+';flex-shrink:0;display:flex;align-items:center;justify-content:center;"><div style="width:4px;height:4px;border-radius:50%;background:'+vc+'"></div></div>';
+      html += '<div style="flex:1;min-width:0;">';
+      html += '<div style="font-size:13px;color:var(--text);">'+fmEsc(item.name)+'</div>';
+      html += '<div style="font-size:11px;color:var(--gold);">'+(item.price?'₹'+item.price:'—')+'</div>';
+      if(photo) html += '<div style="font-size:9px;color:var(--green);background:rgba(76,175,125,0.1);border-radius:3px;padding:1px 5px;display:inline-block;margin-top:2px;">📷 matched</div>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+  });
+  document.getElementById('fim-preview-list').innerHTML = html;
+  var photoPercent = total ? Math.round(photoCount/total*100) : 0;
+  document.getElementById('fim-preview-stats').textContent =
+    total+' items · '+Object.keys(_fimParsed).length+' cats · '+photoCount+' photos ('+photoPercent+'%)';
+}
+
+// ── Publish parsed menu
+function fimPublish(){
+  var total = Object.values(_fimParsed).reduce(function(s,a){ return s+a.length; },0);
+  if(!total){ fmToast('Nothing to publish','red'); return; }
+  // Merge into FM.menu
+  Object.keys(_fimParsed).forEach(function(ck){
     if(!FM.menu[ck]) FM.menu[ck]=[];
-    parsed.menu[ck].forEach(function(item){
+    _fimParsed[ck].forEach(function(item){
       var dup = FM.menu[ck].find(function(e){ return e.name.toLowerCase()===item.name.toLowerCase(); });
       if(!dup) FM.menu[ck].push(item);
     });
   });
   localStorage.setItem(FM.LS_SETUP,'1');
-  fmSaveData(); fmCloseImporter();
-  FM.currentCat = Object.keys(parsed.menu)[0]||FM.currentCat;
+  fmSaveData();
+  FM.currentCat = Object.keys(_fimParsed)[0]||FM.currentCat;
+  fmCloseImporter();
   fmRenderCatStrip(); fmRenderList(); fmUpdateStats();
-  fmToast('✓ '+parsed.total+' items imported', 'green');
+  fmToast('✓ '+total+' items imported', 'green');
 }
+
+// ══ PICTURE BANK ══
+function fimRenderBank(){
+  var bank = pbLoad();
+  var search = (document.getElementById('fim-search')||{}).value||'';
+  search = search.toLowerCase().trim();
+  var keys = Object.keys(bank).filter(function(k){ return !search||k.indexOf(search)>=0; });
+  var grid = document.getElementById('fim-bank-grid');
+  var label= document.getElementById('fim-bank-label');
+  var total = Object.keys(bank).length;
+  if(label) label.textContent = search ? keys.length+' result'+(keys.length!==1?'s':'') : 'All Photos ('+total+')';
+  fimRefreshBankCount();
+  if(!grid) return;
+  if(!total){
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px 0;color:var(--text-dim);font-size:13px;">No photos yet — upload above</div>';
+    return;
+  }
+  if(!keys.length){
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px 0;color:var(--text-dim);font-size:13px;">No matches</div>';
+    return;
+  }
+  function prettyKey(k){ return k.split(' ').map(function(w){ return w.length>1?w[0].toUpperCase()+w.slice(1):w; }).join(' '); }
+  grid.innerHTML = keys.map(function(k){
+    return '<div style="position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.07);cursor:pointer;" onclick="fimRenameBank(\''+encodeURIComponent(k)+'\')">'
+      +'<img src="'+bank[k]+'" style="width:100%;height:100%;object-fit:cover;display:block;" loading="lazy">'
+      +'<div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(to top,rgba(0,0,0,0.72),transparent);padding:18px 6px 5px;font-size:8px;color:#fff;text-align:center;line-height:1.2;">'+prettyKey(k)+'</div>'
+      +'<button onclick="event.stopPropagation();fimDeleteFromBank(\''+encodeURIComponent(k)+'\')" style="position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:6px;background:rgba(192,57,43,0.85);border:none;color:white;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>'
+      +'</div>';
+  }).join('');
+}
+
+// ── Upload files
+document.addEventListener('DOMContentLoaded', function(){
+  var fi = document.getElementById('fim-file-input');
+  if(fi) fi.addEventListener('change', function(e){
+    var files = Array.from(e.target.files);
+    if(!files.length) return;
+    _fimQueue = files; fimProcessQueue();
+    e.target.value='';
+  });
+  var zone = document.getElementById('fim-upload-zone');
+  if(zone){
+    zone.addEventListener('dragover', function(e){ e.preventDefault(); zone.style.borderColor='var(--gold)'; });
+    zone.addEventListener('dragleave', function(){ zone.style.borderColor=''; });
+    zone.addEventListener('drop', function(e){
+      e.preventDefault(); zone.style.borderColor='';
+      var files = Array.from(e.dataTransfer.files).filter(function(f){ return f.type.startsWith('image/'); });
+      if(files.length){ _fimQueue=files; fimProcessQueue(); }
+    });
+  }
+  var ni = document.getElementById('fim-name-input');
+  if(ni) ni.addEventListener('keydown', function(e){ if(e.key==='Enter') fimSavePhoto(); });
+});
+
+function fimProcessQueue(){
+  if(!_fimQueue.length) return;
+  var file = _fimQueue.shift();
+  var reader = new FileReader();
+  reader.onload = function(e){
+    fimResizeImage(e.target.result, function(b64){
+      var rawName = file.name.replace(/\.[^.]+$/,'').replace(/[-_]/g,' ').replace(/\s+/g,' ').trim();
+      rawName = rawName.split(' ').map(function(w){ return w.length>1?w[0].toUpperCase()+w.slice(1).toLowerCase():w; }).join(' ');
+      _fimPendingImg = b64; _fimEditingKey = null;
+      document.getElementById('fim-name-preview').src = b64;
+      document.getElementById('fim-name-input').value = rawName;
+      document.getElementById('fim-name-sheet').style.display = 'flex';
+      setTimeout(function(){ var i=document.getElementById('fim-name-input'); if(i){i.focus();i.select();} },200);
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+function fimResizeImage(src, cb){
+  var img = new Image();
+  img.onload = function(){
+    var MAX=320, w=img.width, h=img.height;
+    if(w>MAX||h>MAX){ if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;} }
+    var c=document.createElement('canvas'); c.width=w; c.height=h;
+    c.getContext('2d').drawImage(img,0,0,w,h);
+    cb(c.toDataURL('image/jpeg',0.82));
+  };
+  img.src=src;
+}
+
+function fimSavePhoto(){
+  var name = (document.getElementById('fim-name-input').value||'').trim();
+  if(!name){ document.getElementById('fim-name-input').style.borderColor='var(--red)'; return; }
+  document.getElementById('fim-name-input').style.borderColor='';
+  var bank; try{ bank=JSON.parse(localStorage.getItem('shakti_picture_bank')||'{}'); }catch(e){ bank={}; }
+  var k = pbNorm(name);
+  if(_fimEditingKey && _fimEditingKey!==k) delete bank[_fimEditingKey];
+  bank[k] = _fimPendingImg;
+  try{ localStorage.setItem('shakti_picture_bank',JSON.stringify(bank)); }catch(e){ fmToast('Storage full — compress images','red'); return; }
+  pbInvalidateCache();
+  fimCloseNameSheet();
+  fimRenderBank();
+  fmToast('✓ "'+name+'" saved to Picture Bank');
+  setTimeout(fimProcessQueue, 250);
+}
+
+function fimCloseNameSheet(){
+  document.getElementById('fim-name-sheet').style.display='none';
+  _fimPendingImg=null; _fimEditingKey=null;
+}
+
+function fimRenameBank(encodedKey){
+  var k = decodeURIComponent(encodedKey);
+  var bank; try{ bank=JSON.parse(localStorage.getItem('shakti_picture_bank')||'{}'); }catch(e){ bank={}; }
+  _fimPendingImg = bank[k]; _fimEditingKey = k;
+  function prettyKey(k){ return k.split(' ').map(function(w){ return w.length>1?w[0].toUpperCase()+w.slice(1):w; }).join(' '); }
+  document.getElementById('fim-name-preview').src = bank[k];
+  document.getElementById('fim-name-input').value = prettyKey(k);
+  document.getElementById('fim-name-sheet').style.display = 'flex';
+  setTimeout(function(){ var i=document.getElementById('fim-name-input'); if(i){i.focus();i.select();} },200);
+}
+
+function fimDeleteFromBank(encodedKey){
+  var k = decodeURIComponent(encodedKey);
+  function prettyKey(s){ return s.split(' ').map(function(w){ return w.length>1?w[0].toUpperCase()+w.slice(1):w; }).join(' '); }
+  if(!confirm('Remove "'+prettyKey(k)+'" from Picture Bank?')) return;
+  var bank; try{ bank=JSON.parse(localStorage.getItem('shakti_picture_bank')||'{}'); }catch(e){ bank={}; }
+  delete bank[k];
+  try{ localStorage.setItem('shakti_picture_bank',JSON.stringify(bank)); }catch(e){}
+  pbInvalidateCache(); fimRenderBank(); fmToast('Photo removed');
+}
+
+// ── Assign photo to FM item (📷 button in fmRenderList)
+function fimOpenAssign(itemId, itemName){
+  _fimAssignItemId = itemId; _fimAssignItemName = itemName;
+  var el = document.getElementById('fim-assign-name'); if(el) el.textContent = itemName;
+  var bank; try{ bank=JSON.parse(localStorage.getItem('shakti_picture_bank')||'{}'); }catch(e){ bank={}; }
+  var keys = Object.keys(bank);
+  var grid = document.getElementById('fim-assign-grid');
+  if(!grid) return;
+  function prettyKey(k){ return k.split(' ').map(function(w){ return w.length>1?w[0].toUpperCase()+w.slice(1):w; }).join(' '); }
+  if(!keys.length){
+    grid.innerHTML = '<div style="grid-column:1/-1;padding:30px 0;text-align:center;color:var(--text-muted);font-size:13px;">No photos in Picture Bank yet.<br>Open the Import modal → Photos tab to upload.</div>';
+  } else {
+    grid.innerHTML =
+      '<div onclick="fimDoAssign(null)" style="aspect-ratio:1;border-radius:12px;border:1.5px dashed rgba(192,57,43,0.35);background:rgba(192,57,43,0.06);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;gap:4px;">'
+      +'<span style="font-size:20px;">🚫</span><span style="font-size:9px;color:var(--red);">Remove</span></div>'
+      +keys.map(function(k){
+        return '<div onclick="fimDoAssign(\''+encodeURIComponent(k)+'\')" style="aspect-ratio:1;border-radius:12px;overflow:hidden;cursor:pointer;border:1.5px solid rgba(255,255,255,0.07);position:relative;">'
+          +'<img src="'+bank[k]+'" style="width:100%;height:100%;object-fit:cover;">'
+          +'<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);padding:14px 5px 4px;font-size:8px;color:#fff;text-align:center;">'+prettyKey(k)+'</div>'
+          +'</div>';
+      }).join('');
+  }
+  document.getElementById('fim-assign-sheet').style.display = 'flex';
+}
+
+function fimDoAssign(encodedKey){
+  var norm = pbNorm(_fimAssignItemName);
+  var bank; try{ bank=JSON.parse(localStorage.getItem('shakti_picture_bank')||'{}'); }catch(e){ bank={}; }
+  if(!encodedKey || encodedKey==='null'){
+    delete bank[norm];
+  } else {
+    bank[norm] = bank[decodeURIComponent(encodedKey)];
+  }
+  try{ localStorage.setItem('shakti_picture_bank',JSON.stringify(bank)); }catch(e){}
+  pbInvalidateCache();
+  document.getElementById('fim-assign-sheet').style.display='none';
+  fmRenderList();
+  fmToast(encodedKey&&encodedKey!=='null' ? '✓ Photo assigned' : 'Photo removed');
+}
+
+window.fimOpenAssign=fimOpenAssign; window.fimDoAssign=fimDoAssign;
+window.fimShowTab=fimShowTab; window.fimParseAndPreview=fimParseAndPreview; window.fimPublish=fimPublish;
+window.fimRenderBank=fimRenderBank; window.fimSavePhoto=fimSavePhoto; window.fimCloseNameSheet=fimCloseNameSheet;
+window.fimRenameBank=fimRenameBank; window.fimDeleteFromBank=fimDeleteFromBank;
 
 function fmParseText(text){
   var lines = text.split('\n').map(function(l){return l.trim();}).filter(function(l){return l.length>1;});
@@ -8278,8 +9257,10 @@ function fmParseText(text){
     var veg = !FM.NV_KW.some(function(k){ return nl.indexOf(k)>=0; });
     // Classify
     var catKey = 'mainveg', bestSub = 'General';
-    for(var ck of Object.keys(FM.KW)){
-      if(FM.KW[ck].some(function(k){ return nl.indexOf(k)>=0; })){ catKey=ck; break; }
+    var _kwKeys = Object.keys(FM.KW);
+    for(var _ki=0;_ki<_kwKeys.length;_ki++){
+      var _ck=_kwKeys[_ki];
+      if(FM.KW[_ck].some(function(k){ return nl.indexOf(k)>=0; })){ catKey=_ck; break; }
     }
     if(!menu[catKey]) menu[catKey]=[];
     menu[catKey].push({id:FM.newId(),name:name,price:price,veg:veg,available:true,discount:0,sub:bestSub});
