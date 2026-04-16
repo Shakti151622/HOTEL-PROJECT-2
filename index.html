@@ -11,8 +11,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
 <!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
 <!-- ══ ROUTER — runs before anything else ══ -->
@@ -75,8 +73,8 @@ html[data-mode="guest"] #guest-root { display: block !important; }
     --surface: #1E1C18;
     --surface2: #272420;
     --text: #F5EFE6;
-    --text-muted: #8A8070;
-    --text-dim: #5A5248;
+    --text-muted: #C8BFB0;
+    --text-dim: #9A9088;
     --green: #4CAF7D;
     --red: #C0392B;
     --topbar-border: rgba(201,169,110,0.12);
@@ -1300,8 +1298,8 @@ html[data-mode="guest"] #guest-root { display: block !important; }
   --surface:       #1E1C18;
   --surface2:      #272420;
   --text:          #F5EFE6;
-  --text-muted:    #8A8070;
-  --text-dim:      #5A5248;
+  --text-muted:    #C8BFB0;
+  --text-dim:      #9A9088;
   --green:         #4CAF7D;
   --red:           #C0392B;
   --blue:          #6B9FBF;
@@ -1310,7 +1308,7 @@ html[data-mode="guest"] #guest-root { display: block !important; }
   --gold-border:   rgba(201,169,110,0.22);
   --navy:   #0D0D0D; --navy2:  #1A1814; --panel:  #1E1C18; --panel2: #272420;
   --border: rgba(255,255,255,0.07); --border2: rgba(201,169,110,0.18);
-  --amber:  #C9A96E; --amber2: #E8D5B0; --text2:  #8A8070; --text3:  #5A5248; --white: #F5EFE6;
+  --amber:  #C9A96E; --amber2: #E8D5B0; --text2:  #C8BFB0; --text3:  #9A9088; --white: #F5EFE6;
 }
 :root.day {
   --gold:#A8752A; --gold-light:#C9A96E; --dark:#F7F3EE; --dark2:#EDE8E1; --dark3:#E3DDD5;
@@ -3576,7 +3574,7 @@ function _applyGuestKitchenState(isOpen, reopenTime) {
 
   if (!isOpen) {
     if (banner)  banner.style.display = 'block';
-    if (msg)     msg.textContent = reopenTime ? 'Reopens at ' + reopenTime : 'We'll be back soon';
+    if (msg)     msg.textContent = reopenTime ? 'Reopens at ' + reopenTime : "We'll be back soon";
     if (placeBtn) { placeBtn.disabled = true; placeBtn.style.opacity = '0.45'; placeBtn.title = 'Kitchen is closed'; }
   } else {
     if (banner)  banner.style.display = 'none';
@@ -4851,9 +4849,19 @@ function _applyHotelBrand(name, logo) {
   document.querySelectorAll('.logo-hex span').forEach(function(el) {
     el.textContent = name.charAt(0).toUpperCase();
   });
-  // Update QR hotel name
+  // Update QR hotel name (old modal compat)
   var qrHotel = document.getElementById('qr-hotel-name');
   if (qrHotel) qrHotel.textContent = name.toUpperCase();
+  // Update new QR card preview if open
+  var qrSub = document.getElementById('qr-hotel-sub-dot');
+  if (qrSub) { var sub = name.toUpperCase().split(' ').map(function(w){return '\u00b7 '+w;}).join(' ')+' \u00b7'; qrSub.textContent = sub; }
+  // Update logo in QR card preview
+  var logoWrap = document.getElementById('qr-card-logo-wrap');
+  var logoImg  = document.getElementById('qr-card-logo-img');
+  if (logoWrap && logoImg) {
+    if (logo) { logoImg.src = logo; logoWrap.style.display = 'block'; }
+    else { logoWrap.style.display = 'none'; }
+  }
 }
 
 function _loadHotelBrand() {
@@ -5274,36 +5282,41 @@ window.cpBackToStep1 = cpBackToStep1;
   <div style="flex:1;padding:16px 12px;display:flex;flex-direction:column;gap:4px;">
     <button onclick="switchView('orders',this)" id="desk-nav-orders" style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;border:none;background:rgba(201,169,110,0.1);color:var(--gold);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
-      Tasks
+      Orders
       <span style="margin-left:auto;background:var(--red);color:white;font-size:9px;font-weight:600;padding:1px 6px;border-radius:10px;" id="desk-orders-badge">0</span>
     </button>
-    <button onclick="switchView('rooms',this)" id="desk-nav-rooms" style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;border:none;background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
+    <button onclick="switchView('services',this)" id="desk-nav-services" style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;border:none;background:transparent;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      Services
+      <span id="desk-service-badge" style="margin-left:auto;background:var(--red);color:white;font-size:9px;font-weight:600;padding:1px 6px;border-radius:10px;display:none;"></span>
+    </button>
+    <button onclick="switchView('rooms',this)" id="desk-nav-rooms" style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;border:none;background:transparent;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       Rooms
     </button>
-    <button onclick="switchView('analytics',this)" id="desk-nav-analytics" style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;border:none;background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
+    <button onclick="switchView('analytics',this)" id="desk-nav-analytics" style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;border:none;background:transparent;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
       Analytics
     </button>
-    <button onclick="switchView('menu',this)" id="desk-nav-menu" style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;border:none;background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
+    <button onclick="switchView('menu',this)" id="desk-nav-menu" style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;border:none;background:transparent;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
-      Food Menu
+      Kitchen
       <span id="desk-menu-badge" style="margin-left:auto;background:var(--gold);color:var(--dark);font-size:9px;font-weight:600;padding:1px 6px;border-radius:10px;display:none;">!</span>
     </button>
   </div>
   <div style="padding:16px 12px;border-top:1px solid var(--topbar-border);display:flex;flex-direction:column;gap:8px;">
-    <button onclick="openRoomConfig()" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:none;background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
+    <button onclick="openRoomConfig()" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:none;background:transparent;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
       Manage Rooms
     </button>
-    <button onclick="openCfg()" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:none;background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
+    <button onclick="openCfg()" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:none;background:transparent;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
       Firebase DB
     </button>
-    <button onclick="toggleTheme()" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:none;background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
+    <button onclick="toggleTheme()" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:none;background:transparent;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;text-align:left;width:100%;transition:all 0.15s;">
       <span style="font-size:14px;">🌙</span> Toggle Theme
     </button>
-    <div style="padding:10px 14px;font-size:11px;color:var(--text-dim);" id="clock-desk"></div>
+    <div style="padding:10px 14px;font-size:11px;color:var(--text);" id="clock-desk"></div>
   </div>
 </nav>
 
@@ -5311,7 +5324,7 @@ window.cpBackToStep1 = cpBackToStep1;
   <!-- TOPBAR: simple, clean, no overflow -->
   <div class="topbar">
     <div style="display:flex;flex-direction:column;min-width:0;">
-      <div class="topbar-title" id="view-title">Tasks</div>
+      <div class="topbar-title" id="view-title">Food Orders</div>
       <div class="topbar-sub" id="view-sub">All active food orders</div>
     </div>
     <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
@@ -5591,12 +5604,30 @@ window.cpBackToStep1 = cpBackToStep1;
 
     <!-- ══════════════ SERVICES VIEW ══════════════ -->
     <div class="view" id="view-services">
-      <div style="display:flex;gap:6px;padding:12px 16px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--topbar-border);">
-        <button class="filter-tab active" onclick="filterSvc('all',this)" style="padding:6px 14px;border-radius:100px;border:1px solid var(--topbar-border);background:var(--gold);color:var(--dark);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">All</button>
-        <button class="filter-tab" onclick="filterSvc('received',this)" style="padding:6px 14px;border-radius:100px;border:1px solid var(--topbar-border);background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;">New</button>
-        <button class="filter-tab" onclick="filterSvc('assigned',this)" style="padding:6px 14px;border-radius:100px;border:1px solid var(--topbar-border);background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;">Assigned</button>
-        <button class="filter-tab" onclick="filterSvc('inprogress',this)" style="padding:6px 14px;border-radius:100px;border:1px solid var(--topbar-border);background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;">In Progress</button>
-        <button class="filter-tab" onclick="filterSvc('done',this)" style="padding:6px 14px;border-radius:100px;border:1px solid var(--topbar-border);background:transparent;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;">Done</button>
+      <!-- Summary bar — same style as food orders -->
+      <div style="display:flex;gap:8px;margin:12px 16px 10px;overflow-x:auto;scrollbar-width:none;">
+        <div style="flex:1;min-width:90px;background:var(--surface);border:1px solid var(--card-border);border-radius:12px;padding:10px 12px;">
+          <div style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px;">Completed Today</div>
+          <div style="font-size:20px;font-weight:600;color:var(--text);line-height:1;" id="svc-summary-done">0</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">requests</div>
+        </div>
+        <div style="flex:1;min-width:90px;background:var(--surface);border:1px solid var(--card-border);border-radius:12px;padding:10px 12px;">
+          <div style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px;">Revenue Today</div>
+          <div style="font-size:20px;font-weight:600;color:var(--gold);line-height:1;" id="svc-summary-revenue">₹0</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">paid items only</div>
+        </div>
+        <div style="flex:1;min-width:90px;background:var(--surface);border:1px solid var(--card-border);border-radius:12px;padding:10px 12px;">
+          <div style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px;">Avg Response</div>
+          <div style="font-size:20px;font-weight:600;color:var(--green);line-height:1;" id="svc-summary-avg">—</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">minutes</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;padding:0 16px 10px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--topbar-border);">
+        <button class="filter-tab active" onclick="filterSvc('all',this)" style="padding:7px 16px;border-radius:100px;border:1px solid rgba(201,169,110,0.35);background:rgba(201,169,110,0.12);color:var(--gold);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;letter-spacing:0.03em;">All</button>
+        <button class="filter-tab" onclick="filterSvc('received',this)" style="padding:7px 16px;border-radius:100px;border:1px solid rgba(201,169,110,0.14);background:transparent;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;letter-spacing:0.03em;">New</button>
+        <button class="filter-tab" onclick="filterSvc('assigned',this)" style="padding:7px 16px;border-radius:100px;border:1px solid rgba(201,169,110,0.14);background:transparent;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;letter-spacing:0.03em;">Assigned</button>
+        <button class="filter-tab" onclick="filterSvc('inprogress',this)" style="padding:7px 16px;border-radius:100px;border:1px solid rgba(201,169,110,0.14);background:transparent;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;letter-spacing:0.03em;">In Progress</button>
+        <button class="filter-tab" onclick="filterSvc('done',this)" style="padding:7px 16px;border-radius:100px;border:1px solid rgba(201,169,110,0.14);background:transparent;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;letter-spacing:0.03em;">Done</button>
         <span id="svc-completed-count" style="display:none;align-items:center;gap:4px;padding:5px 12px;border-radius:100px;background:rgba(76,175,125,0.1);border:1px solid rgba(76,175,125,0.25);font-size:12px;color:var(--green);font-family:'DM Sans',sans-serif;white-space:nowrap;flex-shrink:0;">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
           <span id="svc-completed-text">0 done</span>
@@ -5743,54 +5774,180 @@ window.cpBackToStep1 = cpBackToStep1;
 
 <div class="alert-container" id="alert-container"></div>
 
-<!-- QR MODAL -->
-<div class="modal-overlay" id="qr-modal" onclick="handleModalClick(event)">
-  <div style="background:#1A1814;border:1px solid rgba(201,169,110,0.2);border-radius:22px;padding:20px 18px 18px;width:min(340px,92vw);animation:slideUpD 0.3s ease;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+<!-- ══════════════ STYLED QR MODAL (TAI-style) ══════════════ -->
+<style>
+#qr-modal-v2 { position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,0.75);display:none;align-items:center;justify-content:center;padding:16px; }
+#qr-modal-v2.open { display:flex; }
+.qr-modal-inner { background:#1A1814;border:1px solid rgba(201,169,110,0.25);border-radius:24px;padding:22px 20px 20px;width:min(380px,96vw);max-height:92vh;overflow-y:auto;animation:slideUpD 0.3s ease;position:relative; }
+/* The printable QR card — white, hotel-branded */
+.qr-card-printable {
+  background:#fff;border:3px solid #C9A96E;border-radius:14px;
+  padding:22px 20px 0;display:flex;flex-direction:column;align-items:center;
+  font-family:'Cormorant Garamond',serif;position:relative;overflow:hidden;
+  box-shadow:0 8px 40px rgba(0,0,0,0.5);margin-bottom:14px;
+}
+.qr-card-hotel-logo { display:flex;flex-direction:column;align-items:center;margin-bottom:10px; }
+.qr-card-hotel-icon { width:44px;height:44px;margin-bottom:6px; }
+.qr-card-hotel-name { font-size:18px;font-weight:600;color:#8B6914;letter-spacing:0.06em;line-height:1; }
+.qr-card-hotel-sub  { font-size:10px;letter-spacing:0.18em;color:#8B6914;text-transform:uppercase;margin-top:2px;font-family:'DM Sans',sans-serif; }
+.qr-card-scan-title { font-size:13px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;color:#8B6914;margin-bottom:14px;font-family:'DM Sans',sans-serif; }
+.qr-code-box { background:#fff;border:3px solid #C9A96E;border-radius:10px;padding:10px;margin-bottom:0; }
+.qr-discount-ribbon {
+  background:linear-gradient(135deg,#B8860B,#C9A96E,#B8860B);
+  color:#fff;font-family:'DM Sans',sans-serif;font-weight:800;
+  font-size:15px;letter-spacing:0.12em;text-transform:uppercase;
+  padding:8px 0;text-align:center;width:calc(100% + 40px);margin:12px -20px 0;
+  text-shadow:0 1px 2px rgba(0,0,0,0.3);
+}
+.qr-icons-row { display:flex;justify-content:center;gap:28px;padding:14px 0 12px; }
+.qr-icon-item { display:flex;flex-direction:column;align-items:center;gap:5px; }
+.qr-icon-item svg { width:26px;height:26px; }
+.qr-icon-label { font-size:8px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#8B6914;font-family:'DM Sans',sans-serif; }
+.qr-card-footer {
+  background:linear-gradient(135deg,#B8860B,#C9A96E,#B8860B);
+  width:calc(100% + 40px);margin:0 -20px;padding:10px 0 12px;text-align:center;
+}
+.qr-card-footer-main { font-size:16px;font-weight:800;letter-spacing:0.22em;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.3);font-family:'DM Sans',sans-serif; }
+.qr-card-footer-sub  { font-size:9px;letter-spacing:0.2em;color:rgba(255,255,255,0.85);margin-top:2px;font-family:'DM Sans',sans-serif; }
+
+/* Bulk download panel */
+#qr-bulk-panel { display:none;margin-top:4px; }
+#qr-bulk-panel.open { display:block; }
+</style>
+
+<div id="qr-modal-v2" onclick="if(event.target===this)closeQRModal()">
+  <div class="qr-modal-inner">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
       <div>
-        <div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:500;color:#F5EFE6;">Room QR Code</div>
-        <div style="font-size:12px;color:#8A8070;margin-top:2px;" id="qr-modal-sub">Scan to order</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:#F5EFE6;font-weight:500;">Room QR Code</div>
+        <div style="font-size:11px;color:#8A8070;margin-top:2px;" id="qr-modal-sub">Scan to order</div>
       </div>
-      <button onclick="closeQRModal()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;width:32px;height:32px;color:#8A8070;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;">&#215;</button>
+      <button onclick="closeQRModal()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;width:32px;height:32px;color:#8A8070;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>
     </div>
 
-    <!-- Dark styled QR card -->
-    <div style="background:#141210;border:1px solid rgba(201,169,110,0.18);border-radius:16px;padding:20px 16px 16px;display:flex;flex-direction:column;align-items:center;position:relative;overflow:hidden;margin-bottom:14px;">
-      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#C9A96E,transparent);"></div>
-      <div id="qr-hotel-name" style="font-family:'Cormorant Garamond',serif;font-size:10px;letter-spacing:0.32em;color:#C9A96E;text-transform:uppercase;margin-bottom:16px;opacity:0.85;">SHAKTI HOTELS</div>
-      <div style="position:relative;background:white;border-radius:14px;padding:14px;display:inline-block;box-shadow:0 6px 32px rgba(0,0,0,0.6);">
-        <canvas id="qr-canvas" width="200" height="200" style="display:block;border-radius:3px;"></canvas>
-        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:46px;height:46px;background:white;border-radius:11px;display:flex;align-items:center;justify-content:center;">
-          <div style="width:36px;height:36px;background:#C9A96E;border-radius:8px;display:flex;align-items:center;justify-content:center;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-              <polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
-          </div>
+    <!-- Discount toggle row -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;background:rgba(201,169,110,0.07);border:1px solid rgba(201,169,110,0.2);border-radius:12px;padding:10px 14px;">
+      <div style="flex:1;">
+        <div style="font-size:12px;color:#C9A96E;font-weight:500;letter-spacing:0.04em;">Discount QR</div>
+        <div style="font-size:10px;color:#8A8070;margin-top:1px;">Show a discount ribbon on the card</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input id="qr-discount-pct" type="number" min="1" max="99" value="10"
+          style="width:52px;padding:6px 8px;background:#141210;border:1px solid rgba(201,169,110,0.3);border-radius:8px;color:#C9A96E;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;text-align:center;outline:none;"
+          oninput="refreshQRCard()">
+        <span style="font-size:13px;color:#C9A96E;font-weight:600;">%</span>
+        <div id="qr-discount-switch" onclick="toggleQRDiscount()" style="width:42px;height:24px;border-radius:12px;background:#333;cursor:pointer;position:relative;transition:background 0.25s;flex-shrink:0;">
+          <div id="qr-discount-thumb" style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left 0.25s;"></div>
         </div>
       </div>
-      <div style="margin-top:16px;text-align:center;">
-        <div style="font-size:9px;letter-spacing:0.28em;text-transform:uppercase;color:rgba(201,169,110,0.5);margin-bottom:4px;">ROOM</div>
-        <div id="qr-room-label" style="font-family:'Cormorant Garamond',serif;font-size:40px;color:#F5EFE6;letter-spacing:0.1em;line-height:1;font-weight:400;">101</div>
-        <div style="font-size:9px;letter-spacing:0.22em;text-transform:uppercase;color:rgba(255,255,255,0.15);margin-top:5px;">SCAN TO ORDER</div>
+    </div>
+
+    <!-- The printable card preview -->
+    <div class="qr-card-printable" id="qr-printable-card">
+      <!-- Hotel logo / name -->
+      <div class="qr-card-hotel-logo">
+        <div id="qr-card-logo-wrap" style="display:none;margin-bottom:4px;">
+          <img id="qr-card-logo-img" src="" style="max-height:48px;max-width:120px;object-fit:contain;" onerror="document.getElementById('qr-card-logo-wrap').style.display='none'">
+        </div>
+        <div class="qr-card-hotel-name" id="qr-hotel-name">HYATT HOTELS</div>
+        <div class="qr-card-hotel-sub" id="qr-hotel-sub-dot">· HOTELS ·</div>
       </div>
-      <div style="width:40px;height:1.5px;background:linear-gradient(90deg,transparent,rgba(201,169,110,0.45),transparent);border-radius:1px;margin-top:14px;"></div>
+      <div class="qr-card-scan-title">SCAN FOR ROOM SERVICE</div>
+      <!-- QR code -->
+      <div class="qr-code-box">
+        <canvas id="qr-canvas" width="200" height="200" style="display:block;border-radius:4px;"></canvas>
+      </div>
+      <!-- Discount ribbon (conditionally shown) -->
+      <div class="qr-discount-ribbon" id="qr-discount-ribbon" style="display:none;">GET <span id="qr-discount-pct-label">10</span>% DISCOUNT</div>
+      <!-- 3 icons -->
+      <div class="qr-icons-row">
+        <div class="qr-icon-item">
+          <svg viewBox="0 0 24 24" fill="#C9A96E"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0" stroke="#C9A96E" stroke-width="1.5" fill="none"/></svg>
+          <span class="qr-icon-label">Reception</span>
+        </div>
+        <div class="qr-icon-item">
+          <svg viewBox="0 0 24 24" fill="#C9A96E"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0" stroke="#C9A96E" stroke-width="1.5" fill="none"/></svg>
+          <span class="qr-icon-label">Food Menu</span>
+        </div>
+        <div class="qr-icon-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#C9A96E" stroke-width="1.8" stroke-linecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+          <span class="qr-icon-label">Housekeeping</span>
+        </div>
+      </div>
+      <!-- Gold footer bar -->
+      <div class="qr-card-footer">
+        <div class="qr-card-footer-main">SCAN &nbsp;·&nbsp; ORDER &nbsp;·&nbsp; RELAX</div>
+        <div class="qr-card-footer-sub">NO APP NEEDED</div>
+      </div>
     </div>
 
-    <div onclick="copyURL()" title="Tap to copy" style="background:rgba(201,169,110,0.07);border:1px solid rgba(201,169,110,0.18);border-radius:10px;padding:10px 14px;cursor:pointer;margin-bottom:12px;">
-      <span id="qr-url-text" style="font-size:11px;color:#C9A96E;word-break:break-all;letter-spacing:0.02em;"></span>
+    <!-- URL row -->
+    <div onclick="copyURL()" title="Tap to copy" style="background:rgba(201,169,110,0.07);border:1px solid rgba(201,169,110,0.18);border-radius:10px;padding:8px 12px;cursor:pointer;margin-bottom:12px;">
+      <span id="qr-url-text" style="font-size:10px;color:#C9A96E;word-break:break-all;letter-spacing:0.02em;"></span>
     </div>
 
-    <div style="display:flex;gap:8px;">
+    <!-- Action buttons -->
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
       <button onclick="closeQRModal()" style="flex:1;padding:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:#8A8070;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;">Close</button>
-      <button onclick="downloadSingleQR()" style="flex:1;padding:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:#8A8070;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Download
+      <button onclick="downloadStyledQR()" style="flex:2;padding:12px;background:#C9A96E;border:none;border-radius:10px;color:#0D0D0D;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download QR
       </button>
-      <button onclick="copyURL()" id="copy-btn" style="flex:1;padding:12px;background:#C9A96E;border:none;border-radius:10px;color:#0D0D0D;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;">Copy URL</button>
+      <button onclick="copyURL()" id="copy-btn" style="flex:1;padding:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:#8A8070;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;">Copy URL</button>
     </div>
+
+    <!-- Bulk download trigger -->
+    <button onclick="toggleBulkPanel()" style="width:100%;padding:10px;background:rgba(201,169,110,0.08);border:1px dashed rgba(201,169,110,0.3);border-radius:10px;color:#C9A96E;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;letter-spacing:0.06em;display:flex;align-items:center;justify-content:center;gap:6px;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      BULK DOWNLOAD
+    </button>
+
+    <!-- Bulk panel -->
+    <div id="qr-bulk-panel">
+      <div style="margin-top:12px;background:#141210;border:1px solid rgba(201,169,110,0.15);border-radius:12px;padding:14px;">
+        <div style="font-size:11px;color:#C9A96E;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px;">Bulk QR Download</div>
+
+        <!-- Mode tabs -->
+        <div style="display:flex;gap:6px;margin-bottom:12px;">
+          <button class="bulk-tab active" data-mode="all" onclick="setBulkMode('all',this)" style="flex:1;padding:7px;border-radius:8px;border:1px solid rgba(201,169,110,0.4);background:rgba(201,169,110,0.15);color:#C9A96E;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer;letter-spacing:0.05em;">All Rooms</button>
+          <button class="bulk-tab" data-mode="custom" onclick="setBulkMode('custom',this)" style="flex:1;padding:7px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:#8A8070;font-family:'DM Sans',sans-serif;font-size:11px;cursor:pointer;">Custom</button>
+          <button class="bulk-tab" data-mode="single" onclick="setBulkMode('single',this)" style="flex:1;padding:7px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:#8A8070;font-family:'DM Sans',sans-serif;font-size:11px;cursor:pointer;">Single</button>
+        </div>
+
+        <!-- Custom rooms input -->
+        <div id="bulk-custom-row" style="display:none;margin-bottom:10px;">
+          <div style="font-size:10px;color:#8A8070;margin-bottom:5px;letter-spacing:0.08em;">Room numbers (comma-separated)</div>
+          <input id="bulk-custom-input" type="text" placeholder="e.g. 101, 205, 301"
+            style="width:100%;background:#0D0D0D;border:1px solid rgba(201,169,110,0.25);border-radius:8px;padding:9px 12px;color:#F5EFE6;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;box-sizing:border-box;">
+        </div>
+        <!-- Single room input -->
+        <div id="bulk-single-row" style="display:none;margin-bottom:10px;">
+          <div style="font-size:10px;color:#8A8070;margin-bottom:5px;letter-spacing:0.08em;">Room number</div>
+          <input id="bulk-single-input" type="text" placeholder="e.g. 303"
+            style="width:100%;background:#0D0D0D;border:1px solid rgba(201,169,110,0.25);border-radius:8px;padding:9px 12px;color:#F5EFE6;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;box-sizing:border-box;">
+        </div>
+
+        <!-- Progress -->
+        <div id="bulk-progress-wrap" style="display:none;margin-bottom:10px;">
+          <div style="height:4px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;">
+            <div id="bulk-progress-bar" style="height:100%;background:#C9A96E;border-radius:2px;width:0%;transition:width 0.2s;"></div>
+          </div>
+          <div id="bulk-progress-text" style="font-size:10px;color:#8A8070;margin-top:5px;text-align:center;"></div>
+        </div>
+
+        <button onclick="startBulkDownload()" style="width:100%;padding:11px;background:#C9A96E;border:none;border-radius:9px;color:#0D0D0D;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.06em;">
+          ↓ DOWNLOAD QR CODES
+        </button>
+      </div>
+    </div>
+
   </div>
 </div>
+
+<!-- Keep old #qr-modal as empty hidden div so existing code references don't crash -->
+<div class="modal-overlay" id="qr-modal" style="display:none!important;"></div>
 
 
 <!-- SUPABASE CONFIG MODAL -->
@@ -6479,6 +6636,7 @@ function autoConnect(){
 
 function maybeShowCfgOnLoad(){ autoConnect(); }
 window.autoConnect=autoConnect;
+window.getDb=getDb;
 
 function scheduleReconnect(){
   if(_autoConnectTimer)return;
@@ -6527,7 +6685,7 @@ function elapsed(ts){var m=Math.floor((Date.now()-toMs(ts))/60000);if(m<1)return
 function elapsedClass(ts){var m=Math.floor((Date.now()-toMs(ts))/60000);return m<15?'ok':m<25?'warn':'late';}
 function renderOrders(){if(typeof renderTasks==='function'){renderTasks();if(typeof updateSmartStrip==='function')updateSmartStrip();}}
 function filterOrders(f,el){if(typeof setTypeFilter==='function')setTypeFilter(f,el);}
-function renderStaffServices(){var list=document.getElementById('svc-list');if(!list)return;var filtered=services.filter(function(s){if(svcFilter==='all') return s.status!=='done';return s.status===svcFilter;});var _sc=document.getElementById('svc-count');if(_sc)_sc.textContent=filtered.length+' requests';var _sb=document.getElementById('service-badge');if(_sb)_sb.textContent=services.filter(function(s){return s.status!=='done';}).length;var _scd=document.getElementById('svc-completed-count');if(_scd){var _doneCount=services.filter(function(s){return s.status==='done';}).length;var _sct=document.getElementById('svc-completed-text');if(_sct)_sct.textContent=_doneCount+' done';_scd.style.display=_doneCount>0?'flex':'none';}var _sp=document.getElementById('stat-svc-pending');if(_sp)_sp.textContent=services.filter(function(s){return s.status!=='done';}).length;if(!filtered.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">✓</div><div style="color:var(--text-muted);font-size:15px;font-family:&quot;Cormorant Garamond&quot;,serif">No requests</div></div>';return;}var pills={received:'<span class="status-pill pill-received"><span class="pill-dot"></span>New</span>',assigned:'<span class="status-pill pill-assigned"><span class="pill-dot"></span>Assigned</span>',inprogress:'<span class="status-pill pill-inprogress"><span class="pill-dot"></span>In Progress</span>',done:'<span class="status-pill pill-done"><span class="pill-dot"></span>Done</span>'};list.innerHTML=filtered.map(function(s){var qtyStr=s.qty?' ×'+s.qty:'';var btns='';if(s.status==='received')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'assigned\')">Assign to Staff</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='assigned')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'inprogress\')" style="background:rgba(76,175,125,0.08);border-color:rgba(76,175,125,0.22);color:var(--green)">In Progress</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='inprogress')btns='<button class="svc-complete" style="width:100%" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Completed</button>';else btns='<span style="font-size:13px;color:var(--text-muted);padding:4px 0;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>Completed</span>';return'<div class="svc-card" id="svc-card-'+s.id+'"><div class="svc-head"><div class="svc-icon-box">'+s.icon+'</div><div><div class="svc-room">Room '+s.room+'</div><div class="svc-type">'+s.type+qtyStr+'</div>'+(s.note?'<div class="svc-note">"'+ s.note+'"</div>':'')+ '</div><div class="svc-meta">'+(pills[s.status]||'')+'<div class="svc-time" style="margin-top:6px">'+s.id+'</div><div class="svc-elapsed '+elapsedClass(s.placedAt)+'">'+elapsed(s.placedAt)+'</div></div></div><div class="svc-actions">'+btns+'<button class="btn-call" onclick="callRoom(\''+s.room+'\')" title="Call room" style="width:36px;height:36px;border-radius:10px;background:var(--surface2);border:1px solid var(--card-border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6z"/></svg></button></div></div>';}).join('');}
+function renderStaffServices(){if(typeof updateServiceSummaryBar==='function')updateServiceSummaryBar();var list=document.getElementById('svc-list');if(!list)return;var filtered=services.filter(function(s){if(svcFilter==='all') return s.status!=='done';return s.status===svcFilter;});var _sc=document.getElementById('svc-count');if(_sc)_sc.textContent=filtered.length+' requests';var _sbCount=services.filter(function(s){return s.status!=='done';}).length;var _sb=document.getElementById('service-badge');if(_sb)_sb.textContent=_sbCount;var _dsb=document.getElementById('desk-service-badge');if(_dsb){_dsb.textContent=_sbCount||'';_dsb.style.display=_sbCount>0?'inline':'none';}var _scd=document.getElementById('svc-completed-count');if(_scd){var _doneCount=services.filter(function(s){return s.status==='done';}).length;var _sct=document.getElementById('svc-completed-text');if(_sct)_sct.textContent=_doneCount+' done';_scd.style.display=_doneCount>0?'flex':'none';}var _sp=document.getElementById('stat-svc-pending');if(_sp)_sp.textContent=services.filter(function(s){return s.status!=='done';}).length;if(!filtered.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">✓</div><div style="color:var(--text-muted);font-size:15px;font-family:&quot;Cormorant Garamond&quot;,serif">No requests</div></div>';return;}var pills={received:'<span class="status-pill pill-received"><span class="pill-dot"></span>New</span>',assigned:'<span class="status-pill pill-assigned"><span class="pill-dot"></span>Assigned</span>',inprogress:'<span class="status-pill pill-inprogress"><span class="pill-dot"></span>In Progress</span>',done:'<span class="status-pill pill-done"><span class="pill-dot"></span>Done</span>'};list.innerHTML=filtered.map(function(s){var qtyStr=s.qty?' ×'+s.qty:'';var btns='';if(s.status==='received')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'assigned\')">Assign to Staff</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='assigned')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'inprogress\')" style="background:rgba(76,175,125,0.08);border-color:rgba(76,175,125,0.22);color:var(--green)">In Progress</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='inprogress')btns='<button class="svc-complete" style="width:100%" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Completed</button>';else btns='<span style="font-size:13px;color:var(--text-muted);padding:4px 0;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>Completed</span>';return'<div class="svc-card" id="svc-card-'+s.id+'"><div class="svc-head"><div class="svc-icon-box">'+s.icon+'</div><div><div class="svc-room">Room '+s.room+'</div><div class="svc-type">'+s.type+qtyStr+'</div>'+(s.note?'<div class="svc-note">"'+ s.note+'"</div>':'')+ '</div><div class="svc-meta">'+(pills[s.status]||'')+'<div class="svc-time" style="margin-top:6px">'+s.id+'</div><div class="svc-elapsed '+elapsedClass(s.placedAt)+'">'+elapsed(s.placedAt)+'</div></div></div><div class="svc-actions">'+btns+'<button class="btn-call" onclick="callRoom(\''+s.room+'\')" title="Call room" style="width:36px;height:36px;border-radius:10px;background:var(--surface2);border:1px solid var(--card-border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6z"/></svg></button></div></div>';}).join('');}
 function filterSvc(f,el){svcFilter=f;document.querySelectorAll('#view-services .filter-tab').forEach(function(t){t.classList.remove('active');});el.classList.add('active');renderStaffServices();}
 function getGuestBaseUrl(){
   return 'https://shakti151622.github.io/HOTEL-PROJECT-2/hyatt-guest-ui-final_2.html';
@@ -7107,6 +7265,8 @@ function updateStats(){
   var db=document.getElementById('desk-orders-badge');if(db)db.textContent=n>0?n:'';
   var _oc=document.getElementById('orders-count');if(_oc)_oc.textContent=n+' active';
   var rev=orders.filter(function(o){return o.status==='delivered';}).reduce(function(s,o){return s+o.total;},0);
+  var _todayRevKey=(function(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
+  if(OH&&OH._food&&OH._food[_todayRevKey]){OH._food[_todayRevKey].forEach(function(o){if(o.status==='delivered')rev+=o.total||0;});}
   var _sr=document.getElementById('stat-revenue');if(_sr)_sr.textContent=rev.toLocaleString('en-IN');
   updateUrgencyStrip();
   // Refresh analytics if that tab is visible
@@ -7470,7 +7630,7 @@ var currentDashTheme='auto';
 
 /* ── VIEW TITLES ── */
 var viewTitles={
-  orders:{title:'Orders',sub:'Active food orders — act fast'},
+  orders:{title:'Food Orders',sub:'Active food orders — act fast'},
   services:{title:'Services',sub:'Housekeeping & guest requests'},
   service:{title:'Services',sub:'Housekeeping & guest requests'},
   service:{title:'Service',sub:'Housekeeping & guest requests'},
@@ -7487,11 +7647,11 @@ function switchView(name,el){
   if(view) view.classList.add('active');
   var bnavEl=document.getElementById('bnav-'+name);
   if(bnavEl) bnavEl.classList.add('active');
-  ['orders','rooms','analytics','menu'].forEach(function(v){
+  ['orders','services','rooms','analytics','menu'].forEach(function(v){
     var btn=document.getElementById('desk-nav-'+v);
     if(!btn)return;
     if(v===name){ btn.style.background='rgba(201,169,110,0.1)'; btn.style.color='var(--gold)'; btn.style.fontWeight='500'; }
-    else{ btn.style.background='transparent'; btn.style.color='var(--text-muted)'; btn.style.fontWeight='400'; }
+    else{ btn.style.background='transparent'; btn.style.color='var(--text)'; btn.style.fontWeight='400'; }
   });
   var t=viewTitles[name];
   if(t){
@@ -8605,6 +8765,35 @@ function updateSummaryBar() {
 }
 window.updateSummaryBar = updateSummaryBar;
 
+function updateServiceSummaryBar() {
+  var todayKey = (function(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })();
+  var archivedToday = (OH && OH._svc && OH._svc[todayKey]) ? OH._svc[todayKey].filter(function(s){ return s.status === 'done'; }) : [];
+  var activeDone = (typeof services !== 'undefined') ? services.filter(function(s){
+    return s.status === 'done' && (function(){ var k=(function(ts){ var d=ts?new Date(ts):new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })(s.placedAt); return k===todayKey; })();
+  }) : [];
+  var archivedIds = {};
+  archivedToday.forEach(function(s){ archivedIds[s.id] = true; });
+  var done = archivedToday.concat(activeDone.filter(function(s){ return !archivedIds[s.id]; }));
+  var sdone = document.getElementById('svc-summary-done');
+  if (sdone) sdone.textContent = done.length;
+  var rev = done.reduce(function(sum,s){ return sum + (s.total||0); }, 0);
+  var srev = document.getElementById('svc-summary-revenue');
+  if (srev) srev.textContent = rev > 0 ? '₹' + rev.toLocaleString('en-IN') : '₹0';
+  var times = [];
+  done.forEach(function(s) {
+    var placed = s.placedAt || 0;
+    var finished = s.done_at || s.archivedAt || 0;
+    if (placed && finished && finished > placed) times.push((finished - placed) / 60000);
+  });
+  var avg = times.length ? Math.round(times.reduce(function(a,b){return a+b;},0)/times.length) : null;
+  var savg = document.getElementById('svc-summary-avg');
+  if (savg) {
+    savg.textContent = avg !== null ? avg + ' min' : '—';
+    savg.style.color = avg === null ? 'var(--text-muted)' : avg <= 10 ? 'var(--green)' : avg <= 20 ? 'var(--gold)' : 'var(--red)';
+  }
+}
+window.updateServiceSummaryBar = updateServiceSummaryBar;
+
 function updateOrdersAvgDelivery() {
   var pill = document.getElementById('orders-avg-delivery-pill');
   var txt  = document.getElementById('orders-avg-delivery-text');
@@ -8977,49 +9166,394 @@ window.renderRooms = function() {
   }).join('');
 };
 
-// showRoomQR with correct URL + styled modal
+// ═══════════════════════════════════════════════════════
+// STYLED QR SYSTEM — TAI/Hyatt hotel card style
+// ═══════════════════════════════════════════════════════
+var _qrDiscountEnabled = false;
+var _bulkMode = 'all';
+
+function _getHotelName() {
+  return (localStorage.getItem('hyatt_hotel_name') || 'Hyatt Hotels');
+}
+function _getHotelLogo() {
+  return localStorage.getItem('hyatt_hotel_logo') || '';
+}
+function _buildRoomUrl(roomNum) {
+  var base = getGuestBaseUrl();
+  var hn   = localStorage.getItem('hyatt_hotel_name') || '';
+  return base + '?room=' + encodeURIComponent(roomNum) + (hn ? '&hotel=' + encodeURIComponent(hn) : '');
+}
+
+// Open the styled modal for a room
 window.showRoomQR = function(roomNum) {
   currentQRRoom = roomNum;
-  var hn = (localStorage.getItem('hyatt_hotel_name')||'Shakti Hotels').toUpperCase();
-  var hnel = document.getElementById('qr-hotel-name'); if(hnel) hnel.textContent = hn;
-  var _hn2=localStorage.getItem('hyatt_hotel_name')||'';
-  var url = getGuestBaseUrl()+'?room='+encodeURIComponent(roomNum)+(_hn2?'&hotel='+encodeURIComponent(_hn2):'');
-  currentQRUrl = url;
-  var sub = document.getElementById('qr-modal-sub'); if(sub) sub.textContent = 'Room '+roomNum+' \u00b7 Scan to order';
-  var ut = document.getElementById('qr-url-text'); if(ut) ut.textContent = url;
-  var rl = document.getElementById('qr-room-label'); if(rl) rl.textContent = roomNum;
-  document.getElementById('qr-modal').classList.add('open');
-  window.drawQR(url, roomNum);
+  currentQRUrl  = _buildRoomUrl(roomNum);
+
+  // Populate fields
+  var hn = _getHotelName().toUpperCase();
+  var sub  = hn.split(' ').map(function(w){return '\u00b7 '+w;}).join(' ') + ' \u00b7';
+  var el;
+  el = document.getElementById('qr-hotel-name');    if(el) el.textContent = hn;
+  el = document.getElementById('qr-hotel-sub-dot'); if(el) el.textContent = sub;
+  el = document.getElementById('qr-modal-sub');     if(el) el.textContent = 'Room ' + roomNum + ' \u00b7 Scan to order';
+  el = document.getElementById('qr-url-text');      if(el) el.textContent = currentQRUrl;
+
+  // Logo
+  var logo = _getHotelLogo();
+  var logoWrap = document.getElementById('qr-card-logo-wrap');
+  var logoImg  = document.getElementById('qr-card-logo-img');
+  if (logo && logoWrap && logoImg) {
+    logoImg.src = logo;
+    logoWrap.style.display = 'block';
+  } else if (logoWrap) {
+    logoWrap.style.display = 'none';
+  }
+
+  // Show modal
+  var modal = document.getElementById('qr-modal-v2');
+  if (modal) modal.classList.add('open');
+
+  // Close bulk panel on open
+  var bp = document.getElementById('qr-bulk-panel'); if(bp) bp.classList.remove('open');
+
+  // Draw QR
+  _drawQROnCanvas(currentQRUrl, document.getElementById('qr-canvas'));
 };
 
-// drawQR: canvas-based
-window.drawQR = function(url, roomNum) {
-  var rl = document.getElementById('qr-room-label'); if(rl) rl.textContent = roomNum;
-  var hn = (localStorage.getItem('hyatt_hotel_name')||'Shakti Hotels').toUpperCase();
-  var hnel = document.getElementById('qr-hotel-name'); if(hnel) hnel.textContent = hn;
-  var canvas = document.getElementById('qr-canvas'); if(!canvas) return;
+// Draw QR onto any canvas element
+function _drawQROnCanvas(url, canvas, cb) {
+  if (!canvas) { if(cb) cb(); return; }
   function render() {
     try {
-      var qr = qrcode(0,'M'); qr.addData(url); qr.make();
-      var sz=qr.getModuleCount(), cell=Math.floor(200/sz), w=cell*sz;
-      canvas.width=w; canvas.height=w;
-      var ctx=canvas.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,w);
-      for(var row=0;row<sz;row++) for(var col=0;col<sz;col++) {
-        ctx.fillStyle=qr.isDark(row,col)?'#000':'#fff';
-        ctx.fillRect(col*cell,row*cell,cell,cell);
+      var sz_hint = url.length > 200 ? 1 : 0;
+      var qr = qrcode(sz_hint, 'M'); qr.addData(url); qr.make();
+      var sz   = qr.getModuleCount();
+      var cell = Math.max(4, Math.floor(220 / sz));
+      var w    = cell * sz;
+      canvas.width  = w;
+      canvas.height = w;
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,w,w);
+      for (var row=0; row<sz; row++) for (var col=0; col<sz; col++) {
+        ctx.fillStyle = qr.isDark(row,col) ? '#000' : '#fff';
+        ctx.fillRect(col*cell, row*cell, cell, cell);
       }
-    } catch(e) { console.warn('QR render:',e&&e.message); }
+    } catch(e) { console.warn('QR render:', e&&e.message); }
+    if (cb) cb();
   }
-  if(typeof qrcode!=='undefined') render();
-  else { var sc=document.createElement('script'); sc.src='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js'; sc.onload=render; document.head.appendChild(sc); }
-};
-
-function downloadQR() {
-  var canvas=document.getElementById('qr-canvas'); if(!canvas) return;
-  try { var a=document.createElement('a'); a.download='QR-Room-'+currentQRRoom+'.png'; a.href=canvas.toDataURL('image/png'); a.click(); }
-  catch(e) { console.warn('QR download:',e); }
+  if (typeof qrcode !== 'undefined') render();
+  else {
+    var sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
+    sc.onload = render;
+    document.head.appendChild(sc);
+  }
 }
-window.downloadQR = downloadQR;
+
+// Kept for compat
+window.drawQR = function(url, roomNum) {
+  _drawQROnCanvas(url, document.getElementById('qr-canvas'));
+};
+window.drawFallbackQR = window.drawQR;
+
+// Refresh card when discount toggle / pct changes
+function refreshQRCard() {
+  var ribbon = document.getElementById('qr-discount-ribbon');
+  var pctLbl = document.getElementById('qr-discount-pct-label');
+  var pctInp = document.getElementById('qr-discount-pct');
+  if (!ribbon) return;
+  if (_qrDiscountEnabled) {
+    ribbon.style.display = '';
+    if (pctLbl && pctInp) pctLbl.textContent = pctInp.value || '10';
+  } else {
+    ribbon.style.display = 'none';
+  }
+}
+window.refreshQRCard = refreshQRCard;
+
+function toggleQRDiscount() {
+  _qrDiscountEnabled = !_qrDiscountEnabled;
+  var sw = document.getElementById('qr-discount-switch');
+  var th = document.getElementById('qr-discount-thumb');
+  if (sw) sw.style.background = _qrDiscountEnabled ? '#C9A96E' : '#333';
+  if (th) th.style.left = _qrDiscountEnabled ? '21px' : '3px';
+  refreshQRCard();
+}
+window.toggleQRDiscount = toggleQRDiscount;
+
+function toggleBulkPanel() {
+  var bp = document.getElementById('qr-bulk-panel');
+  if (bp) bp.classList.toggle('open');
+}
+window.toggleBulkPanel = toggleBulkPanel;
+
+function setBulkMode(mode, btn) {
+  _bulkMode = mode;
+  document.querySelectorAll('.bulk-tab').forEach(function(b) {
+    var active = b.getAttribute('data-mode') === mode;
+    b.style.background    = active ? 'rgba(201,169,110,0.15)' : 'transparent';
+    b.style.borderColor   = active ? 'rgba(201,169,110,0.4)'  : 'rgba(255,255,255,0.1)';
+    b.style.color         = active ? '#C9A96E' : '#8A8070';
+    b.style.fontWeight    = active ? '600' : '400';
+  });
+  var cr = document.getElementById('bulk-custom-row');
+  var sr = document.getElementById('bulk-single-row');
+  if (cr) cr.style.display = mode === 'custom' ? 'block' : 'none';
+  if (sr) sr.style.display = mode === 'single'  ? 'block' : 'none';
+}
+window.setBulkMode = setBulkMode;
+
+// ── Render a full styled QR card to an offscreen canvas and return dataURL ──
+function _renderStyledQRCard(roomNum, discountPct, cb) {
+  var W = 600, H = discountPct ? 820 : 780;
+  var gold = '#C9A96E', darkGold = '#B8860B';
+  var offscreen = document.createElement('canvas');
+  offscreen.width  = W;
+  offscreen.height = H;
+  var ctx = offscreen.getContext('2d');
+
+  // White background
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, W, H);
+
+  // Gold border
+  ctx.strokeStyle = gold;
+  ctx.lineWidth   = 10;
+  _roundRect(ctx, 5, 5, W-10, H-10, 28);
+  ctx.stroke();
+
+  // Hotel name
+  var hn   = _getHotelName().toUpperCase();
+  var logo = _getHotelLogo();
+
+  var _afterLogo = function(yStart) {
+    // Hotel name
+    ctx.fillStyle = darkGold;
+    ctx.font      = 'bold 36px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(hn, W/2, yStart);
+
+    // "· HOTELS ·" sub if name doesn't contain "hotel"
+    var yHotelSub = yStart + 28;
+    if (hn.indexOf('HOTEL') === -1) {
+      ctx.font      = '500 16px sans-serif';
+      ctx.fillStyle = gold;
+      ctx.fillText('\u00b7 HOTELS \u00b7', W/2, yHotelSub);
+    }
+
+    // "SCAN FOR ROOM SERVICE"
+    var yScan = yHotelSub + 38;
+    ctx.font      = 'bold 20px sans-serif';
+    ctx.fillStyle = darkGold;
+    ctx.letterSpacing = '0.2em';
+    ctx.fillText('SCAN FOR ROOM SERVICE', W/2, yScan);
+
+    // QR code area
+    var qrSize = 260;
+    var qrX    = (W - qrSize) / 2;
+    var qrY    = yScan + 20;
+
+    // Gold border around QR
+    ctx.strokeStyle = gold;
+    ctx.lineWidth   = 6;
+    _roundRect(ctx, qrX - 10, qrY - 10, qrSize + 20, qrSize + 20, 14);
+    ctx.stroke();
+
+    // Draw QR into offscreen sub-canvas first
+    var qrCanvas = document.createElement('canvas');
+    var url      = _buildRoomUrl(roomNum);
+    _drawQROnCanvas(url, qrCanvas, function() {
+      // Draw white bg inside QR border
+      ctx.fillStyle = '#fff';
+      _roundRect(ctx, qrX - 8, qrY - 8, qrSize + 16, qrSize + 16, 12);
+      ctx.fill();
+      // Blit QR
+      ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
+
+      var yAfterQR = qrY + qrSize + 20;
+
+      // Discount ribbon
+      if (discountPct) {
+        var rH = 54;
+        var grad = ctx.createLinearGradient(0, yAfterQR, W, yAfterQR + rH);
+        grad.addColorStop(0,   darkGold);
+        grad.addColorStop(0.5, gold);
+        grad.addColorStop(1,   darkGold);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, yAfterQR, W, rH);
+        ctx.fillStyle   = '#fff';
+        ctx.font        = 'bold 26px sans-serif';
+        ctx.textAlign   = 'center';
+        ctx.shadowColor = 'rgba(0,0,0,0.25)';
+        ctx.shadowBlur  = 4;
+        ctx.fillText('GET ' + discountPct + '% DISCOUNT', W/2, yAfterQR + 35);
+        ctx.shadowBlur  = 0;
+        yAfterQR += rH + 10;
+      }
+
+      // Three icons row
+      var icons = [
+        { label: 'RECEPTION' },
+        { label: 'FOOD MENU' },
+        { label: 'HOUSEKEEPING' }
+      ];
+      var iconSpacing = W / 3;
+      icons.forEach(function(ic, i) {
+        var cx = iconSpacing * i + iconSpacing / 2;
+        var cy = yAfterQR + 22;
+        // Bell / people icon as simple shapes
+        _drawGoldBell(ctx, cx, cy, 20, gold, i === 2);
+        ctx.fillStyle  = darkGold;
+        ctx.font       = 'bold 13px sans-serif';
+        ctx.textAlign  = 'center';
+        ctx.fillText(ic.label, cx, cy + 34);
+      });
+
+      var yFooterStart = yAfterQR + 76;
+
+      // Gold footer
+      var footerH = H - yFooterStart;
+      var fGrad = ctx.createLinearGradient(0, yFooterStart, W, yFooterStart + footerH);
+      fGrad.addColorStop(0,   darkGold);
+      fGrad.addColorStop(0.5, gold);
+      fGrad.addColorStop(1,   darkGold);
+      ctx.fillStyle = fGrad;
+      ctx.fillRect(0, yFooterStart, W, footerH);
+
+      ctx.fillStyle = '#fff';
+      ctx.font      = 'bold 22px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 3;
+      ctx.fillText('SCAN  \u00b7  ORDER  \u00b7  RELAX', W/2, yFooterStart + 28);
+      ctx.font = '500 14px sans-serif'; ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fillText('NO APP NEEDED', W/2, yFooterStart + 48);
+
+      cb(offscreen.toDataURL('image/png'));
+    });
+  };
+
+  // Try to draw logo
+  var logoUrl = logo;
+  var yLogoBottom = 58;
+  if (logoUrl) {
+    var img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function() {
+      var lH = 50, lW = Math.round(img.width * (lH / img.height));
+      if (lW > 180) { lW = 180; lH = Math.round(img.height * (lW / img.width)); }
+      ctx.drawImage(img, (W - lW)/2, 28, lW, lH);
+      _afterLogo(28 + lH + 22);
+    };
+    img.onerror = function() { _afterLogo(yLogoBottom); };
+    img.src = logoUrl;
+  } else {
+    _afterLogo(yLogoBottom);
+  }
+}
+
+function _roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y); ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h); ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+}
+
+function _drawGoldBell(ctx, cx, cy, r, color, isGroup) {
+  ctx.fillStyle = color;
+  if (isGroup) {
+    // simplified people icon
+    ctx.beginPath(); ctx.arc(cx, cy-r*0.4, r*0.38, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx-r*0.7, cy-r*0.2, r*0.28, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx+r*0.7, cy-r*0.2, r*0.28, 0, Math.PI*2); ctx.fill();
+    ctx.fillRect(cx - r*0.6, cy+r*0.1, r*1.2, r*0.9);
+    ctx.fillRect(cx - r*1.1, cy+r*0.3, r*0.7, r*0.7);
+    ctx.fillRect(cx + r*0.4, cy+r*0.3, r*0.7, r*0.7);
+  } else {
+    // bell shape
+    ctx.beginPath();
+    ctx.arc(cx, cy - r*0.2, r*0.85, Math.PI, 0, false);
+    ctx.lineTo(cx+r, cy + r*0.5);
+    ctx.lineTo(cx-r, cy + r*0.5);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy + r*0.55, r*0.28, 0, Math.PI*2); ctx.fill();
+    ctx.fillRect(cx - r*0.12, cy - r*1.1, r*0.24, r*0.28);
+  }
+}
+
+// Download the styled card for the current room
+function downloadStyledQR() {
+  var pctInp = document.getElementById('qr-discount-pct');
+  var disc   = _qrDiscountEnabled ? (parseInt(pctInp&&pctInp.value)||10) : 0;
+  _renderStyledQRCard(currentQRRoom, disc, function(dataUrl) {
+    var a = document.createElement('a');
+    a.download = 'QR-Room-' + currentQRRoom + (disc ? '-' + disc + 'pct' : '') + '.png';
+    a.href = dataUrl;
+    a.click();
+  });
+}
+window.downloadStyledQR  = downloadStyledQR;
+// compat aliases
+window.downloadQR        = downloadStyledQR;
+window.downloadSingleQR  = downloadStyledQR;
+
+// ── Bulk download ──
+function startBulkDownload() {
+  var rooms = [];
+  if (_bulkMode === 'all') {
+    var data = (typeof buildRoomsData === 'function') ? buildRoomsData() : [];
+    rooms = data.map(function(r){ return r.num; });
+  } else if (_bulkMode === 'custom') {
+    var inp = document.getElementById('bulk-custom-input');
+    rooms = (inp ? inp.value : '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+  } else {
+    var sinp = document.getElementById('bulk-single-input');
+    rooms = (sinp ? [sinp.value.trim()] : []).filter(Boolean);
+  }
+  if (!rooms.length) { alert('No rooms selected.'); return; }
+
+  var pctInp = document.getElementById('qr-discount-pct');
+  var disc   = _qrDiscountEnabled ? (parseInt(pctInp&&pctInp.value)||10) : 0;
+
+  var pw = document.getElementById('bulk-progress-wrap');
+  var pb = document.getElementById('bulk-progress-bar');
+  var pt = document.getElementById('bulk-progress-text');
+  if (pw) pw.style.display = 'block';
+
+  var idx = 0;
+  function next() {
+    if (idx >= rooms.length) {
+      if (pw) pw.style.display = 'none';
+      if (pb) pb.style.width   = '0%';
+      if (pt) pt.textContent   = '';
+      return;
+    }
+    var room = rooms[idx];
+    var pct  = Math.round((idx / rooms.length) * 100);
+    if (pb) pb.style.width  = pct + '%';
+    if (pt) pt.textContent  = 'Generating ' + (idx+1) + ' of ' + rooms.length + ' — Room ' + room;
+    _renderStyledQRCard(room, disc, function(dataUrl) {
+      var a = document.createElement('a');
+      a.download = 'QR-Room-' + room + (disc ? '-' + disc + 'pct' : '') + '.png';
+      a.href     = dataUrl;
+      a.click();
+      idx++;
+      setTimeout(next, 350); // slight delay between downloads
+    });
+  }
+  next();
+}
+window.startBulkDownload = startBulkDownload;
+
+function closeQRModal() {
+  var m = document.getElementById('qr-modal-v2'); if(m) m.classList.remove('open');
+}
+window.closeQRModal = closeQRModal;
+function handleModalClick(e) { if(e.target.id==='qr-modal-v2') closeQRModal(); }
+window.handleModalClick = handleModalClick;
 
 // switchView override
 (function(){
@@ -9042,7 +9576,7 @@ window.downloadQR = downloadQR;
 
 // DOM ready: patch titles
 document.addEventListener('DOMContentLoaded', function() {
-  var vt=document.getElementById('view-title'); if(vt) vt.textContent='Tasks';
+  var vt=document.getElementById('view-title'); if(vt) vt.textContent='Food Orders';
   var vs=document.getElementById('view-sub'); if(vs) vs.textContent='All active food & service requests';
   var nl=document.querySelector('#bnav-orders .bnav-label'); if(nl) nl.textContent='Orders';
 });
@@ -9212,11 +9746,6 @@ if (document.readyState === 'complete') {
 
 <script>
 // ═══════════════════════════════════════════════════════════════
-// Setup pdf.js worker
-if(typeof pdfjsLib !== 'undefined'){
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-}
-
 // FOOD MENU MANAGER — embedded in staff dashboard index_2.html
 // Self-contained, no conflict with existing code
 // ═══════════════════════════════════════════════════════════════
@@ -9735,187 +10264,10 @@ function fmImportMode(mode){
   if(mode==='text'){
     document.getElementById('fm-import-text-area').style.display='block';
     setTimeout(function(){ document.getElementById('fm-import-text').focus(); },150);
-  } else if(mode==='photo'){
-    fmCloseImporter();
-    fmAIImport('image');
-  } else if(mode==='pdf'){
-    fmCloseImporter();
-    fmAIImport('pdf');
-  } else if(mode==='excel'){
-    fmCloseImporter();
-    fmAIImport('excel');
-  }
-}
-
-function fmAIImport(type){
-  var input = document.createElement('input');
-  input.type = 'file';
-  if(type==='image') input.accept = '.jpg,.jpeg,.png,.webp,.heic';
-  else if(type==='pdf') input.accept = '.pdf';
-  else input.accept = '.xlsx,.xls,.csv';
-  input.onchange = function(e){
-    var file = e.target.files[0];
-    if(!file) return;
-    fmToast('Reading file...', '');
-    var reader = new FileReader();
-    reader.onerror = function(){ fmToast('Could not read file','red'); };
-    reader.onload = function(evt){
-      var b64 = evt.target.result.split(',')[1];
-      if(type==='excel'){
-        fmExtractExcelWithAI(file, b64);
-      } else {
-        fmExtractWithAI(type, b64, file.name);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-  input.click();
-}
-
-function fmGetWorkerUrl(){
-  return localStorage.getItem('fm_worker_url') || '';
-}
-
-function fmExtractWithAI(type, b64, filename){
-  var workerUrl = fmGetWorkerUrl();
-  if(!workerUrl){
-    var url = prompt('Enter your Worker URL (one-time setup):', 'https://white-shape-2cc9.shanewilson2324.workers.dev');
-    if(!url) return;
-    localStorage.setItem('fm_worker_url', url.trim());
-    workerUrl = url.trim();
-  }
-
-  fmToast('Extracting with AI...', '');
-
-  var mime = type === 'pdf' ? 'application/pdf' : 'image/jpeg';
-  var contentBlock = type === 'pdf'
-    ? { type: 'text', text: 'PDF data: ' + b64.slice(0, 100) + '...' }
-    : { type: 'image_url', image_url: { url: 'data:' + mime + ';base64,' + b64, detail: 'high' } };
-
-  var prompt = 'Extract ALL food/drink items from this menu. Return ONLY a valid JSON array. Each object must have: "category" (section name), "name" (item name in Title Case), "price" (number only, no currency). Example: [{"category":"Soup","name":"Tomato Soup","price":150}]';
-
-  var messages = [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }];
-
-  // For PDF — use text extraction first via pdf.js
-  if(type === 'pdf' && typeof pdfjsLib !== 'undefined'){
-    fmExtractPDFText(b64, function(text){
-      if(text && text.length > 50){
-        fmCallAI(workerUrl, [{ role: 'user', content: prompt + '
-
-Menu text:
-' + text }]);
-      } else {
-        fmCallAI(workerUrl, messages);
-      }
-    });
   } else {
-    fmCallAI(workerUrl, messages);
+    fmCloseImporter();
+    fmToast('Open menu_importer.html for '+mode.toUpperCase()+' import — then come back');
   }
-}
-
-function fmExtractPDFText(b64, cb){
-  try {
-    var binary = atob(b64);
-    var bytes = new Uint8Array(binary.length);
-    for(var i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
-    pdfjsLib.getDocument({data:bytes}).promise.then(function(pdf){
-      var text='', total=pdf.numPages, done=0;
-      for(var p=1;p<=total;p++){
-        (function(pageNum){
-          pdf.getPage(pageNum).then(function(page){
-            page.getTextContent().then(function(c){
-              text += c.items.map(function(x){return x.str;}).join(' ') + '
-';
-              done++;
-              if(done===total) cb(text.trim());
-            });
-          });
-        })(p);
-      }
-    }).catch(function(){ cb(''); });
-  } catch(e){ cb(''); }
-}
-
-function fmExtractExcelWithAI(file, b64){
-  var workerUrl = fmGetWorkerUrl();
-  if(!workerUrl){
-    var url = prompt('Enter your Worker URL:', 'https://white-shape-2cc9.shanewilson2324.workers.dev');
-    if(!url) return;
-    localStorage.setItem('fm_worker_url', url.trim());
-    workerUrl = url.trim();
-  }
-  // Use SheetJS if available
-  if(typeof XLSX !== 'undefined'){
-    try {
-      var binary = atob(b64);
-      var bytes = new Uint8Array(binary.length);
-      for(var i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
-      var wb = XLSX.read(bytes, {type:'array'});
-      var text = '';
-      wb.SheetNames.forEach(function(name){
-        var rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {defval:''});
-        text += 'Sheet: '+name+'
-';
-        rows.forEach(function(row){ text += Object.values(row).join(' | ') + '
-'; });
-      });
-      var prompt = 'Extract ALL food/drink items from this menu data. Return ONLY a valid JSON array. Each object: "category", "name" (Title Case), "price" (number). Example: [{"category":"Starters","name":"Paneer Tikka","price":220}]
-
-Data:
-' + text;
-      fmCallAI(workerUrl, [{ role: 'user', content: prompt }]);
-    } catch(e){ fmToast('Excel read failed: '+e.message,'red'); }
-  } else {
-    fmToast('Excel support not loaded','red');
-  }
-}
-
-function fmCallAI(workerUrl, messages){
-  fetch(workerUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'gpt-4o', max_tokens: 16000, messages: messages })
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(data){
-    if(data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-    var raw = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
-    raw = raw.replace(/```json|```/gi,'').trim();
-    var start = raw.indexOf('[');
-    if(start === -1) throw new Error('No menu items found in response');
-    var jsonStr = raw.slice(start);
-    var end = jsonStr.lastIndexOf(']');
-    var items = JSON.parse(end !== -1 ? jsonStr.slice(0, end+1) : jsonStr.slice(0, jsonStr.lastIndexOf('}')+1)+']');
-    // Merge into FM.menu
-    var count = 0;
-    items.forEach(function(item){
-      if(!item.name) return;
-      var catKey = (item.category||'General').toLowerCase().replace(/[^a-z0-9]/g,'');
-      if(!catKey) catKey = 'general';
-      if(!FM.menu[catKey]) FM.menu[catKey] = [];
-      var dup = FM.menu[catKey].find(function(e){ return e.name.toLowerCase()===item.name.toLowerCase(); });
-      if(!dup){
-        FM.menu[catKey].push({
-          id: FM.newId(),
-          name: item.name,
-          price: item.price || 0,
-          veg: true,
-          available: true,
-          discount: 0,
-          sub: item.category || 'General'
-        });
-        count++;
-      }
-    });
-    localStorage.setItem(FM.LS_SETUP,'1');
-    fmSaveData();
-    FM.currentCat = Object.keys(FM.menu)[0] || FM.currentCat;
-    fmRenderCatStrip(); fmRenderList(); fmUpdateStats();
-    fmToast('✓ ' + count + ' items imported', 'green');
-  })
-  .catch(function(err){
-    fmToast('AI Error: ' + err.message, 'red');
-  });
 }
 function fmProcessText(){
   var txt = document.getElementById('fm-import-text').value.trim();
@@ -10081,12 +10433,13 @@ function ohArchive(order) {
       status:     order.status || 'delivered',
       placedAt:   order.placedAt || Date.now(),
       archivedAt: Date.now(),
-      delivered_at:  order.delivered_at || (order.status === 'delivered' ? Date.now() : null),
+      delivered_at:  order.delivered_at || (order.status === 'delivered' ? (order.completedAt || Date.now()) : null),
       accepted_at:   order.accepted_at || null,
       rating:        order.rating || null,
       ratingComment: order.ratingComment || order.rating_comment || null
     });
     ohSave();
+    if (OH._histOpen) ohRender();
     // Mark archived in Firestore (DO NOT delete — guest UI must be able to read final status)
     try {
       var _db = getDb();
@@ -10107,6 +10460,7 @@ function ohArchiveSvc(svc) {
   var key = ohDateKey(svc.placedAt || Date.now());
   if (!OH._svc[key]) OH._svc[key] = [];
   if (!OH._svc[key].find(function(s) { return s.id === svc.id; })) {
+    var _nowMs = Date.now();
     OH._svc[key].push({
       id:         svc.id,
       type:       'service',
@@ -10117,10 +10471,12 @@ function ohArchiveSvc(svc) {
       qty:        svc.qty || null,
       note:       svc.note || '',
       status:     svc.status || 'done',
-      placedAt:   svc.placedAt || Date.now(),
-      archivedAt: Date.now()
+      placedAt:   svc.placedAt || _nowMs,
+      done_at:    svc.status === 'done' ? (svc.done_at || _nowMs) : null,
+      archivedAt: _nowMs
     });
     ohSave();
+    if (OH._histOpen) ohRender();
     // Mark archived in Firestore (DO NOT delete — guest UI must be able to read final status)
     try {
       var _db = getDb();
