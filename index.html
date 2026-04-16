@@ -11,6 +11,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
 <!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
 <!-- ══ ROUTER — runs before anything else ══ -->
@@ -9210,6 +9212,11 @@ if (document.readyState === 'complete') {
 
 <script>
 // ═══════════════════════════════════════════════════════════════
+// Setup pdf.js worker
+if(typeof pdfjsLib !== 'undefined'){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
 // FOOD MENU MANAGER — embedded in staff dashboard index_2.html
 // Self-contained, no conflict with existing code
 // ═══════════════════════════════════════════════════════════════
@@ -9728,10 +9735,187 @@ function fmImportMode(mode){
   if(mode==='text'){
     document.getElementById('fm-import-text-area').style.display='block';
     setTimeout(function(){ document.getElementById('fm-import-text').focus(); },150);
-  } else {
+  } else if(mode==='photo'){
     fmCloseImporter();
-    fmToast('Open menu_importer.html for '+mode.toUpperCase()+' import — then come back');
+    fmAIImport('image');
+  } else if(mode==='pdf'){
+    fmCloseImporter();
+    fmAIImport('pdf');
+  } else if(mode==='excel'){
+    fmCloseImporter();
+    fmAIImport('excel');
   }
+}
+
+function fmAIImport(type){
+  var input = document.createElement('input');
+  input.type = 'file';
+  if(type==='image') input.accept = '.jpg,.jpeg,.png,.webp,.heic';
+  else if(type==='pdf') input.accept = '.pdf';
+  else input.accept = '.xlsx,.xls,.csv';
+  input.onchange = function(e){
+    var file = e.target.files[0];
+    if(!file) return;
+    fmToast('Reading file...', '');
+    var reader = new FileReader();
+    reader.onerror = function(){ fmToast('Could not read file','red'); };
+    reader.onload = function(evt){
+      var b64 = evt.target.result.split(',')[1];
+      if(type==='excel'){
+        fmExtractExcelWithAI(file, b64);
+      } else {
+        fmExtractWithAI(type, b64, file.name);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
+function fmGetWorkerUrl(){
+  return localStorage.getItem('fm_worker_url') || '';
+}
+
+function fmExtractWithAI(type, b64, filename){
+  var workerUrl = fmGetWorkerUrl();
+  if(!workerUrl){
+    var url = prompt('Enter your Worker URL (one-time setup):', 'https://white-shape-2cc9.shanewilson2324.workers.dev');
+    if(!url) return;
+    localStorage.setItem('fm_worker_url', url.trim());
+    workerUrl = url.trim();
+  }
+
+  fmToast('Extracting with AI...', '');
+
+  var mime = type === 'pdf' ? 'application/pdf' : 'image/jpeg';
+  var contentBlock = type === 'pdf'
+    ? { type: 'text', text: 'PDF data: ' + b64.slice(0, 100) + '...' }
+    : { type: 'image_url', image_url: { url: 'data:' + mime + ';base64,' + b64, detail: 'high' } };
+
+  var prompt = 'Extract ALL food/drink items from this menu. Return ONLY a valid JSON array. Each object must have: "category" (section name), "name" (item name in Title Case), "price" (number only, no currency). Example: [{"category":"Soup","name":"Tomato Soup","price":150}]';
+
+  var messages = [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }];
+
+  // For PDF — use text extraction first via pdf.js
+  if(type === 'pdf' && typeof pdfjsLib !== 'undefined'){
+    fmExtractPDFText(b64, function(text){
+      if(text && text.length > 50){
+        fmCallAI(workerUrl, [{ role: 'user', content: prompt + '
+
+Menu text:
+' + text }]);
+      } else {
+        fmCallAI(workerUrl, messages);
+      }
+    });
+  } else {
+    fmCallAI(workerUrl, messages);
+  }
+}
+
+function fmExtractPDFText(b64, cb){
+  try {
+    var binary = atob(b64);
+    var bytes = new Uint8Array(binary.length);
+    for(var i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+    pdfjsLib.getDocument({data:bytes}).promise.then(function(pdf){
+      var text='', total=pdf.numPages, done=0;
+      for(var p=1;p<=total;p++){
+        (function(pageNum){
+          pdf.getPage(pageNum).then(function(page){
+            page.getTextContent().then(function(c){
+              text += c.items.map(function(x){return x.str;}).join(' ') + '
+';
+              done++;
+              if(done===total) cb(text.trim());
+            });
+          });
+        })(p);
+      }
+    }).catch(function(){ cb(''); });
+  } catch(e){ cb(''); }
+}
+
+function fmExtractExcelWithAI(file, b64){
+  var workerUrl = fmGetWorkerUrl();
+  if(!workerUrl){
+    var url = prompt('Enter your Worker URL:', 'https://white-shape-2cc9.shanewilson2324.workers.dev');
+    if(!url) return;
+    localStorage.setItem('fm_worker_url', url.trim());
+    workerUrl = url.trim();
+  }
+  // Use SheetJS if available
+  if(typeof XLSX !== 'undefined'){
+    try {
+      var binary = atob(b64);
+      var bytes = new Uint8Array(binary.length);
+      for(var i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+      var wb = XLSX.read(bytes, {type:'array'});
+      var text = '';
+      wb.SheetNames.forEach(function(name){
+        var rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {defval:''});
+        text += 'Sheet: '+name+'
+';
+        rows.forEach(function(row){ text += Object.values(row).join(' | ') + '
+'; });
+      });
+      var prompt = 'Extract ALL food/drink items from this menu data. Return ONLY a valid JSON array. Each object: "category", "name" (Title Case), "price" (number). Example: [{"category":"Starters","name":"Paneer Tikka","price":220}]
+
+Data:
+' + text;
+      fmCallAI(workerUrl, [{ role: 'user', content: prompt }]);
+    } catch(e){ fmToast('Excel read failed: '+e.message,'red'); }
+  } else {
+    fmToast('Excel support not loaded','red');
+  }
+}
+
+function fmCallAI(workerUrl, messages){
+  fetch(workerUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'gpt-4o', max_tokens: 16000, messages: messages })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if(data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    var raw = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+    raw = raw.replace(/```json|```/gi,'').trim();
+    var start = raw.indexOf('[');
+    if(start === -1) throw new Error('No menu items found in response');
+    var jsonStr = raw.slice(start);
+    var end = jsonStr.lastIndexOf(']');
+    var items = JSON.parse(end !== -1 ? jsonStr.slice(0, end+1) : jsonStr.slice(0, jsonStr.lastIndexOf('}')+1)+']');
+    // Merge into FM.menu
+    var count = 0;
+    items.forEach(function(item){
+      if(!item.name) return;
+      var catKey = (item.category||'General').toLowerCase().replace(/[^a-z0-9]/g,'');
+      if(!catKey) catKey = 'general';
+      if(!FM.menu[catKey]) FM.menu[catKey] = [];
+      var dup = FM.menu[catKey].find(function(e){ return e.name.toLowerCase()===item.name.toLowerCase(); });
+      if(!dup){
+        FM.menu[catKey].push({
+          id: FM.newId(),
+          name: item.name,
+          price: item.price || 0,
+          veg: true,
+          available: true,
+          discount: 0,
+          sub: item.category || 'General'
+        });
+        count++;
+      }
+    });
+    localStorage.setItem(FM.LS_SETUP,'1');
+    fmSaveData();
+    FM.currentCat = Object.keys(FM.menu)[0] || FM.currentCat;
+    fmRenderCatStrip(); fmRenderList(); fmUpdateStats();
+    fmToast('✓ ' + count + ' items imported', 'green');
+  })
+  .catch(function(err){
+    fmToast('AI Error: ' + err.message, 'red');
+  });
 }
 function fmProcessText(){
   var txt = document.getElementById('fm-import-text').value.trim();
