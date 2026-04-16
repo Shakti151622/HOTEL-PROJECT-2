@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shakti Hotels — Menu Extractor</title>
+<meta name="description" content="Shakti Hotels Menu Extractor">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Lato:wght@300;400;700&display=swap');
+
+:root {
+  --bg: #1a0f0a;
+  --surface: #241409;
+  --surface2: #2e1a0e;
+  --border: #3d2210;
+  --accent: #c97d2e;
+  --accent2: #e09040;
+  --gold: #d4a847;
+  --text: #f5ede0;
+  --muted: #9a7a5a;
+  --green: #5a9e6f;
+  --red: #b85c4a;
+  --saffron: #f4a232;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Lato', sans-serif;
+  min-height: 100vh;
+  padding: 28px 16px 60px;
+}
+
+.header { text-align: center; margin-bottom: 28px; }
+.header-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 3px; color: var(--accent); text-transform: uppercase; margin-bottom: 8px; }
+.header h1 { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 700; }
+.header h1 span { color: var(--gold); }
+.header p { color: var(--muted); font-size: 12px; margin-top: 6px; }
+.divider { width: 50px; height: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent); margin: 10px auto 0; }
+
+.container { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+/* Drop Zone */
+.dropzone {
+  border: 1.5px dashed var(--border); border-radius: 14px;
+  padding: 36px 24px; text-align: center; cursor: pointer;
+  transition: all 0.2s; background: var(--surface); position: relative; overflow: hidden;
+}
+.dropzone::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, #c97d2e0d 0%, transparent 65%);
+  pointer-events: none;
+}
+.dropzone:hover, .dropzone.drag-over { border-color: var(--accent); background: var(--surface2); }
+.drop-icon { font-size: 36px; margin-bottom: 10px; display: block; }
+.drop-title { font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 4px; }
+.drop-sub { color: var(--muted); font-size: 11px; margin-bottom: 16px; }
+
+.btn-browse {
+  display: inline-block; padding: 10px 28px;
+  background: var(--accent); color: var(--bg);
+  border-radius: 7px; font-family: 'Lato', sans-serif;
+  font-weight: 700; font-size: 13px; cursor: pointer;
+  border: none; transition: background 0.2s;
+}
+.btn-browse:hover { background: var(--accent2); }
+
+.chips { display: flex; gap: 8px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+.chip {
+  display: flex; align-items: center; gap: 5px; padding: 4px 10px;
+  border-radius: 20px; background: var(--surface2); border: 1px solid var(--border);
+  font-size: 11px; color: var(--muted); font-weight: 700;
+}
+.chip-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+/* File Card */
+.queue { display: flex; flex-direction: column; gap: 10px; }
+.file-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 16px;
+  display: flex; align-items: flex-start; gap: 12px;
+  animation: fadeUp 0.22s ease;
+}
+@keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+.file-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; margin-top: 2px; }
+.file-icon.pdf { background:#5a150822; border:1px solid #7f2d1d55; }
+.file-icon.img { background:#14532d22; border:1px solid #14532d55; }
+.file-icon.xls { background:#1e3a5f22; border:1px solid #1e3a5f55; }
+.file-info { flex:1; min-width:0; }
+.file-name { font-weight:700; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.file-meta { font-size:11px; color:var(--muted); margin-top:2px; }
+.progress-bar { height:2px; background:var(--border); border-radius:2px; margin-top:8px; overflow:hidden; }
+.progress-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--gold)); border-radius:2px; transition:width 0.4s ease; width:0%; }
+.file-stage { font-size:11px; color:var(--accent); margin-top:4px; min-height:14px; }
+.file-status { font-size:11px; padding:4px 10px; border-radius:6px; white-space:nowrap; flex-shrink:0; font-weight:700; margin-top:2px; }
+.status-waiting    { background:#2e1a0e; color:var(--muted); }
+.status-processing { background:#3d1f0522; color:var(--saffron); border:1px solid #3d1f05; }
+.status-done       { background:#0a2a1222; color:var(--green); border:1px solid #0a2a12; }
+.status-error      { background:#3a100822; color:var(--red); border:1px solid #3a1008; }
+
+/* Results */
+.results-panel { background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+.results-header { padding:14px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+.results-title { font-family:'Playfair Display',serif; font-size:17px; display:flex; align-items:center; gap:10px; }
+.results-count { background:var(--accent); color:var(--bg); font-size:11px; font-family:'Lato',sans-serif; font-weight:700; padding:2px 9px; border-radius:20px; }
+.action-btns { display:flex; gap:8px; flex-wrap:wrap; }
+.btn-action { padding:6px 14px; background:var(--surface2); border:1px solid var(--border); border-radius:7px; color:var(--text); font-family:'Lato',sans-serif; font-size:12px; font-weight:700; cursor:pointer; transition:all 0.15s; }
+.btn-action:hover { border-color:var(--accent); color:var(--accent); }
+.view-tabs { display:flex; border-bottom:1px solid var(--border); padding:0 14px; }
+.view-tab { padding:9px 16px; font-size:12px; font-weight:700; cursor:pointer; border-bottom:2px solid transparent; color:var(--muted); transition:all 0.15s; }
+.view-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+
+/* Table */
+.table-wrap { overflow-x:auto; max-height:460px; overflow-y:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+thead th { background:var(--surface2); padding:10px 14px; text-align:left; font-weight:700; font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--accent); border-bottom:1px solid var(--border); position:sticky; top:0; }
+tbody td { padding:9px 14px; border-bottom:1px solid var(--border); color:var(--text); }
+tbody tr:last-child td { border-bottom:none; }
+tbody tr:hover td { background:var(--surface2); }
+.cat-badge { display:inline-block; padding:2px 8px; background:var(--surface2); border:1px solid var(--border); border-radius:20px; font-size:11px; color:var(--gold); font-weight:700; }
+.price-cell { font-weight:700; color:var(--saffron); white-space:nowrap; }
+.stats-bar { display:flex; gap:20px; padding:10px 16px; border-top:1px solid var(--border); flex-wrap:wrap; }
+.stat { font-size:11px; color:var(--muted); }
+.stat strong { color:var(--text); font-weight:700; margin-left:3px; }
+
+/* JSON */
+.json-view { padding:16px; max-height:460px; overflow-y:auto; font-family:'Courier New',monospace; font-size:11px; line-height:1.7; color:#c8a97a; white-space:pre-wrap; word-break:break-word; }
+
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+/* Editable cells */
+.editable {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 3px 6px;
+  margin: -3px -6px;
+  transition: background 0.15s;
+  display: inline-block;
+  min-width: 40px;
+}
+.editable:hover { background: var(--surface2); outline: 1px solid var(--border); }
+.editable:focus { background: var(--surface2); outline: 1px solid var(--accent); color: var(--text); }
+.edit-hint { font-size:10px; color:var(--muted); padding: 6px 16px 8px; font-style:italic; }
+.btn-del { background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px; padding:0 4px; line-height:1; transition:color 0.15s; }
+.btn-del:hover { color:var(--red); }
+.btn-add { display:flex; align-items:center; gap:6px; padding:10px 16px; color:var(--accent); font-size:12px; font-weight:700; cursor:pointer; border:none; background:none; font-family:'Lato',sans-serif; border-top:1px solid var(--border); width:100%; }
+.btn-add:hover { background:var(--surface2); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-eyebrow">Shakti Hotels</div>
+  <h1>Menu <span>Extractor</span></h1>
+  <p>Upload any menu — Claude extracts items, categories & prices</p>
+  <div class="divider"></div>
+</div>
+
+<div class="container">
+
+  <!-- Config Panel -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
+    <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;">Configuration</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <label style="font-size:12px;color:var(--muted);min-width:110px;">Worker URL</label>
+      <input id="workerUrl" type="text" placeholder="https://white-shape-2cc9.shanewilson2324.workers.dev" style="flex:1;min-width:200px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 12px;color:var(--text);font-size:12px;font-family:'Lato',sans-serif;outline:none;">
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <label style="font-size:12px;color:var(--muted);min-width:110px;">AI Provider</label>
+      <select id="aiProvider" style="flex:1;min-width:200px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 12px;color:var(--text);font-size:12px;font-family:'Lato',sans-serif;outline:none;">
+        <option value="openai">GPT-4o (OpenAI)</option>
+      </select>
+    </div>
+    <div style="font-size:11px;color:var(--muted);">OpenAI = paid (best accuracy) · Gemini Flash = free (1500 req/day). Keys stored securely in Cloudflare Worker.</div>
+  </div>
+
+  <div class="dropzone" id="dropzone">
+    <span class="drop-icon">🍽️</span>
+    <div class="drop-title">Drop your menu file</div>
+    <div class="drop-sub">PDF · Photo/Scan (JPG, PNG) · Excel / CSV</div>
+    <label class="btn-browse" for="fileInput">Choose File</label>
+    <input type="file" id="fileInput" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.xlsx,.xls,.csv" style="position:absolute;left:-9999px;opacity:0;width:1px;height:1px;">
+    <div class="chips">
+      <div class="chip"><span class="chip-dot" style="background:#b85c4a"></span>PDF</div>
+      <div class="chip"><span class="chip-dot" style="background:#5a9e6f"></span>JPG · PNG</div>
+      <div class="chip"><span class="chip-dot" style="background:#4a7db8"></span>Excel · CSV</div>
+    </div>
+  </div>
+
+  <div class="queue" id="queue"></div>
+
+  <div class="results-panel" id="resultsPanel" style="display:none">
+    <div class="results-header">
+      <div class="results-title">Menu Items <span class="results-count" id="itemCount">0</span></div>
+      <div class="action-btns">
+        <button class="btn-action" onclick="downloadCSV()">⬇ CSV</button>
+        <button class="btn-action" onclick="copyFirebase()">🔥 Firebase JSON</button>
+        <button class="btn-action" onclick="clearAll()">✕ Clear</button>
+      </div>
+    </div>
+    <div class="view-tabs">
+      <div class="view-tab active" onclick="switchView('table',this)">Table View</div>
+      <div class="view-tab" onclick="switchView('json',this)">Firebase JSON</div>
+    </div>
+    <div id="view-table">
+      <div class="edit-hint">✏️ Tap any cell to edit · Changes update Firebase JSON & CSV instantly</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Category</th><th>Item Name</th><th>Price (₹)</th><th></th></tr></thead>
+          <tbody id="menuTbody"></tbody>
+        </table>
+      </div>
+      <button class="btn-add" onclick="addRow()">＋ Add item</button>
+      <div class="stats-bar" id="statsBar"></div>
+    </div>
+    <div id="view-json" style="display:none">
+      <div class="json-view" id="jsonView"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+// Setup pdf.js worker
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+// Restore saved config
+window.addEventListener('DOMContentLoaded', () => {
+  const wu = localStorage.getItem('worker_url') || 'https://white-shape-2cc9.shanewilson2324.workers.dev';
+  const ap = localStorage.getItem('ai_provider');
+  if (wu) document.getElementById('workerUrl').value = wu;
+  if (ap) document.getElementById('aiProvider').value = ap;
+});
+document.addEventListener('change', e => {
+  if (e.target.id === 'workerUrl')  localStorage.setItem('worker_url', e.target.value);
+  if (e.target.id === 'aiProvider') localStorage.setItem('ai_provider', e.target.value);
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'workerUrl') localStorage.setItem('worker_url', e.target.value);
+});
+
+let allItems = [];
+
+// ── Drag & Drop ──
+const dz = document.getElementById('dropzone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  readAndProcess([...e.dataTransfer.files]);
+});
+
+document.getElementById('fileInput').addEventListener('change', e => {
+  readAndProcess([...e.target.files]);
+  e.target.value = '';
+});
+
+// Read files immediately on selection — prevents stale ref issues
+function readAndProcess(files) {
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onerror = () => showError(file.name, 'Could not read file');
+    reader.onload  = evt => processFile(file, evt.target.result.split(',')[1]);
+    reader.readAsDataURL(file);
+  });
+}
+
+function getType(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'pdf') return 'pdf';
+  if (['jpg','jpeg','png','webp','bmp','heic','heif'].includes(ext)) return 'img';
+  if (['xlsx','xls','csv'].includes(ext)) return 'xls';
+  return 'unknown';
+}
+
+function formatSize(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(1) + ' MB';
+}
+
+function showError(name, msg) {
+  const card = document.createElement('div');
+  card.className = 'file-card';
+  card.innerHTML = `<div class="file-info"><div class="file-name">${escHtml(name)}</div><div class="file-stage" style="color:var(--red)">${escHtml(msg)}</div></div>`;
+  document.getElementById('queue').appendChild(card);
+}
+
+// ── File Card ──
+function createCard(id, file, type) {
+  const icons = {pdf:'📄',img:'🖼️',xls:'📊',unknown:'📁'};
+  const card = document.createElement('div');
+  card.className = 'file-card'; card.id = 'card-' + id;
+  card.innerHTML = `
+    <div class="file-icon ${type}">${icons[type]}</div>
+    <div class="file-info">
+      <div class="file-name">${escHtml(file.name)}</div>
+      <div class="file-meta">${formatSize(file.size)} · ${type.toUpperCase()}</div>
+      <div class="progress-bar"><div class="progress-fill" id="prog-${id}"></div></div>
+      <div class="file-stage" id="stage-${id}"></div>
+    </div>
+    <div class="file-status status-waiting" id="status-${id}">waiting</div>`;
+  document.getElementById('queue').appendChild(card);
+}
+
+const setStatus   = (id,s,t) => { const el=document.getElementById('status-'+id); el.className='file-status status-'+s; el.textContent=t; };
+const setProgress = (id,p)   => { const el=document.getElementById('prog-'+id); if(el) el.style.width=p+'%'; };
+const setStage    = (id,t)   => { const el=document.getElementById('stage-'+id); if(el) el.textContent=t; };
+
+// ── Main Process ──
+async function processFile(file, b64) {
+  const id = Date.now() + Math.random().toString(36).slice(2,6);
+  const type = getType(file);
+  if (type === 'unknown') return;
+
+  createCard(id, file, type);
+  setStatus(id, 'processing', 'reading…');
+  setProgress(id, 15);
+
+  try {
+    let items = [];
+
+    if (type === 'pdf') {
+      setStage(id, 'Extracting PDF text…');
+      setProgress(id, 25);
+      let pdfText = '';
+      try {
+        pdfText = await extractPDFText(id, b64);
+      } catch(e) {
+        setStage(id, 'PDF text extract failed, trying OCR fallback…');
+      }
+
+      if (pdfText.trim().length > 50) {
+        setStage(id, 'Sending to AI…');
+        setProgress(id, 50);
+        items = await extractWithClaude(id, [
+          { type: 'text', text: MENU_PROMPT + '\n\nMenu text:\n' + pdfText }
+        ]);
+      } else {
+        // Scanned PDF — send as base64 image (OpenAI/Gemini both handle this)
+        setStage(id, 'Scanned PDF detected — sending as image…');
+        setProgress(id, 45);
+        items = await extractWithClaude(id, [
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
+          { type: 'text', text: MENU_PROMPT }
+        ]);
+      }
+
+    } else if (type === 'img') {
+      setStage(id, 'Sending image to Claude…');
+      setProgress(id, 35);
+      // Detect mime from extension
+      const ext = file.name.split('.').pop().toLowerCase();
+      const mimeMap = { jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', webp:'image/webp', heic:'image/jpeg', heif:'image/jpeg', bmp:'image/png' };
+      const mime = mimeMap[ext] || 'image/jpeg';
+      items = await extractWithClaude(id, [
+        { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } },
+        { type: 'text', text: MENU_PROMPT }
+      ]);
+
+    } else if (type === 'xls') {
+      setStage(id, 'Reading Excel…');
+      setProgress(id, 25);
+      const text = await extractExcelText(b64, file.name);
+      setStage(id, 'Extracting with Claude…');
+      setProgress(id, 50);
+      items = await extractWithClaude(id, [
+        { type: 'text', text: MENU_PROMPT + '\n\nMenu data:\n' + text }
+      ]);
+    }
+
+    if (!items || items.length === 0) throw new Error('No menu items found');
+
+    allItems = allItems.concat(items);
+    renderTable();
+    setProgress(id, 100);
+    setStatus(id, 'done', `✓ ${items.length} items`);
+    setStage(id, '');
+
+  } catch(err) {
+    setStatus(id, 'error', 'error');
+    setStage(id, err.message);
+    setProgress(id, 0);
+  }
+}
+
+// ── Shared extraction prompt ──
+const MENU_PROMPT = `You are a hotel menu data extractor for Shakti Hotels In-Room Dining.
+
+Extract EVERY food and drink item. Do not skip any section or page.
+
+Return ONLY a valid JSON array. No explanation, no markdown, no code fences.
+
+Each object must have exactly:
+- "category": section name (e.g. "Breakfast", "Indian Breakfast A La Carte", "Soup", "Salad", "Appetizers", "Main Course - Indian", "Main Course - Grill", "Main Course - La Piazza", "Main Course - TK's Oriental", "Main Course - China Kitchen", "Biryani", "Burgers", "Rolls", "Night Menu", "Healthy / Vegan", "Kids Menu", "Dessert", "Beverages")
+- "name": clean item name in Title Case
+- "price": final price as number only (not kcal). If missing use null.
+
+Example: [{"category":"Soup","name":"Hing Tamatar Dhaniya Shorba","price":910},{"category":"Kids Menu","name":"Chicken Nuggets","price":570}]`;
+
+// ── PDF text extraction via pdf.js ──
+async function extractPDFText(id, b64) {
+  if (typeof pdfjsLib === 'undefined') throw new Error('pdf.js not loaded');
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+  const total = pdf.numPages;
+  let text = '';
+  for (let i = 1; i <= total; i++) {
+    setStage(id, `Reading page ${i}/${total}…`);
+    setProgress(id, Math.round(25 + (i/total)*20));
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(x => x.str).join(' ') + '\n';
+  }
+  return text.trim();
+}
+
+// ── Route through Cloudflare Worker proxy ──
+async function extractWithClaude(id, contentBlocks) {
+  const workerUrl = document.getElementById('workerUrl').value.trim();
+  const provider  = document.getElementById('aiProvider').value;
+
+  if (!workerUrl) throw new Error('Enter your Worker URL in the configuration above');
+
+  const oaiMessages = convertToOpenAI(contentBlocks);
+
+  // Try selected provider first
+  try {
+    return await callProvider(id, workerUrl, provider, oaiMessages);
+  } catch(err) {
+    // Auto-fallback: if OpenAI fails, try Gemini free
+    if (provider === 'openai') {
+      setStage(id, 'OpenAI failed — trying Gemini free fallback…');
+      try {
+        return await callProvider(id, workerUrl, 'gemini', oaiMessages);
+      } catch(err2) {
+        throw new Error('Both OpenAI and Gemini failed: ' + err2.message);
+      }
+    }
+    throw err;
+  }
+}
+
+async function callProvider(id, workerUrl, provider, oaiMessages) {
+  const body = {
+    model: 'gpt-4o',
+    max_tokens: 16000,
+    messages: oaiMessages
+  };
+
+  const response = await fetch(workerUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+
+  setProgress(id, 80);
+  const data = await response.json();
+  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+  const raw = (data.choices?.[0]?.message?.content || '').trim();
+  if (!raw) throw new Error('Empty response from ' + provider);
+  return parseMenuJSON(raw);
+}
+
+// ── Convert Anthropic content blocks → OpenAI messages ──
+function convertToOpenAI(contentBlocks) {
+  const oaiContent = contentBlocks.map(block => {
+    if (block.type === 'text') {
+      return { type: 'text', text: block.text };
+    } else if (block.type === 'image') {
+      return {
+        type: 'image_url',
+        image_url: {
+          url: 'data:' + block.source.media_type + ';base64,' + block.source.data,
+          detail: 'high'
+        }
+      };
+    } else if (block.type === 'document') {
+      // PDF — extract text first (already done), so this is a fallback text block
+      return { type: 'text', text: 'Please extract all menu items from this document.' };
+    }
+    return null;
+  }).filter(Boolean);
+
+  return [{ role: 'user', content: oaiContent }];
+}
+
+// ── Parse JSON from any AI response ──
+function parseMenuJSON(raw) {
+  const clean = raw.replace(/```json|```/gi, '').trim();
+  const start = clean.indexOf('[');
+  if (start === -1) throw new Error('No JSON in response');
+  const jsonStr = clean.slice(start);
+  const end = jsonStr.lastIndexOf(']');
+  if (end !== -1) return JSON.parse(jsonStr.slice(0, end + 1));
+  const lastObj = jsonStr.lastIndexOf('}');
+  if (lastObj === -1) throw new Error('Empty response');
+  return JSON.parse(jsonStr.slice(0, lastObj + 1) + ']');
+}
+
+// ── Excel → text ──
+async function extractExcelText(b64, filename) {
+  const ext = filename.split('.').pop().toLowerCase();
+  if (ext === 'csv') {
+    return atob(b64);
+  }
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const wb = XLSX.read(bytes, { type: 'array' });
+  let text = '';
+  wb.SheetNames.forEach(name => {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '' });
+    text += `Sheet: ${name}\n`;
+    rows.forEach(row => { text += Object.values(row).join(' | ') + '\n'; });
+    text += '\n';
+  });
+  return text.trim();
+}
+
+// ── Render Table ──
+function renderTable() {
+  const panel = document.getElementById('resultsPanel');
+  panel.style.display = 'block';
+  document.getElementById('itemCount').textContent = allItems.length;
+
+  const tbody = document.getElementById('menuTbody');
+  tbody.innerHTML = '';
+
+  allItems.forEach((item, i) => {
+    const tr = document.createElement('tr');
+    tr.dataset.index = i;
+
+    // Category cell
+    const tdNum = document.createElement('td');
+    tdNum.style.cssText = 'color:var(--muted);font-size:11px';
+    tdNum.textContent = i + 1;
+
+    const tdCat = document.createElement('td');
+    const catSpan = document.createElement('span');
+    catSpan.className = 'cat-badge editable';
+    catSpan.contentEditable = 'true';
+    catSpan.spellcheck = false;
+    catSpan.textContent = item.category || 'General';
+    catSpan.addEventListener('blur', () => {
+      allItems[i].category = catSpan.textContent.trim() || 'General';
+      renderJSON(); updateStats();
+    });
+    catSpan.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); catSpan.blur(); } });
+    tdCat.appendChild(catSpan);
+
+    // Name cell
+    const tdName = document.createElement('td');
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'editable';
+    nameSpan.contentEditable = 'true';
+    nameSpan.spellcheck = false;
+    nameSpan.textContent = item.name || '';
+    nameSpan.addEventListener('blur', () => {
+      allItems[i].name = nameSpan.textContent.trim();
+      renderJSON();
+    });
+    nameSpan.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); nameSpan.blur(); } });
+    tdName.appendChild(nameSpan);
+
+    // Price cell
+    const tdPrice = document.createElement('td');
+    tdPrice.className = 'price-cell';
+    const priceSpan = document.createElement('span');
+    priceSpan.className = 'editable';
+    priceSpan.contentEditable = 'true';
+    priceSpan.spellcheck = false;
+    priceSpan.textContent = item.price !== null && item.price !== undefined ? item.price : '';
+    priceSpan.placeholder = '—';
+    priceSpan.addEventListener('blur', () => {
+      const val = priceSpan.textContent.trim().replace(/[₹,\s]/g, '');
+      allItems[i].price = val === '' || isNaN(val) ? null : Number(val);
+      priceSpan.textContent = allItems[i].price !== null ? allItems[i].price : '';
+      renderJSON(); updateStats();
+    });
+    priceSpan.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); priceSpan.blur(); } });
+    tdPrice.appendChild(priceSpan);
+
+    // Delete button
+    const tdDel = document.createElement('td');
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn-del';
+    delBtn.textContent = '✕';
+    delBtn.title = 'Delete row';
+    delBtn.addEventListener('click', () => {
+      allItems.splice(i, 1);
+      renderTable();
+    });
+    tdDel.appendChild(delBtn);
+
+    tr.appendChild(tdNum);
+    tr.appendChild(tdCat);
+    tr.appendChild(tdName);
+    tr.appendChild(tdPrice);
+    tr.appendChild(tdDel);
+    tbody.appendChild(tr);
+  });
+
+  updateStats();
+  renderJSON();
+}
+
+function updateStats() {
+  const cats = [...new Set(allItems.map(x => x.category))];
+  const withPrice = allItems.filter(x => x.price !== null && x.price !== undefined).length;
+  document.getElementById('itemCount').textContent = allItems.length;
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat">Total:<strong>${allItems.length}</strong></div>
+    <div class="stat">Categories:<strong>${cats.length}</strong></div>
+    <div class="stat">With price:<strong>${withPrice}</strong></div>
+    <div class="stat">Missing price:<strong>${allItems.length - withPrice}</strong></div>`;
+}
+
+function addRow() {
+  allItems.push({ category: 'General', name: 'New Item', price: null });
+  renderTable();
+  // Focus the last name cell
+  setTimeout(() => {
+    const rows = document.querySelectorAll('#menuTbody tr');
+    const lastRow = rows[rows.length - 1];
+    if (lastRow) {
+      const nameCell = lastRow.querySelectorAll('.editable')[1];
+      if (nameCell) { nameCell.focus(); document.execCommand('selectAll', false, null); }
+    }
+  }, 50);
+}
+
+function renderJSON() {
+  const byCategory = {};
+  allItems.forEach((item, i) => {
+    const cat = (item.category || 'General').replace(/[^a-zA-Z0-9_]/g, '_');
+    if (!byCategory[cat]) byCategory[cat] = {};
+    byCategory[cat]['item_' + (i+1)] = {
+      name: item.name || '',
+      price: item.price !== null && item.price !== undefined ? Number(item.price) : null,
+      category: item.category || 'General',
+      available: true
+    };
+  });
+  document.getElementById('jsonView').textContent = JSON.stringify(byCategory, null, 2);
+}
+
+function switchView(view, el) {
+  document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('view-table').style.display = view === 'table' ? 'block' : 'none';
+  document.getElementById('view-json').style.display  = view === 'json'  ? 'block' : 'none';
+}
+
+function copyFirebase() {
+  const json = document.getElementById('jsonView').textContent;
+  navigator.clipboard.writeText(json).then(() => {
+    const btn = event.target; btn.textContent = '✓ Copied!';
+    setTimeout(() => btn.textContent = '🔥 Firebase JSON', 1800);
+  });
+}
+
+function downloadCSV() {
+  if (!allItems.length) return;
+  const rows = [['#','Category','Item Name','Price (INR)']];
+  allItems.forEach((item, i) => rows.push([
+    i+1,
+    item.category || 'General',
+    item.name || '',
+    item.price !== null && item.price !== undefined ? item.price : ''
+  ]));
+  const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'shakti_menu.csv';
+  a.click();
+}
+
+function clearAll() {
+  allItems = [];
+  document.getElementById('menuTbody').innerHTML = '';
+  document.getElementById('statsBar').innerHTML = '';
+  document.getElementById('jsonView').textContent = '';
+  document.getElementById('resultsPanel').style.display = 'none';
+  document.getElementById('queue').innerHTML = '';
+  document.getElementById('itemCount').textContent = '0';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
