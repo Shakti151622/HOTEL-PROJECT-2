@@ -754,94 +754,178 @@ window.addEventListener('error', function(e) {
 
   /* ── MENU SCREEN ── */
   #screen-menu {
-    background: var(--dark2);
+    background: #F8F6F2;
+  }
+  #screen-menu .topbar {
+    background: #F8F6F2;
+    border-bottom: none;
+    height: 96px;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  #screen-menu .topbar-label {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: #9A9A9A;
+    text-transform: uppercase;
+    text-align: center;
+  }
+  #screen-menu .topbar-room {
+    font-size: 26px;
+    font-weight: 500;
+    color: #1A1A1A;
+    margin-top: 4px;
+    font-family: 'Cormorant Garamond', serif;
+    text-align: center;
+  }
+  #screen-menu .back-btn {
+    position: absolute;
+    left: 20px;
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    border: 1px solid #E8E6E3;
+    background: #FFFFFF;
+    color: #8A8A8A;
+    font-size: 18px;
   }
   .menu-body { flex: 1; overflow-y: auto; padding-bottom: 100px; }
 
   .cat-tabs {
     display: flex;
-    gap: 8px;
-    padding: 16px 24px;
-    overflow-x: auto;
+    gap: 10px;
+    padding: 0 20px 14px;
+    overflow-x: scroll;
+    overflow-y: visible;
     scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    align-items: center;
+    touch-action: pan-x !important;
+    scroll-behavior: smooth;
+    -ms-overflow-style: none;
+    will-change: scroll-position;
   }
   .cat-tabs::-webkit-scrollbar { display: none; }
+  /* Override global touch-action:manipulation so strip can pan horizontally */
+  .cat-tabs, .cat-tabs * { touch-action: pan-x !important; }
   .cat-tab {
-    padding: 10px 20px;
+    height: 42px;
+    padding: 0 20px;
     border-radius: 100px;
-    border: 1px solid rgba(255,255,255,0.1);
+    border: 1px solid #E0DBD4;
     background: transparent;
-    color: var(--text-muted);
+    color: #8A8070;
     font-family: 'DM Sans', sans-serif;
     font-size: 14px;
     cursor: pointer;
     white-space: nowrap;
     transition: all 0.2s;
     flex-shrink: 0;
+    line-height: 1;
   }
   .cat-tab.active {
-    background: var(--gold);
-    color: var(--dark);
-    border-color: var(--gold);
+    background: #B8892A;
+    color: #FFFFFF;
+    border-color: #B8892A;
     font-weight: 500;
   }
 
-  .menu-section { padding: 0 24px; }
+  .menu-section { padding: 0 20px; }
   .section-label {
     font-size: 11px;
-    letter-spacing: 0.2em;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: var(--gold);
-    padding: 16px 0 10px;
-    border-bottom: 1px solid rgba(201,169,110,0.15);
-    margin-bottom: 4px;
+    color: #B0A090;
+    padding: 20px 0 12px;
+    margin-bottom: 0;
   }
 
+  /* Flat row — no card, just divider */
   .menu-item {
     display: flex;
     align-items: center;
-    padding: 16px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-    gap: 16px;
+    padding: 14px 0;
+    gap: 14px;
+    border-bottom: 1px solid #EDE8E1;
+    background: transparent;
   }
-  .menu-item-info { flex: 1; }
-  .menu-item-name { font-size: 15px; color: var(--text); margin-bottom: 2px; }
-  .menu-item-price { font-size: 14px; color: var(--gold); font-weight: 500; }
+  .menu-item:last-child { border-bottom: none; }
+  .menu-item-info { flex: 1; min-width: 0; }
+  .menu-item-name {
+    font-size: 15px;
+    font-weight: 500;
+    color: #1A1A1A;
+    margin-bottom: 3px;
+    line-height: 1.35;
+  }
+  .menu-item-desc {
+    font-size: 12px;
+    color: #9A9A8A;
+    margin-bottom: 5px;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .menu-item-price {
+    font-size: 14px;
+    color: #1A1A1A;
+    font-weight: 400;
+  }
+  .menu-item-img {
+    width: 72px;
+    height: 72px;
+    border-radius: 12px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #EDE8E1;
+  }
   .qty-control {
-    display: flex; align-items: center; gap: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
   }
   .qty-btn {
-    width: 34px; height: 34px;
-    border-radius: 10px;
-    border: 1px solid rgba(201,169,110,0.3);
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: 1.5px solid #C8A96A;
     background: transparent;
-    color: var(--gold);
-    font-size: 20px;
+    color: #C8A96A;
+    font-size: 18px;
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     transition: all 0.15s;
     font-family: 'DM Sans', sans-serif;
     line-height: 1;
   }
-  .qty-btn:active { background: rgba(201,169,110,0.15); transform: scale(0.9); }
+  .qty-btn:active { background: rgba(200,169,106,0.12); transform: scale(0.9); }
+  /* Pill-shaped ADD button */
   .qty-add {
-    width: 40px; height: 40px;
-    border-radius: 12px;
-    background: var(--gold);
-    color: var(--dark);
+    height: 38px;
+    padding: 0 18px;
+    border-radius: 100px;
+    background: #C8A96A;
+    color: #FFFFFF;
     border: none;
-    font-size: 22px;
+    font-size: 20px;
+    font-weight: 300;
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     transition: all 0.15s;
-    font-weight: 300;
+    box-shadow: 0 3px 10px rgba(200,169,106,0.3);
+    flex-shrink: 0;
+    letter-spacing: -0.5px;
   }
-  .qty-add:active { transform: scale(0.88); }
+  .qty-add:active { transform: scale(0.93); opacity: 0.9; }
   .qty-num {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 500;
-    color: var(--text);
-    min-width: 14px;
+    color: #1A1A1A;
+    min-width: 18px;
     text-align: center;
   }
 
@@ -1254,9 +1338,12 @@ window.addEventListener('error', function(e) {
   :root.day .call-card { background: rgba(201,169,110,0.12); border-color: rgba(201,169,110,0.4); }
 
   /* ── ORDERS SCREEN ── */
+  #screen-orders, #screen-services {
+    background: var(--dark2);
+  }
   .orders-body {
     flex: 1; overflow-y: auto;
-    padding: 20px 24px 40px;
+    padding: 20px 20px 40px;
   }
   .orders-live-badge {
     font-size: 10px;
@@ -1275,11 +1362,17 @@ window.addEventListener('error', function(e) {
   }
   .order-card {
     background: var(--surface);
-    border: 1px solid var(--topbar-border);
+    border: 1px solid var(--card-border);
     border-radius: 18px;
     margin-bottom: 14px;
     overflow: hidden;
     animation: fadeIn 0.3s ease;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  :root.day .order-card {
+    background: #FFFFFF;
+    border-color: #E0DAD2;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
   }
   .order-card.past-card {
     background: var(--dark2);
@@ -1290,8 +1383,9 @@ window.addEventListener('error', function(e) {
     padding: 16px 18px 12px;
     display: flex; align-items: flex-start; justify-content: space-between;
     gap: 10px;
-    border-bottom: 1px solid var(--topbar-border);
+    border-bottom: 1px solid var(--card-border);
   }
+  :root.day .order-card-head { border-bottom-color: #E8E2DA; }
   .order-card-meta { flex: 1; }
   .order-card-id {
     font-size: 12px;
@@ -1306,6 +1400,8 @@ window.addEventListener('error', function(e) {
     color: var(--text);
     font-weight: 500;
   }
+  :root.day .order-card-id { color: #8A7A6A; }
+  :root.day .order-card-time { color: #1A1410; }
   .order-status-pill {
     font-size: 12.5px;
     font-weight: 600;
@@ -1395,16 +1491,19 @@ window.addEventListener('error', function(e) {
     padding: 5px 0;
     font-size: 14px;
     color: var(--text);
-    border-bottom: 1px solid rgba(255,255,255,0.03);
+    border-bottom: 1px solid var(--card-border);
   }
   .order-item-row:last-child { border-bottom: none; }
   .order-item-qty { color: var(--text-muted); font-size: 13px; margin-right: 6px; }
   .order-item-price { color: var(--gold); font-size: 13px; }
+  :root.day .order-item-row { color: #1A1410; border-bottom-color: #EDE8E1; }
+  :root.day .order-item-qty { color: #8A7A6A; }
   .order-card-footer {
     padding: 12px 18px;
     background: var(--surface2);
     display: flex; justify-content: space-between; align-items: center;
   }
+  :root.day .order-card-footer { background: #F5F0E8; }
   .order-total-label { font-size: 12px; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; }
   .order-total-amt {
     font-family: 'Cormorant Garamond', serif;
@@ -1412,7 +1511,7 @@ window.addEventListener('error', function(e) {
   }
 
   /* ── Active order tracker (progress steps) ── */
-  .order-tracker { padding: 16px 18px 18px; border-top: 1px solid var(--topbar-border); }
+  .order-tracker { padding: 16px 18px 18px; border-top: 1px solid var(--card-border); }
   .tracker-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
   .tracker-label { font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted); }
   .tracker-eta { font-size:12px; font-weight:500; color:var(--text-muted); display:flex; align-items:center; gap:5px; }
@@ -1434,7 +1533,7 @@ window.addEventListener('error', function(e) {
     content: '';
     position: absolute; top: 11px; left: 50%; right: -50%;
     height: 2px;
-    background: var(--surface2);
+    background: #D8D0C8;
     z-index: 0;
   }
   .tracker-step:last-child::before { display: none; }
@@ -1444,13 +1543,14 @@ window.addEventListener('error', function(e) {
   .tracker-dot {
     width: 22px; height: 22px;
     border-radius: 50%;
-    border: 2px solid var(--surface2);
+    border: 2px solid #D8D0C8;
     background: var(--surface);
     display: flex; align-items: center; justify-content: center;
     z-index: 3;
     position: relative;
     transition: all 0.3s;
   }
+  :root.day .tracker-dot { background: #FFFFFF; border-color: #C8C0B8; }
   .tracker-step.done .tracker-dot {
     border-color: var(--green);
     background: var(--green);
@@ -1467,10 +1567,11 @@ window.addEventListener('error', function(e) {
   }
   .tracker-step.done .tracker-dot svg { display: block; }
   .tracker-step-name {
-    font-size: 10px; color: var(--text-dim); margin-top: 3px;
+    font-size: 10px; color: var(--text-muted); margin-top: 3px;
     letter-spacing: 0.05em; text-align: center;
     white-space: nowrap;
   }
+  :root.day .tracker-step-name { color: #8A7A6A; }
   .tracker-step-time {
     font-size: 9.5px; color: #FFFFFF; margin-top: 1px;
     letter-spacing: 0.03em; text-align: center;
@@ -1950,7 +2051,7 @@ window.CHEF_IMG_SRC = 'data:image/webp;base64,UklGRtCmAABXRUJQVlA4WAoAAAAQAAAASg
       <div class="action-arrow">›</div>
     </div>
 
-    <div class="action-card" id="orders-card" onclick="go('orders')" style="display:none">
+    <div class="action-card" id="orders-card" onclick="go('orders')">
       <div class="action-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#C9A96E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg></div>
       <div class="action-info">
         <div class="action-title">My Orders</div>
@@ -1989,7 +2090,7 @@ window.CHEF_IMG_SRC = 'data:image/webp;base64,UklGRtCmAABXRUJQVlA4WAoAAAAQAAAASg
 <div class="screen" id="screen-menu">
   <div class="topbar">
     <button class="back-btn" onclick="go('home')">‹</button>
-    <div style="text-align:right">
+    <div style="text-align:center;">
       <div class="topbar-label">Ordering for</div>
       <div class="topbar-room"><span class="dyn-room">Room 203</span></div>
     </div>
@@ -2040,6 +2141,7 @@ window.CHEF_IMG_SRC = 'data:image/webp;base64,UklGRtCmAABXRUJQVlA4WAoAAAAQAAAASg
   <div class="cart-body" id="cart-body">
 
     <div id="cart-items"></div>
+    <div id="cart-upsell"></div>
     <div class="cart-divider"></div>
     <div class="cart-total">
       <div>
@@ -2392,13 +2494,52 @@ function filterCat(cat, el) {
   document.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
   renderMenu(cat);
+  // Scroll active tab to center — works on all browsers
+  setTimeout(function() {
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  }, 30);
+}
+
+function _getLiveItems(cat) {
+  // Try shakti_menu (published) first, fallback to hardcoded menuData
+  try {
+    var sm = localStorage.getItem('shakti_menu');
+    if (sm) {
+      var parsed = JSON.parse(sm);
+      if (parsed[cat] && parsed[cat].length) return parsed[cat];
+    }
+  } catch(e) {}
+  return menuData[cat] || [];
+}
+
+function _getFullItem(name) {
+  // Get image + desc from shakti_fm_menu (admin store)
+  try {
+    var fm = localStorage.getItem('shakti_fm_menu');
+    if (fm) {
+      var parsed = JSON.parse(fm);
+      for (var ck in parsed) {
+        var found = (parsed[ck]||[]).find(function(i){ return i.name === name; });
+        if (found) return found;
+      }
+    }
+  } catch(e) {}
+  return null;
 }
 
 function renderMenu(cat) {
-  const items = menuData[cat];
-  const catLabel = {breakfast:'Breakfast', snacks:'Snacks & Starters', mainveg:'Main Course · Vegetarian', mainnonveg:'Main Course · Non-Vegetarian', sides:'Breads, Rice, Biryani & Sides', desserts:'Desserts', drinks:'Beverages', bar:'Bar & Cocktails'}[cat] || cat;
+  const items = _getLiveItems(cat);
+  if (!items || !items.length) {
+    document.getElementById('menu-list').innerHTML = '<div style="padding:48px 24px;text-align:center;color:var(--text-muted);font-size:14px;">No items available</div>';
+    updateCartBtn(); return;
+  }
 
-  // Track a flat index for keys (skip _sub dividers)
+  const catLabels = {breakfast:'Breakfast', snacks:'Snacks & Starters', mainveg:'Main Course · Vegetarian', mainnonveg:'Main Course · Non-Vegetarian', sides:'Breads, Rice & Sides', desserts:'Desserts', drinks:'Beverages', bar:'Bar & Cocktails'};
+  // Also try live labels from fm_cat_labels
+  let liveLabels = {};
+  try { liveLabels = JSON.parse(localStorage.getItem('fm_cat_labels')||'{}'); } catch(e){}
+  const catLabel = liveLabels[cat] || catLabels[cat] || cat;
+
   let itemIndex = 0;
   const rows = items.map((item) => {
     if (item._sub) {
@@ -2408,10 +2549,25 @@ function renderMenu(cat) {
     const qty = (window._addItemsForOrderId && window._modifyItems)
       ? (window._modifyItems.find(function(m){ return m.name===item.name; }) || {qty:0}).qty
       : (cart[key] ? cart[key].qty : 0);
+
+    // Get image + desc from admin store
+    const fi = _getFullItem(item.name);
+    const img  = fi && fi.image ? fi.image : '';
+    const desc = fi && fi.desc  ? fi.desc  : '';
+    const isVeg = fi ? fi.veg : true;
+    const vegClr = isVeg ? 'var(--green)' : 'var(--red)';
+
+    // Image: 64×64 if available
+    const imgHtml = img
+      ? `<img class="menu-item-img" src="${img}" alt="${item.name}">`
+      : '';
+
     return `
       <div class="menu-item">
+        ${imgHtml}
         <div class="menu-item-info">
           <div class="menu-item-name">${item.name}</div>
+          ${desc ? `<div class="menu-item-desc">${desc}</div>` : ''}
           <div class="menu-item-price">₹${item.price}</div>
         </div>
         <div class="qty-control" id="qty-ctrl-${key}">
@@ -2419,7 +2575,7 @@ function renderMenu(cat) {
             ? `<button class="qty-add" onclick="addItem('${key}','${item.name}',${item.price})">+</button>`
             : `<button class="qty-btn" onclick="changeQty('${key}',-1)">−</button>
                <span class="qty-num">${qty}</span>
-               <button class="qty-btn" onclick="changeQty('${key}',1)" style="background:var(--gold);color:var(--dark);border-color:var(--gold)">+</button>`
+               <button class="qty-btn" onclick="changeQty('${key}',1)" style="background:#C8A96A;color:#FFFFFF;border-color:#C8A96A;">+</button>`
           }
         </div>
       </div>`;
@@ -2565,6 +2721,7 @@ function renderCart() {
       </div>`;
     document.getElementById('place-btn').disabled = true;
     document.getElementById('place-btn').style.opacity = '0.45';
+    var _uel = document.getElementById('cart-upsell'); if(_uel) _uel.innerHTML = '';
   } else {
     container.innerHTML = items.map(([key, item]) => `
       <div class="cart-item" id="ci-${key}">
@@ -2594,6 +2751,121 @@ function renderCart() {
     totalQty > 0 ? `${totalQty} item${totalQty > 1 ? 's' : ''}` : '';
   document.getElementById('cart-body').style.display = 'block';
   document.getElementById('order-success').classList.remove('visible');
+  renderCartUpsell();
+}
+
+function renderCartUpsell() {
+  var upsellDiv = document.getElementById('cart-upsell');
+  if (!upsellDiv) return;
+
+  var cartNames = Object.values(cart).map(function(i){ return i.name; });
+  if (!cartNames.length) { upsellDiv.innerHTML = ''; return; }
+
+  // Source 1: ri_upsell_map pairs
+  var upsellMap = {};
+  try { upsellMap = JSON.parse(localStorage.getItem('ri_upsell_map') || '{}'); } catch(e) {}
+  var candidates = {};
+
+  cartNames.forEach(function(name) {
+    (upsellMap[name] || []).forEach(function(p) {
+      if (cartNames.indexOf(p) === -1) candidates[p] = null;
+    });
+  });
+
+  // Source 2: item.upsell fields from shakti_fm_menu
+  try {
+    var fm = JSON.parse(localStorage.getItem('shakti_fm_menu') || '{}');
+    Object.values(fm).forEach(function(arr) {
+      (arr || []).forEach(function(item) {
+        if (cartNames.indexOf(item.name) !== -1 && item.upsell) {
+          item.upsell.forEach(function(u) {
+            if (cartNames.indexOf(u) === -1) candidates[u] = null;
+          });
+        }
+      });
+    });
+  } catch(e) {}
+
+  // Resolve prices from published shakti_menu, fallback to hardcoded menuData
+  var allItems = [];
+  try {
+    var pub = JSON.parse(localStorage.getItem('shakti_menu') || '{}');
+    Object.values(pub).forEach(function(arr) {
+      (arr || []).forEach(function(i) { if (i.name && i.price) allItems.push(i); });
+    });
+  } catch(e) {}
+  // Fallback to menuData if nothing published
+  if (!allItems.length && typeof menuData !== 'undefined') {
+    Object.values(menuData).forEach(function(arr) {
+      (arr || []).forEach(function(i) { if (i.name && i.price) allItems.push(i); });
+    });
+  }
+
+  Object.keys(candidates).forEach(function(name) {
+    var f = allItems.find(function(i){ return i.name === name; });
+    if (f) candidates[name] = f.price;
+  });
+
+  // Source 3: fallback — items at ≤60% of cart average price
+  if (Object.keys(candidates).filter(function(k){ return candidates[k]; }).length < 2) {
+    var avg = Object.values(cart).reduce(function(s,i){ return s+i.price; },0) / Object.values(cart).length;
+    allItems.forEach(function(item) {
+      if (cartNames.indexOf(item.name) === -1 && item.price <= avg * 0.8 && !candidates[item.name]) {
+        candidates[item.name] = item.price;
+      }
+    });
+  }
+
+  // Pick up to 3 with valid prices
+  var suggestions = Object.keys(candidates)
+    .filter(function(n){ return candidates[n] !== null; })
+    .slice(0, 3);
+
+  if (!suggestions.length) { upsellDiv.innerHTML = ''; return; }
+
+  // Images from fm_menu
+  var imgMap = {};
+  try {
+    var fm2 = JSON.parse(localStorage.getItem('shakti_fm_menu') || '{}');
+    Object.values(fm2).forEach(function(arr) {
+      (arr || []).forEach(function(item) { if (item.image) imgMap[item.name] = item.image; });
+    });
+  } catch(e) {}
+
+  var html = '<div style="margin:16px 0 4px;">'
+    + '<div style="font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);margin-bottom:10px;">Pairs well with your order</div>'
+    + '<div style="display:flex;flex-direction:column;gap:8px;">';
+
+  suggestions.forEach(function(name) {
+    var price = candidates[name];
+    var img = imgMap[name] || '';
+    // find item key from published menu
+    var itemKey = 'up_' + name.replace(/[^a-z0-9]/gi,'_');
+    try {
+      var pub2 = JSON.parse(localStorage.getItem('shakti_menu') || '{}');
+      Object.keys(pub2).forEach(function(k) {
+        var idx = (pub2[k]||[]).findIndex(function(i){ return i.name === name; });
+        if (idx !== -1) itemKey = k + '_' + idx;
+      });
+    } catch(e) {}
+
+    var dn = name.replace(/"/g, '&quot;');
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;'
+          + 'background:var(--surface);border:1px solid var(--card-border);border-radius:12px;">';
+    if (img) html += '<img src="' + img + '" style="width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0;">';
+    html += '<div style="flex:1;min-width:0;">'
+          + '<div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:1px;">' + name + '</div>'
+          + '<div style="font-size:12px;color:var(--gold);">₹' + price + '</div>'
+          + '</div>'
+          + '<button data-key="' + itemKey + '" data-name="' + dn + '" data-price="' + price + '" '
+          + 'onclick="addItem(this.dataset.key,this.dataset.name,parseFloat(this.dataset.price))" '
+          + 'style="width:32px;height:32px;border-radius:50%;background:var(--gold);border:none;'
+          + 'color:var(--dark);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">+</button>'
+          + '</div>';
+  });
+
+  html += '</div></div>';
+  upsellDiv.innerHTML = html;
 }
 
 function cartQty(key, delta) {
@@ -2745,7 +3017,7 @@ function renderOrders() {
   });
   const body = document.getElementById('orders-body');
   if (orderHistory.length === 0) {
-    body.innerHTML = `<div class="orders-empty">
+    body.innerHTML = `<div class="orders-empty" style="color:var(--text-muted);">
       <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.25;margin:0 auto 14px;display:block"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
       <div style="color:var(--text-muted)">No active orders</div>
       <div style="font-size:13px;margin-top:4px;color:var(--text-dim)">Place an order to get started</div>
@@ -2874,7 +3146,7 @@ function renderOrders() {
     const steps = isRejected
       ? '<div style="font-size:12px;color:#C0392B;padding:4px 0;">✕ Order was not accepted</div>'
       : isCancelled
-      ? '<div style="font-size:12px;color:var(--text-muted);padding:4px 0;">Request cancelled' + (r.cancel_reason ? '<div style="font-size:11px;color:var(--red);margin-top:3px;">Reason: ' + r.cancel_reason + '</div>' : '') + '</div>'
+      ? '<div style="font-size:12px;color:var(--text-muted);padding:4px 0;">Request cancelled' + (o.cancel_reason ? '<div style="font-size:11px;color:var(--red);margin-top:3px;">Reason: ' + o.cancel_reason + '</div>' : '') + '</div>'
       : stepsDef.map((s, i) => {
           // State-driven rendering per spec — no index arithmetic
           var _s = o.status || 'new';
@@ -4756,6 +5028,29 @@ function startOrdering() {
 function _saveHistory(){try{localStorage.setItem('hyatt_g_'+String(window.ROOM_NUM||'000'),JSON.stringify({orders:orderHistory,services:serviceHistory,ts:Date.now()}));}catch(e){}}
 // Load history — no expiry, kept for the full stay (cleared only on checkout or manual clear)
 (function(){try{var raw=localStorage.getItem('hyatt_g_'+String(window.ROOM_NUM||'000'));if(!raw)return;var d=JSON.parse(raw);if(Array.isArray(d.orders))orderHistory=d.orders;if(Array.isArray(d.services))serviceHistory=d.services;}catch(e){}})();
+
+// Demo order — shows tracker screen for preview (only injected if no real orders exist)
+(function(){
+  if(orderHistory.length > 0) return; // real orders exist, skip demo
+  var _demo = {
+    id: 'ORD-DEMO',
+    room: window.ROOM_NUM || '203',
+    guest: window.GUEST_NAME || 'Guest',
+    items: [
+      {name:'Coffee', price:110, qty:1},
+      {name:'Aloo Paratha', price:130, qty:2}
+    ],
+    total: 370,
+    status: 'preparing',
+    placedAt: Date.now() - 8*60000,
+    acceptedAt: Date.now() - 6*60000,
+    date: new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short'}),
+    time: new Date(Date.now()-8*60000).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
+    eta: 20,
+    isDemo: true
+  };
+  orderHistory.unshift(_demo);
+})();
 
 // ══════════════════════════════════════════
 // GUEST FIREBASE SYNC
