@@ -10708,14 +10708,22 @@ function fmFinalPrice(item){
 // ─────────────────────────────────────────
 function fmSetMode(mode){
   FM.isAdmin = (mode==='admin');
-  if(mode==='guest'){
-    fmShowGuestPreview();
-    return;
-  }
+
+  // Always update toggle button styles regardless of mode
   var btnA = document.getElementById('fm-btn-admin');
   var btnG = document.getElementById('fm-btn-guest');
   if(btnA){ btnA.style.background = FM.isAdmin ? 'var(--gold)' : 'transparent'; btnA.style.color = FM.isAdmin ? 'var(--dark)' : 'var(--text-muted)'; btnA.style.fontWeight = FM.isAdmin ? '600' : '400'; }
   if(btnG){ btnG.style.background = !FM.isAdmin ? 'var(--gold)' : 'transparent'; btnG.style.color = !FM.isAdmin ? 'var(--dark)' : 'var(--text-muted)'; btnG.style.fontWeight = !FM.isAdmin ? '600' : '400'; }
+
+  if(mode==='guest'){
+    fmShowGuestPreview();
+    return;
+  }
+
+  // Returning to admin — close guest preview if open
+  var gp = document.getElementById('fm-guest-preview');
+  if(gp) gp.remove();
+
   var statsBar = document.getElementById('fm-stats-bar');
   var catVis   = document.getElementById('fm-cat-vis');
   var addBar   = document.getElementById('fm-add-bar');
@@ -12696,15 +12704,33 @@ function fmShowGuestPreview(){
   var existing = document.getElementById('fm-guest-preview');
   if(existing) existing.remove();
 
-  // Load published menu
+  // Build preview from LIVE FM.menu (not published) — so changes show instantly
+  // Only visible categories with items
   var published = {};
-  try { published = JSON.parse(localStorage.getItem('shakti_menu')||'{}'); } catch(e){}
+  FM.ALL_CATS.forEach(function(c){
+    if(FM.catVis[c.key] === false) return;
+    var items = (FM.menu[c.key]||[]).filter(function(i){ return i.available; });
+    if(!items.length) return;
+    // Format same as shakti_menu for reuse of render logic
+    var arr = [];
+    var subs = {};
+    items.forEach(function(i){
+      var s = i.sub || 'General';
+      if(!subs[s]) subs[s] = [];
+      subs[s].push(i);
+    });
+    Object.keys(subs).forEach(function(s){
+      arr.push({_sub: s});
+      subs[s].forEach(function(i){ arr.push({name:i.name, price:fmFinalPrice(i), image:i.image||'', desc:i.desc||'', veg:i.veg}); });
+    });
+    published[c.key] = arr;
+  });
 
-  // Build cat list from published data, using FM labels/emojis
+  // Build cat list from live data
   var cats = Object.keys(published).filter(function(k){
     return published[k] && published[k].some(function(i){ return i.name; });
   });
-  if(!cats.length){ fmToast('Publish menu first','red'); return; }
+  if(!cats.length){ fmToast('No visible items in menu','red'); return; }
 
   // ── Inject CSS (once) ──
   if(!document.getElementById('gp-styles')){
