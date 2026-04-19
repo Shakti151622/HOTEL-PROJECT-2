@@ -2096,15 +2096,9 @@ window.CHEF_IMG_SRC = 'data:image/webp;base64,UklGRtCmAABXRUJQVlA4WAoAAAAQAAAASg
     </div>
   </div>
 
-  <div class="cat-tabs">
+  <div class="cat-tabs" id="cat-tabs-strip">
+    <!-- Populated dynamically by buildCatTabs() -->
     <button class="cat-tab active" onclick="filterCat('breakfast', this)">🌅 Breakfast</button>
-    <button class="cat-tab" onclick="filterCat('snacks', this)">🍿 Snacks & Starters</button>
-    <button class="cat-tab" onclick="filterCat('mainveg', this)">🥗 Main Course (Veg)</button>
-    <button class="cat-tab" onclick="filterCat('mainnonveg', this)">🍗 Main Course (Non-Veg)</button>
-    <button class="cat-tab" onclick="filterCat('sides', this)">🍚 Breads, Rice & Sides</button>
-    <button class="cat-tab" onclick="filterCat('desserts', this)">🍰 Desserts</button>
-    <button class="cat-tab" onclick="filterCat('drinks', this)">🥤 Beverages</button>
-    <button class="cat-tab" onclick="filterCat('bar', this)">🍺 Bar & Cocktails</button>
   </div>
 
   <div id="modify-mode-banner" style="display:none;margin:0 16px 12px;padding:14px 16px;background:var(--surface);border:1px solid rgba(201,169,110,0.3);border-radius:14px;">
@@ -2489,6 +2483,53 @@ function _navigate(screenId) {
 }
 
 // ── Menu
+// Default cat labels/emojis for known keys
+var _defaultCatLabels = {
+  breakfast:'Breakfast', snacks:'Snacks & Starters', mainveg:'Main Course (Veg)',
+  mainnonveg:'Main Course (Non-Veg)', sides:'Breads, Rice & Sides',
+  desserts:'Desserts', drinks:'Beverages', bar:'Bar & Cocktails'
+};
+var _defaultCatEmojis = {
+  breakfast:'🌅', snacks:'🍿', mainveg:'🥗', mainnonveg:'🍗',
+  sides:'🍚', desserts:'🍰', drinks:'🥤', bar:'🍺'
+};
+
+function buildCatTabs() {
+  var strip = document.getElementById('cat-tabs-strip');
+  if(!strip) return;
+
+  // Get menu source: Firestore first, localStorage second, fallback
+  var menu = _firestoreMenu;
+  if(!menu){
+    try{ var sm=localStorage.getItem('shakti_menu'); if(sm) menu=JSON.parse(sm); }catch(e){}
+  }
+  if(!menu) menu = menuData; // hardcoded fallback
+
+  // Get labels/emojis: Firestore meta first, localStorage second
+  var labels = {}, emojis = {};
+  if(_firestoreMeta && _firestoreMeta.catLabels) labels = _firestoreMeta.catLabels;
+  else { try{ var sl=localStorage.getItem('fm_cat_labels'); if(sl) labels=JSON.parse(sl); }catch(e){} }
+  if(_firestoreMeta && _firestoreMeta.catEmojis) emojis = _firestoreMeta.catEmojis;
+  else { try{ var se=localStorage.getItem('fm_cat_emojis'); if(se) emojis=JSON.parse(se); }catch(e){} }
+
+  // Build cat list from menu keys that have actual items
+  var cats = Object.keys(menu).filter(function(k){
+    return (menu[k]||[]).some(function(i){ return i.name; });
+  });
+  if(!cats.length) return;
+
+  var firstCat = cats[0];
+  strip.innerHTML = cats.map(function(k, i){
+    var label = labels[k] || _defaultCatLabels[k] || k.replace(/_/g,' ').replace(/\w/g,function(c){return c.toUpperCase();});
+    var em    = emojis[k] || _defaultCatEmojis[k] || '🍽️';
+    return '<button class="cat-tab'+(i===0?' active':'')+'" data-cat="'+k+'" onclick="filterCat(this.dataset.cat,this)">'+em+' '+label+'</button>';
+  }).join('');
+
+  // Set currentCat to first available
+  currentCat = firstCat;
+  renderMenu(firstCat);
+}
+
 function filterCat(cat, el) {
   currentCat = cat;
   document.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
@@ -5008,10 +5049,8 @@ function _loadMenuFromFirestore(){
           }catch(e){}
         }
         _menuLoaded = true;
-        // Re-render cat tabs and current menu with live data
-        if(typeof buildCatTabs === 'function') buildCatTabs();
-        var curCat = typeof currentCat !== 'undefined' ? currentCat : 'breakfast';
-        if(typeof renderMenu === 'function') renderMenu(curCat);
+        // Rebuild tabs and re-render with live Firestore data
+        buildCatTabs();
       }catch(e){ console.warn('Menu parse error:', e); }
     }).catch(function(e){ console.warn('Menu load error:', e); });
   });
@@ -5051,6 +5090,8 @@ document.addEventListener('DOMContentLoaded', function() {
   } else {
     setTimeout(function(){ var inp=document.getElementById('guest-name-input'); if(inp) inp.focus(); }, 500);
   }
+  // Build cat tabs from whatever menu is available now (Firestore will refresh later)
+  buildCatTabs();
   if(orderHistory.length){updateOrdersBadge();}
   if(serviceHistory.length){updateServicesBadge();}
 });
