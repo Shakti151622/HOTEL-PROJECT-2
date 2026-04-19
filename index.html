@@ -7813,6 +7813,10 @@ function updateStats(){
   if(OH&&OH._food&&OH._food[_todayRevKey]){OH._food[_todayRevKey].forEach(function(o){if(o.status==='delivered')rev+=o.total||0;});}
   var _sr=document.getElementById('stat-revenue');if(_sr)_sr.textContent=rev.toLocaleString('en-IN');
   updateUrgencyStrip();
+  // Always update summary bar so revenue/delivery stats stay live
+  if(typeof updateSummaryBar === 'function') updateSummaryBar();
+  if(typeof updateOrdersAvgDelivery === 'function') updateOrdersAvgDelivery();
+  if(typeof updateOrdersCompletedCount === 'function') updateOrdersCompletedCount();
   // Refresh analytics if that tab is visible
   var analyticsView = document.getElementById('view-analytics');
   if (analyticsView && analyticsView.classList.contains('active')) renderAnalytics();
@@ -13179,6 +13183,12 @@ function ohArchive(order) {
     });
     ohSave();
     if (OH._histOpen) ohRender();
+    // Update summary bar and analytics immediately after archiving
+    if(typeof updateSummaryBar === 'function') updateSummaryBar();
+    if(typeof updateOrdersAvgDelivery === 'function') updateOrdersAvgDelivery();
+    if(typeof updateOrdersCompletedCount === 'function') updateOrdersCompletedCount();
+    var _av = document.getElementById('view-analytics');
+    if(_av && _av.classList.contains('active') && typeof renderAnalytics === 'function') renderAnalytics();
     // Mark archived in Firestore (DO NOT delete — guest UI must be able to read final status)
     try {
       var _db = getDb();
