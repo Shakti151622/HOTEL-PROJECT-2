@@ -2594,11 +2594,11 @@ function renderMenu(cat) {
       ? (window._modifyItems.find(function(m){ return m.name===item.name; }) || {qty:0}).qty
       : (cart[key] ? cart[key].qty : 0);
 
-    // Get image + desc from admin store
+    // Image/desc: use published item fields first (from Firestore), fallback to admin store
     const fi = _getFullItem(item.name);
-    const img  = fi && fi.image ? fi.image : '';
-    const desc = fi && fi.desc  ? fi.desc  : '';
-    const isVeg = fi ? fi.veg : true;
+    const img  = item.image || (fi && fi.image ? fi.image : '');
+    const desc = item.desc  || (fi && fi.desc  ? fi.desc  : '');
+    const isVeg = (item.veg !== undefined) ? item.veg : (fi ? fi.veg : true);
     const vegClr = isVeg ? 'var(--green)' : 'var(--red)';
 
     // Image: 64×64 if available
