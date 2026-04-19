@@ -513,6 +513,141 @@ window.addEventListener('error', function(e) {
     line-height: 1.45;
   }
 
+  /* ── INLINE UPSELL STRIP (appears below menu item on add) ── */
+  .inline-upsell {
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.28s ease, margin 0.28s ease;
+    margin: 0;
+  }
+  .inline-upsell.visible {
+    max-height: 160px;
+    opacity: 1;
+    margin: 0 0 4px;
+  }
+  .inline-upsell-inner {
+    background: rgba(201,169,110,0.06);
+    border: 1px solid rgba(201,169,110,0.20);
+    border-radius: 13px;
+    padding: 10px 12px 12px;
+    margin: 6px 0 2px;
+  }
+  .inline-upsell-label {
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 9px;
+    opacity: 0.90;
+    line-height: 1.5;
+    white-space: normal;
+  }
+  /* horizontally scrollable chip row — touch-friendly */
+  .inline-upsell-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+    /* fade-out right edge hint for more chips */
+    -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+    mask-image: linear-gradient(to right, black 85%, transparent 100%);
+  }
+  .inline-upsell-row::-webkit-scrollbar { display: none; }
+
+  /* chip base — wider to fit qty stepper */
+  .inline-upsell-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 7px 8px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    scroll-snap-align: start;
+    transition: border-color 0.18s, background 0.18s;
+    -webkit-tap-highlight-color: transparent;
+    min-width: 0;
+  }
+  .inline-upsell-chip.in-cart {
+    border-color: rgba(201,169,110,0.45);
+    background: rgba(201,169,110,0.07);
+  }
+  .iuc-emoji {
+    font-size: 17px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .iuc-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .iuc-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.2;
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .iuc-price {
+    font-size: 11px;
+    color: var(--gold);
+    font-weight: 600;
+  }
+  /* qty stepper inside chip */
+  .iuc-stepper {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+    margin-left: 2px;
+  }
+  .iuc-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    border: 1px solid rgba(201,169,110,0.35);
+    background: transparent;
+    color: var(--gold);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    transition: background 0.14s, transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+    font-family: 'DM Sans', sans-serif;
+    padding: 0;
+  }
+  .iuc-btn.add-btn {
+    background: var(--gold);
+    color: var(--dark);
+    border-color: var(--gold);
+  }
+  .iuc-btn:active { transform: scale(0.88); }
+  .iuc-qty {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 22px;
+    text-align: center;
+    line-height: 1;
+  }
+  :root.day .inline-upsell-inner {
+    background: rgba(168,117,42,0.05);
+    border-color: rgba(168,117,42,0.16);
+  }
+  :root.day .iuc-btn { border-color: rgba(168,117,42,0.4); }
+  :root.day .iuc-btn.add-btn { background: var(--gold); color: #fff; border-color: var(--gold); }
+
   /* ── SCREENS ── */
   .screen {
     display: none;
@@ -2601,6 +2736,7 @@ function filterCat(cat, el) {
   currentCat = cat;
   document.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
+  _dismissInlineUpsell(); // clear upsell strip when browsing to a new category
   renderMenu(cat);
   // Scroll active tab to center — works on all browsers
   setTimeout(function() {
@@ -2727,6 +2863,235 @@ function addItem(key, name, price) {
   }
   cart[key] = { name, price, qty: 1 };
   renderMenu(currentCat);
+  // Show inline upsell suggestions below this item in the menu
+  _showInlineUpsell(key, name);
+}
+
+// ── Inline upsell: shows suggestion chips with qty steppers below the just-added item
+// Strip stays visible until customer navigates to another category or taps a different item's +
+var _activeUpsellKey = null; // which item's strip is showing
+
+function _showInlineUpsell(addedKey, addedName) {
+  // If same item tapped again — keep existing strip, just return
+  if (_activeUpsellKey === addedKey) return;
+
+  // Remove any existing strip
+  document.querySelectorAll('.inline-upsell').forEach(function(el) {
+    el.classList.remove('visible');
+    setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, 300);
+  });
+  _activeUpsellKey = addedKey;
+
+  var allMenuItems = _upsellGetAllMenuItems();
+  var imgMap = _upsellGetImageMap();
+
+  // ── Priority 1: Master pairing map (exact/fuzzy match) ──────────────────
+  var masterPairing = _getMasterPairing(addedName);
+  var final = [];
+  var finalNames = {};
+
+  if (masterPairing) {
+    // Resolve primary, secondary, addon from menu
+    [masterPairing.primary, masterPairing.secondary, masterPairing.addon].forEach(function(pairName) {
+      if (!pairName) return;
+      // Fuzzy resolve: find closest menu item
+      var resolved = _fuzzyFindMenuItem(pairName, allMenuItems);
+      if (resolved && !finalNames[resolved.name] && resolved.name !== addedName) {
+        resolved._reason = masterPairing.reason; // attach reason to primary only
+        finalNames[resolved.name] = true;
+        final.push(resolved);
+      }
+    });
+  }
+
+  // ── Priority 2: Type-based engine fills remaining slots ──────────────────
+  var type = _upsellDetectType(addedName);
+  var neededTypes = (_upsellTypeMap[type] || []).slice();
+  // Always offer dessert as end-of-meal option, never suggest same type as added item
+  if (neededTypes.indexOf('dessert') === -1) neededTypes.push('dessert');
+
+  var usedTypes = {};
+  allMenuItems
+    .filter(function(item) { return item.name !== addedName && !finalNames[item.name]; })
+    .map(function(item) { return { item: item, score: _upsellScore(item, neededTypes, type) }; })
+    .filter(function(s){ return s.score > 0; })
+    .sort(function(a,b){ return b.score - a.score; })
+    .filter(function(s) {
+      var t = _upsellDetectType(s.item.name);
+      if (usedTypes[t]) return false;
+      usedTypes[t] = true;
+      return true;
+    })
+    .slice(0, 6 - final.length)
+    .forEach(function(s) {
+      if (!finalNames[s.item.name]) {
+        finalNames[s.item.name] = true;
+        final.push(s.item);
+      }
+    });
+
+  // ── Staff overrides — prepend ─────────────────────────────────────────────
+  var staffOverrides = {};
+  try { staffOverrides = JSON.parse(localStorage.getItem('ri_upsell_map') || '{}'); } catch(e) {}
+  var staffItems = (staffOverrides[addedName] || [])
+    .map(function(n){ return allMenuItems.find(function(i){ return i.name === n; }); })
+    .filter(function(i){ return i && !finalNames[i.name]; });
+  var finalNames2 = {};
+  final = staffItems.concat(final).filter(function(item) {
+    if (finalNames2[item.name]) return false;
+    finalNames2[item.name] = true;
+    return true;
+  }).slice(0, 6);
+
+  if (!final.length) return;
+
+  var qtyCtrl = document.getElementById('qty-ctrl-' + addedKey);
+  if (!qtyCtrl) return;
+  var itemRow = qtyCtrl.closest('.menu-item');
+  if (!itemRow) return;
+
+  // Concierge reason for the strip header
+  var reason = masterPairing ? masterPairing.reason : '';
+
+  var strip = document.createElement('div');
+  strip.className = 'inline-upsell';
+  strip.dataset.forKey = addedKey;
+  strip.innerHTML = '<div class="inline-upsell-inner">'
+    + '<div class="inline-upsell-label">'
+    + (reason
+        ? 'Chef\'s Pairing · <span style="font-style:italic;text-transform:none;letter-spacing:0;color:var(--text-muted);font-size:10px;">' + reason + '</span>'
+        : 'Also add to your order')
+    + '</div>'
+    + '<div class="inline-upsell-row" id="iurow-' + addedKey + '">'
+    + _buildChipsHtml(final, imgMap)
+    + '</div></div>';
+
+  itemRow.parentNode.insertBefore(strip, itemRow.nextSibling);
+
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){ strip.classList.add('visible'); });
+  });
+  // NO auto-dismiss — strip stays until category change or new item added
+}
+
+// Fuzzy resolve: find best menu item matching a pairing name
+function _fuzzyFindMenuItem(targetName, allMenuItems) {
+  var t = targetName.toLowerCase();
+  // Exact match
+  var exact = allMenuItems.find(function(i){ return i.name.toLowerCase() === t; });
+  if (exact) return exact;
+  // Contains match
+  var contains = allMenuItems.find(function(i){ return i.name.toLowerCase().indexOf(t) !== -1 || t.indexOf(i.name.toLowerCase()) !== -1; });
+  if (contains) return contains;
+  // Word overlap — match if any significant word (>3 chars) overlaps
+  var tWords = t.split(/\s+/).filter(function(w){ return w.length > 3; });
+  var best = null, bestScore = 0;
+  allMenuItems.forEach(function(item) {
+    var iWords = item.name.toLowerCase().split(/\s+/);
+    var overlap = tWords.filter(function(w){ return iWords.some(function(iw){ return iw.indexOf(w) !== -1 || w.indexOf(iw) !== -1; }); }).length;
+    if (overlap > bestScore) { bestScore = overlap; best = item; }
+  });
+  return bestScore > 0 ? best : null;
+}
+
+function _buildChipsHtml(items, imgMap) {
+  var typeEmoji = { bread:'🫓', rice:'🍚', addon:'🥗', beverage:'🥤', dessert:'🍮',
+                    snack:'🍟', main_course:'🍛', noodles:'🍜', gravy:'🥘', breakfast:'🍳' };
+  return items.map(function(item) {
+    var t = _upsellDetectType(item.name);
+    var iKey = _upsellResolveKey(item.name, item.cat);
+    var qty = cart[iKey] ? cart[iKey].qty : 0;
+    var inCart = qty > 0;
+    var img = imgMap[item.name] || item.image || '';
+    var dn = item.name.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    var thumb = img
+      ? '<img src="'+img+'" style="width:22px;height:22px;border-radius:5px;object-fit:cover;flex-shrink:0;">'
+      : '<span class="iuc-emoji">'+(typeEmoji[t]||'🍽️')+'</span>';
+
+    var stepper = inCart
+      ? '<div class="iuc-stepper">'
+          + '<button class="iuc-btn" onclick="_iucChangeQty(\''+iKey+'\',\''+dn+'\','+item.price+',-1)">−</button>'
+          + '<span class="iuc-qty" id="iuc-qty-'+iKey+'">'+qty+'</span>'
+          + '<button class="iuc-btn" onclick="_iucChangeQty(\''+iKey+'\',\''+dn+'\','+item.price+',1)">+</button>'
+        + '</div>'
+      : '<div class="iuc-stepper">'
+          + '<button class="iuc-btn add-btn" onclick="_iucChangeQty(\''+iKey+'\',\''+dn+'\','+item.price+',1)">+</button>'
+        + '</div>';
+
+    return '<div class="inline-upsell-chip'+(inCart?' in-cart':'')+'" id="iuc-'+iKey+'">'
+      + thumb
+      + '<div class="iuc-info">'
+        + '<span class="iuc-name">'+item.name+'</span>'
+        + '<span class="iuc-price">₹'+item.price+'</span>'
+      + '</div>'
+      + stepper
+      + '</div>';
+  }).join('');
+}
+
+function _iucChangeQty(key, name, price, delta) {
+  // Update cart
+  if (delta > 0) {
+    if (!cart[key]) cart[key] = { name: name, price: price, qty: 0 };
+    cart[key].qty += 1;
+  } else {
+    if (!cart[key]) return;
+    cart[key].qty -= 1;
+    if (cart[key].qty <= 0) delete cart[key];
+  }
+  updateCartBtn();
+
+  var newQty = cart[key] ? cart[key].qty : 0;
+  var chip = document.getElementById('iuc-' + key);
+  if (!chip) return;
+
+  if (newQty === 0) {
+    // Revert chip to single + button
+    chip.classList.remove('in-cart');
+    var stepperEl = chip.querySelector('.iuc-stepper');
+    if (stepperEl) {
+      stepperEl.innerHTML = '<button class="iuc-btn add-btn" onclick="_iucChangeQty(\''+key+'\',\''+name.replace(/'/g,"\\'")+'\','+price+',1)">+</button>';
+    }
+  } else if (newQty === 1 && delta > 0) {
+    // First add — expand to full stepper
+    chip.classList.add('in-cart');
+    var stepperEl2 = chip.querySelector('.iuc-stepper');
+    if (stepperEl2) {
+      stepperEl2.innerHTML = '<button class="iuc-btn" onclick="_iucChangeQty(\''+key+'\',\''+name.replace(/'/g,"\\'")+'\','+price+',-1)">−</button>'
+        + '<span class="iuc-qty" id="iuc-qty-'+key+'">1</span>'
+        + '<button class="iuc-btn" onclick="_iucChangeQty(\''+key+'\',\''+name.replace(/'/g,"\\'")+'\','+price+',1)">+</button>';
+    }
+    // Also update the menu item row's qty control
+    var qtyCtrl = document.getElementById('qty-ctrl-' + key);
+    if (qtyCtrl) {
+      qtyCtrl.innerHTML = '<button class="qty-btn" onclick="changeQty(\''+key+'\',-1)">−</button>'
+        + '<span class="qty-num">1</span>'
+        + '<button class="qty-btn" onclick="changeQty(\''+key+'\',1)" style="background:#C8A96A;color:#FFFFFF;border-color:#C8A96A;">+</button>';
+    }
+  } else {
+    // Update qty display only
+    var qEl = document.getElementById('iuc-qty-' + key);
+    if (qEl) qEl.textContent = newQty;
+    // Sync menu row too
+    var qtyCtrl2 = document.getElementById('qty-ctrl-' + key);
+    if (qtyCtrl2) {
+      var qNum = qtyCtrl2.querySelector('.qty-num');
+      if (qNum) qNum.textContent = newQty;
+    }
+  }
+}
+
+// Called by filterCat to dismiss strip when browsing away
+function _dismissInlineUpsell() {
+  _activeUpsellKey = null;
+  document.querySelectorAll('.inline-upsell').forEach(function(el) {
+    el.classList.remove('visible');
+    setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, 300);
+  });
+}
+
+function _inlineUpsellAdd(key, name, price) {
+  _iucChangeQty(key, name, price, 1);
 }
 
 function changeQty(key, delta) {
@@ -2876,118 +3241,458 @@ function renderCart() {
   renderCartUpsell();
 }
 
+// ══════════════════════════════════════════════════════
+// UPSELL ENGINE v3 — Master pairing map + concierge copy
+// ══════════════════════════════════════════════════════
+
+// ── MASTER PAIRING MAP — exact item name → best pairings with concierge reason
+// Based on North Indian culinary traditions. Keys are lowercase for fuzzy matching.
+var _masterPairingMap = {
+  // ── Breads (when a bread is added, suggest a curry to go with it) ──────────
+  'aloo paratha':     { primary:'Plain Curd',        secondary:'Mint Chutney',   addon:'Mango Lassi',        reason:'Thick curd and mint chutney are the classic accompaniments to a stuffed paratha.' },
+  'paneer paratha':   { primary:'Plain Curd',        secondary:'Mint Chutney',   addon:'Mango Lassi',        reason:'Cooling curd balances the rich paneer filling beautifully.' },
+  'mix veg paratha':  { primary:'Plain Curd',        secondary:'Boondi Raita',   addon:'Masala Chai',        reason:'A simple curd and raita to let the vegetable filling take centre stage.' },
+  'laccha paratha':   { primary:'Dal Makhani',       secondary:'Boondi Raita',   addon:'Onion Salad',        reason:'The flaky, layered paratha pairs naturally with a rich, slow-cooked dal.' },
+  'butter naan':      { primary:'Paneer Butter Masala', secondary:'Dal Makhani', addon:'Boondi Raita',       reason:'A classic pairing — naan and a rich, creamy curry.' },
+  'garlic naan':      { primary:'Butter Chicken',    secondary:'Paneer Butter Masala', addon:'Boondi Raita', reason:'Charred garlic naan is the natural companion for a rich makhani gravy.' },
+  'tandoori roti':    { primary:'Dal Tadka',         secondary:'Mix Veg Curry',  addon:'Onion Salad',        reason:'A wholesome, everyday pairing — roti with a simple dal or sabzi.' },
+  'plain chapati':    { primary:'Dal Tadka',         secondary:'Aloo Gobi',      addon:'Plain Curd',         reason:'Simple roti with dal and curd — the quintessential home-style meal.' },
+  'missi roti':       { primary:'Dal Makhani',       secondary:'Palak Paneer',   addon:'Plain Curd',         reason:'Nutty chickpea flour roti pairs beautifully with iron-rich spinach preparations.' },
+  'puri':             { primary:'Masala Chai',       secondary:'Plain Curd',     addon:'Boondi Raita',       reason:'Puri pairs traditionally with a cup of chai or thick curd on the side.' },
+  // ── Breakfast & Dosa items ─────────────────────────────────────────────────
+  'dosa plain':       { primary:'Sambar',            secondary:'Coconut Chutney',addon:'Masala Chai',        reason:'Sambar and coconut chutney are the inseparable accompaniments for a dosa.' },
+  'dosa masala':      { primary:'Sambar',            secondary:'Coconut Chutney',addon:'Filter Coffee',      reason:'A South Indian filter coffee rounds off a masala dosa beautifully.' },
+  'dosa':             { primary:'Sambar',            secondary:'Coconut Chutney',addon:'Filter Coffee',      reason:'Sambar and chutney are the classic dosa accompaniments.' },
+  'idli':             { primary:'Sambar',            secondary:'Coconut Chutney',addon:'Filter Coffee',      reason:'Soft idlis with sambar and fresh coconut chutney — a traditional South Indian breakfast.' },
+  'idli sambar':      { primary:'Filter Coffee',     secondary:'Green Tea',      addon:'Fruit Bowl',         reason:'A hot filter coffee is the natural companion to an idli-sambar breakfast.' },
+  'poha':             { primary:'Masala Chai',       secondary:'Green Tea',      addon:'Fruit Bowl',         reason:'Poha and masala chai — the quintessential Indian morning pairing.' },
+  'upma':             { primary:'Masala Chai',       secondary:'Coconut Chutney',addon:'Fruit Bowl',         reason:'Warm upma pairs perfectly with a cup of aromatic masala chai.' },
+  'besan cheela':     { primary:'Mint Chutney',      secondary:'Plain Curd',     addon:'Masala Chai',        reason:'A light chutney and curd balance the earthy besan flavour.' },
+  'puri bhaji':       { primary:'Masala Chai',       secondary:'Boondi Raita',   addon:'Mango Lassi',        reason:'The classic weekend breakfast — puri bhaji with a cooling lassi or hot chai.' },
+  'bread butter toast': { primary:'Masala Chai',     secondary:'Filter Coffee',  addon:'Fruit Bowl',         reason:'Buttered toast and a hot beverage — the timeless continental breakfast.' },
+  'veg sandwich':     { primary:'Cold Coffee',       secondary:'Masala Chai',    addon:'French Fries',       reason:'A chilled cold coffee or hot chai pairs naturally with a toasted sandwich.' },
+  'pancakes with syrup': { primary:'Cold Coffee',    secondary:'Hot Chocolate',  addon:'Fruit Bowl',         reason:'Fluffy pancakes are best accompanied by a smooth cold coffee or hot chocolate.' },
+  // ── Chole & Puri combinations ──────────────────────────────────────────────
+  'chole bhature':    { primary:'Mango Lassi',       secondary:'Plain Curd',     addon:'Onion Salad',        reason:'A chilled mango lassi is the perfect antidote to the spiced chole masala.' },
+  'chole masala':     { primary:'Butter Naan',       secondary:'Steamed Rice',   addon:'Onion Salad',        reason:'A robust pairing — thick, chewy naan to scoop the spiced chickpeas.' },
+  // ── Rich Paneer Curries ────────────────────────────────────────────────────
+  'paneer butter masala': { primary:'Garlic Naan',   secondary:'Veg Pulao',      addon:'Boondi Raita',       reason:'The charred garlic cuts beautifully through the sweet makhani gravy.' },
+  'shahi paneer':     { primary:'Laccha Paratha',    secondary:'Jeera Rice',     addon:'Boondi Raita',       reason:'A light, layered bread that does not overpower the delicate spices.' },
+  'palak paneer':     { primary:'Missi Roti',        secondary:'Steamed Rice',   addon:'Plain Curd',         reason:'Nutty chickpea flour bread balances the iron-rich spinach notes.' },
+  'kadai paneer':     { primary:'Tandoori Roti',     secondary:'Jeera Rice',     addon:'Onion Salad',        reason:'A robust bread to complement the bold, whole-spice kadai flavour.' },
+  'matar paneer':     { primary:'Butter Roti',       secondary:'Steamed Rice',   addon:'Mixed Vegetable Raita', reason:'Simple, wholesome bread to let the green pea and paneer shine.' },
+  'malai kofta':      { primary:'Garlic Naan',       secondary:'Saffron Rice',   addon:'Cucumber Raita',     reason:'A rich, leavened bread to match the deep cream and cashew gravy.' },
+  'navratan korma':   { primary:'Garlic Naan',       secondary:'Veg Pulao',      addon:'Cucumber Raita',     reason:'Mild, aromatic bread to complement the delicate nine-jewel korma.' },
+  'mushroom masala':  { primary:'Butter Naan',       secondary:'Jeera Rice',     addon:'Mint Chutney',       reason:'Freshly-baked naan to soak up the earthy mushroom masala.' },
+  'mix veg curry':    { primary:'Tandoori Roti',     secondary:'Steamed Rice',   addon:'Boondi Raita',       reason:'Tandoori roti and a cooling raita for a wholesome, traditional pairing.' },
+  'aloo gobi':        { primary:'Plain Chapati',     secondary:'Dal Tadka',      addon:'Kachumber Salad',    reason:'Simple rotis and dal for the quintessential home-style pairing.' },
+  'baingan bharta':   { primary:'Laccha Paratha',    secondary:'Steamed Rice',   addon:'Plain Curd',         reason:'Flaky, layered paratha enhances the smoky, roasted aubergine flavour.' },
+  'aloo mutter':      { primary:'Butter Roti',       secondary:'Steamed Rice',   addon:'Pickle (Achar)',     reason:'Simple whole-wheat roti to let the pea and potato filling shine.' },
+  // ── Dal & Lentils ─────────────────────────────────────────────────────────
+  'dal makhani':      { primary:'Butter Naan',       secondary:'Jeera Rice',     addon:'Onion Salad',        reason:'To complement the 24-hour slow-cooked creamy texture.' },
+  'dal tadka':        { primary:'Tandoori Roti',     secondary:'Steamed Rice',   addon:'Papad (2 pcs)',      reason:'A light, earthy bread to balance the sharp mustard-tempered dal.' },
+  'chana masala':     { primary:'Butter Naan',       secondary:'Steamed Rice',   addon:'Onion Salad',        reason:'A robust pairing — thick, chewy naan to scoop the spiced chickpeas.' },
+  // ── Non-Veg ───────────────────────────────────────────────────────────────
+  'butter chicken':   { primary:'Garlic Naan',       secondary:'Jeera Rice',     addon:'Mint Chutney',       reason:'A robust pairing to match the richness of the tandoori-grilled chicken.' },
+  'chicken tikka masala': { primary:'Butter Naan',   secondary:'Veg Pulao',      addon:'Kachumber Salad',    reason:'Freshly-baked naan to soak up the vibrant, tomato-based masala.' },
+  'chicken korma':    { primary:'Laccha Paratha',    secondary:'Saffron Rice',   addon:'Cucumber Raita',     reason:'A fragrant, layered bread to honour the delicate Mughlai korma.' },
+  'chicken curry':    { primary:'Butter Roti',       secondary:'Steamed Rice',   addon:'Boondi Raita',       reason:'Classic roti and cooling raita — the everyday comfort pairing.' },
+  'mutton rogan josh':{ primary:'Laccha Paratha',    secondary:'Saffron Rice',   addon:'Cucumber Raita',     reason:'An artisanal, layered bread that honours the dish\'s Kashmiri heritage.' },
+  'mutton curry':     { primary:'Butter Roti',       secondary:'Steamed Rice',   addon:'Onion Salad',        reason:'Simple roti to let the slow-cooked mutton gravy take centre stage.' },
+  'keema matar':      { primary:'Butter Naan',       secondary:'Steamed Rice',   addon:'Onion Salad',        reason:'Naan to scoop the spiced mince — a Mughal-era classic pairing.' },
+  'fish masala':      { primary:'Steamed Rice',      secondary:'Laccha Paratha', addon:'Kachumber Salad',    reason:'Steamed rice is the ideal base to soak up a coastal fish masala.' },
+  'fish curry':       { primary:'Steamed Rice',      secondary:'Laccha Paratha', addon:'Pickle (Achar)',     reason:'Long-grain rice and a sharp pickle for the classic river-fish pairing.' },
+  'egg bhurji':       { primary:'Butter Roti',       secondary:'Masala Chai',    addon:'Mint Chutney',       reason:'Soft roti to scoop the spiced scrambled eggs — a street-food classic.' },
+  'egg curry':        { primary:'Laccha Paratha',    secondary:'Steamed Rice',   addon:'Boondi Raita',       reason:'Flaky paratha and cooling raita for a wholesome egg-curry meal.' },
+  // ── Starters & Snacks ─────────────────────────────────────────────────────
+  'samosa':           { primary:'Masala Chai',       secondary:'Mint Chutney',   addon:'Tamarind Chutney',   reason:'The timeless afternoon pairing — samosa and a hot cup of masala chai.' },
+  'paneer tikka':     { primary:'Mint Chutney',      secondary:'Onion Salad',    addon:'Fresh Lime Soda',    reason:'A zesty refresher to palate-cleanse between smoky bites.' },
+  'veg seekh kebab':  { primary:'Mint Chutney',      secondary:'Onion Salad',    addon:'Fresh Lime Soda',    reason:'Cooling mint chutney to balance the charred, smoky kebab spices.' },
+  'hara bhara kebab': { primary:'Mint Chutney',      secondary:'Onion Salad',    addon:'Fresh Lime Soda',    reason:'Tangy lime and mint to complement the earthy spinach-based kebabs.' },
+  'french fries':     { primary:'Cold Coffee',       secondary:'Mango Lassi',    addon:'Mint Chutney',       reason:'A chilled beverage is the natural companion for crisp golden fries.' },
+  'onion bhaji':      { primary:'Masala Chai',       secondary:'Mint Chutney',   addon:'Boondi Raita',       reason:'A warm cup of chai — the classic monsoon pairing.' },
+  'cheese garlic bread': { primary:'Cold Coffee',    secondary:'Masala Chai',    addon:'Green Salad',        reason:'A smooth cold coffee pairs naturally with warm cheese garlic bread.' },
+  // ── Biryani ────────────────────────────────────────────────────────────────
+  'veg biryani':      { primary:'Boondi Raita',      secondary:'Onion Salad',    addon:'Papad (2 pcs)',      reason:'Cooling raita is the essential accompaniment to balance the whole spices.' },
+  'paneer biryani':   { primary:'Boondi Raita',      secondary:'Onion Salad',    addon:'Mint Chutney',       reason:'A gentle raita to temper the richness of the paneer-studded biryani.' },
+  'mushroom biryani': { primary:'Mixed Vegetable Raita', secondary:'Onion Salad',addon:'Papad (2 pcs)',      reason:'A vegetable raita to complement the earthy depth of mushroom biryani.' },
+  // ── Rice dishes ────────────────────────────────────────────────────────────
+  'jeera rice':       { primary:'Dal Makhani',       secondary:'Paneer Butter Masala', addon:'Boondi Raita', reason:'Aromatic jeera rice pairs beautifully with any rich, slow-cooked curry.' },
+  'steamed rice':     { primary:'Dal Tadka',         secondary:'Fish Curry',     addon:'Papad (2 pcs)',      reason:'Plain steamed rice is the perfect blank canvas for any curry.' },
+  'veg fried rice':   { primary:'Mint Chutney',      secondary:'Cold Coffee',    addon:'Onion Salad',        reason:'A light chutney and cold beverage to balance the fried rice.' },
+  // ── Desserts ───────────────────────────────────────────────────────────────
+  'gulab jamun':      { primary:'Vanilla Ice Cream', secondary:'Masala Chai',    addon:'',                   reason:'Warm gulab jamun beside cool vanilla ice cream — a classic contrast.' },
+  'gajar ka halwa':   { primary:'Vanilla Ice Cream', secondary:'Masala Chai',    addon:'',                   reason:'A warm, nutty halwa paired with ice cream for a luxurious finish.' },
+  'kheer':            { primary:'Mango Kulfi',       secondary:'Green Tea',      addon:'',                   reason:'Chilled kulfi alongside warm kheer makes for a traditional festive pairing.' },
+};
+
+// ── Fuzzy lookup: returns pairing data for a given item name (partial match)
+function _getMasterPairing(itemName) {
+  var n = itemName.toLowerCase();
+  // Exact match first
+  if (_masterPairingMap[n]) return _masterPairingMap[n];
+  // Partial match — check if item name contains a key or a key contains the item name
+  var keys = Object.keys(_masterPairingMap);
+  for (var i = 0; i < keys.length; i++) {
+    if (n.indexOf(keys[i]) !== -1 || keys[i].indexOf(n) !== -1) return _masterPairingMap[keys[i]];
+  }
+  return null;
+}
+
+// Step 1: Classify any item by its name keywords
+function _upsellDetectType(itemName) {
+  var n = (itemName || '').toLowerCase();
+  // Chole Bhature / Puri Bhaji — treat as meal (suggests beverage + addon), not just bread
+  if (/chole bhature|puri bhaji|puri sabzi/.test(n)) return 'main_course';
+  // Breads — before main course to avoid paratha/roti being caught by other rules
+  if (/\bnaan\b|roti|paratha|chapati|\bpuri\b|kulcha|bhatura|roomali|phulka|sheermal|baati/.test(n)) return 'bread';
+  // Rice & biryani
+  if (/\brice\b|biryani|pulao|fried rice|pilaf/.test(n)) return 'rice';
+  // Noodles / pasta
+  if (/noodles|pasta|chow mein|hakka/.test(n)) return 'noodles';
+  // Gravied Chinese
+  if (/manchurian|chilli paneer|chilli chicken/.test(n)) return 'gravy';
+  // Kebabs — before snack
+  if (/kebab|seekh|galouti|tandoori chicken|tikka(?! masala)/.test(n)) return 'kebab';
+  // South Indian / Breakfast items — before snack so dosa/idli don't fall through
+  if (/dosa|idli|vada|uttapam|appam|puttu|poha|upma|cheela|oats|fruit bowl|corn flakes|yogurt|pancake|toast|sandwich/.test(n)) return 'breakfast';
+  // Egg items
+  if (/omelette|scrambled egg|fried egg|boiled egg/.test(n)) return 'breakfast';
+  // Snacks / starters
+  if (/samosa|bhaji|fries|spring roll|nachos|bruschetta|crispy|peanut|garlic bread|cheese toast|vada\b|pav/.test(n)) return 'snack';
+  // Beverages
+  if (/chai|tea|coffee|lassi|juice|soda|water|coke|pepsi|sprite|fanta|shake|smoothie|milk|mojito|beer|wine|whisky|gin|vodka|rum|cocktail|mocktail|sangria/.test(n)) return 'beverage';
+  // Desserts
+  if (/gulab|halwa|rasgulla|kheer|phirni|kulfi|brownie|mousse|custard|cheesecake|ice cream|sorbet|sundae|jalebi|rasmalai/.test(n)) return 'dessert';
+  // Accompaniments / sides
+  if (/raita|salad|papad|pickle|chutney|curd|boondi|kachumber|onion sal|achar|laccha pyaaz/.test(n)) return 'addon';
+  // Dal / legumes (before generic main_course)
+  if (/\bdal\b|kadhi|lentil|chole|rajma|chana/.test(n)) return 'main_course';
+  // Main course — curries, masalas, gravies
+  if (/paneer|chicken|mutton|fish|prawn|egg|aloo gobi|mix veg|baingan|korma|rogan|keema|matar|bhurji|masala|curry|bhuna|jalfrezi|kofta/.test(n)) return 'main_course';
+  return 'main_course';
+}
+
+// Step 2: What types pair well with what
+var _upsellTypeMap = {
+  main_course: ['bread', 'rice', 'addon', 'beverage'],
+  bread:       ['main_course', 'addon', 'beverage'],  // bread → suggest curry, raita, lassi
+  rice:        ['main_course', 'addon', 'beverage'],
+  noodles:     ['gravy', 'snack', 'beverage'],
+  gravy:       ['noodles', 'rice', 'bread'],
+  kebab:       ['addon', 'beverage', 'bread'],
+  snack:       ['beverage', 'addon'],
+  beverage:    ['snack', 'dessert'],
+  dessert:     ['beverage'],
+  addon:       ['main_course'],
+  breakfast:   ['beverage', 'addon', 'dessert']
+};
+
+// Step 3: Resolve all menu items from published or fallback menuData
+function _upsellGetAllMenuItems() {
+  var items = [];
+  // Priority 1: staff-published menu
+  try {
+    var pub = JSON.parse(localStorage.getItem('shakti_menu') || '{}');
+    Object.keys(pub).forEach(function(cat) {
+      (pub[cat] || []).forEach(function(i) {
+        if (i.name && i.price && !i._sub) items.push({ name: i.name, price: i.price, cat: cat, image: i.image || '' });
+      });
+    });
+  } catch(e) {}
+  // Priority 2: hardcoded menuData (always present)
+  if (items.length === 0 && typeof menuData !== 'undefined') {
+    Object.keys(menuData).forEach(function(cat) {
+      (menuData[cat] || []).forEach(function(i) {
+        if (i.name && i.price && !i._sub) items.push({ name: i.name, price: i.price, cat: cat, image: '' });
+      });
+    });
+  }
+  return items;
+}
+
+// Step 4: Find the menu key for an item so addItem() works correctly
+function _upsellResolveKey(itemName, cat) {
+  // Try published menu first
+  try {
+    var pub = JSON.parse(localStorage.getItem('shakti_menu') || '{}');
+    var catItems = (pub[cat] || []).filter(function(i){ return !i._sub; });
+    var idx = catItems.findIndex(function(i){ return i.name === itemName; });
+    if (idx !== -1) return cat + '_' + idx;
+    // search all cats
+    var found = null;
+    Object.keys(pub).forEach(function(k) {
+      var arr = (pub[k] || []).filter(function(i){ return !i._sub; });
+      var i2 = arr.findIndex(function(i){ return i.name === itemName; });
+      if (i2 !== -1) found = k + '_' + i2;
+    });
+    if (found) return found;
+  } catch(e) {}
+  // Fallback: hardcoded menuData
+  if (typeof menuData !== 'undefined') {
+    var found2 = null;
+    Object.keys(menuData).forEach(function(k) {
+      var arr = (menuData[k] || []).filter(function(i){ return !i._sub; });
+      var i3 = arr.findIndex(function(i){ return i.name === itemName; });
+      if (i3 !== -1) found2 = k + '_' + i3;
+    });
+    if (found2) return found2;
+  }
+  return 'up_' + itemName.replace(/[^a-z0-9]/gi, '_');
+}
+
+// Step 5: Get image map from fm_menu
+function _upsellGetImageMap() {
+  var map = {};
+  try {
+    var fm = JSON.parse(localStorage.getItem('shakti_fm_menu') || '{}');
+    Object.values(fm).forEach(function(arr) {
+      (arr || []).forEach(function(item) { if (item.image && item.name) map[item.name] = item.image; });
+    });
+  } catch(e) {}
+  return map;
+}
+
+// Step 6: Score suggestions
+// addedType = type of the item the user just added — never suggest same type
+function _upsellScore(item, neededTypes, addedType) {
+  var t = _upsellDetectType(item.name);
+  // HARD RULE: never suggest the same type as what was just added
+  // (no bread after bread, no rice after rice, etc.)
+  if (addedType && t === addedType) return 0;
+  // Type compatibility check
+  if (neededTypes.indexOf(t) === -1) return 0;
+  // Priority bonus: addon first (raita/salad), then rice/bread, then beverage
+  var priorityBonus = (t === 'addon') ? 3 : (t === 'bread' || t === 'rice') ? 2 : (t === 'beverage') ? 1 : 0;
+  // Prefer lower-priced items for frictionless add-on
+  var priceScore = item.price < 100 ? 3 : item.price < 200 ? 2 : item.price < 350 ? 1 : 0;
+  return 10 + priorityBonus + priceScore;
+}
+
 function renderCartUpsell() {
   var upsellDiv = document.getElementById('cart-upsell');
   if (!upsellDiv) return;
 
-  var cartNames = Object.values(cart).map(function(i){ return i.name; });
+  var cartItems = Object.values(cart);
+  var cartNames = cartItems.map(function(i){ return i.name; });
   if (!cartNames.length) { upsellDiv.innerHTML = ''; return; }
 
-  // Source 1: ri_upsell_map pairs
-  var upsellMap = {};
-  try { upsellMap = JSON.parse(localStorage.getItem('ri_upsell_map') || '{}'); } catch(e) {}
-  var candidates = {};
+  var allMenuItems = _upsellGetAllMenuItems();
+  var imgMap = _upsellGetImageMap();
 
-  cartNames.forEach(function(name) {
-    (upsellMap[name] || []).forEach(function(p) {
-      if (cartNames.indexOf(p) === -1) candidates[p] = null;
+  // ── Step A: Type-based pairing suggestions (exclude already in cart)
+  var neededTypes = [];
+  cartItems.forEach(function(ci) {
+    var t = _upsellDetectType(ci.name);
+    (_upsellTypeMap[t] || []).forEach(function(pt) {
+      if (neededTypes.indexOf(pt) === -1) neededTypes.push(pt);
     });
   });
 
-  // Source 2: item.upsell fields from shakti_fm_menu
+  // ── Step B: Staff overrides
+  var staffOverrides = {};
+  try { staffOverrides = JSON.parse(localStorage.getItem('ri_upsell_map') || '{}'); } catch(e) {}
+  var priorityCandidates = [];
+  cartNames.forEach(function(name) {
+    (staffOverrides[name] || []).forEach(function(p) {
+      if (cartNames.indexOf(p) === -1) {
+        var found = allMenuItems.find(function(i){ return i.name === p; });
+        if (found && !priorityCandidates.find(function(c){ return c.name === p; })) priorityCandidates.push(found);
+      }
+    });
+  });
   try {
     var fm = JSON.parse(localStorage.getItem('shakti_fm_menu') || '{}');
-    Object.values(fm).forEach(function(arr) {
-      (arr || []).forEach(function(item) {
+    Object.values(fm).forEach(function(arr){
+      (arr||[]).forEach(function(item){
         if (cartNames.indexOf(item.name) !== -1 && item.upsell) {
-          item.upsell.forEach(function(u) {
-            if (cartNames.indexOf(u) === -1) candidates[u] = null;
+          item.upsell.forEach(function(u){
+            if (cartNames.indexOf(u) === -1) {
+              var found = allMenuItems.find(function(i){ return i.name === u; });
+              if (found && !priorityCandidates.find(function(c){ return c.name === u; })) priorityCandidates.push(found);
+            }
           });
         }
       });
     });
   } catch(e) {}
 
-  // Resolve prices from published shakti_menu, fallback to hardcoded menuData
-  var allItems = [];
-  try {
-    var pub = JSON.parse(localStorage.getItem('shakti_menu') || '{}');
-    Object.values(pub).forEach(function(arr) {
-      (arr || []).forEach(function(i) { if (i.name && i.price) allItems.push(i); });
-    });
-  } catch(e) {}
-  // Fallback to menuData if nothing published
-  if (!allItems.length && typeof menuData !== 'undefined') {
-    Object.values(menuData).forEach(function(arr) {
-      (arr || []).forEach(function(i) { if (i.name && i.price) allItems.push(i); });
-    });
+  // ── Step C: Scored type-matched items (not already in cart)
+  // dominantType = most common item type in cart, so we don't suggest more of the same
+  var typeCounts = {};
+  cartItems.forEach(function(ci){ var t = _upsellDetectType(ci.name); typeCounts[t] = (typeCounts[t]||0)+1; });
+  var dominantType = Object.keys(typeCounts).sort(function(a,b){ return typeCounts[b]-typeCounts[a]; })[0] || null;
+
+  var usedTypes = {};
+  var typedCandidates = allMenuItems
+    .filter(function(item){ return cartNames.indexOf(item.name) === -1 && !priorityCandidates.find(function(c){ return c.name === item.name; }); })
+    .map(function(item){ return { item: item, score: _upsellScore(item, neededTypes, dominantType) }; })
+    .filter(function(s){ return s.score > 0; })
+    .sort(function(a,b){ return b.score - a.score; })
+    .filter(function(s){
+      var t = _upsellDetectType(s.item.name);
+      if (usedTypes[t]) return false;
+      usedTypes[t] = true;
+      return true;
+    })
+    .map(function(s){ return s.item; });
+
+  // ── Step D: End-of-meal — always suggest desserts/sweets/ice cream not in cart
+  var cartHasDesert = cartNames.some(function(n){ return _upsellDetectType(n) === 'dessert'; });
+  var dessertSuggestions = cartHasDesert ? [] : allMenuItems
+    .filter(function(item){
+      return _upsellDetectType(item.name) === 'dessert' && cartNames.indexOf(item.name) === -1;
+    })
+    .slice(0, 2);
+
+  // Combine — pairing first, then desserts, total up to 6 chips
+  var finalNames2 = {};
+  var finalSuggestions = priorityCandidates.concat(typedCandidates).concat(dessertSuggestions)
+    .filter(function(item){
+      if (finalNames2[item.name]) return false;
+      finalNames2[item.name] = true;
+      return true;
+    })
+    .slice(0, 6);
+
+  if (!finalSuggestions.length) { upsellDiv.innerHTML = ''; return; }
+
+  // ── Step E: "Missing Piece" alert — if cart has curry/main but no bread AND no rice
+  var cartHasCurry = cartNames.some(function(n){ return _upsellDetectType(n) === 'main_course'; });
+  var cartHasBread = cartNames.some(function(n){ return _upsellDetectType(n) === 'bread'; });
+  var cartHasRice  = cartNames.some(function(n){ return _upsellDetectType(n) === 'rice'; });
+  var missingPieceHtml = '';
+  if (cartHasCurry && !cartHasBread && !cartHasRice) {
+    missingPieceHtml = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;'
+      + 'padding:9px 12px;background:rgba(201,169,110,0.07);border:1px solid rgba(201,169,110,0.20);border-radius:10px;">'
+      + '<span style="font-size:15px;flex-shrink:0;">🍞</span>'
+      + '<span style="font-size:12px;color:var(--text-muted);font-family:\'Cormorant Garamond\',serif;font-style:italic;line-height:1.4;">'
+      + 'A bread or rice would complement your curry beautifully.'
+      + '</span></div>';
   }
 
-  Object.keys(candidates).forEach(function(name) {
-    var f = allItems.find(function(i){ return i.name === name; });
-    if (f) candidates[name] = f.price;
-  });
-
-  // Source 3: fallback — items at ≤60% of cart average price
-  if (Object.keys(candidates).filter(function(k){ return candidates[k]; }).length < 2) {
-    var avg = Object.values(cart).reduce(function(s,i){ return s+i.price; },0) / Object.values(cart).length;
-    allItems.forEach(function(item) {
-      if (cartNames.indexOf(item.name) === -1 && item.price <= avg * 0.8 && !candidates[item.name]) {
-        candidates[item.name] = item.price;
-      }
-    });
+  // ── Step F: Concierge copy from master pairing for first cart curry item
+  var cartConciergeReason = '';
+  for (var _ci = 0; _ci < cartNames.length; _ci++) {
+    var _mp = _getMasterPairing(cartNames[_ci]);
+    if (_mp && _mp.reason) { cartConciergeReason = _mp.reason; break; }
   }
 
-  // Pick up to 3 with valid prices
-  var suggestions = Object.keys(candidates)
-    .filter(function(n){ return candidates[n] !== null; })
-    .slice(0, 3);
+  // ── Step G: Build chip row with qty steppers
+  var typeEmoji = { bread:'🫓', rice:'🍚', addon:'🥗', beverage:'🥤', dessert:'🍮',
+                    snack:'🍟', main_course:'🍛', noodles:'🍜', gravy:'🥘', breakfast:'🍳', kebab:'🍢' };
 
-  if (!suggestions.length) { upsellDiv.innerHTML = ''; return; }
+  var chipsHtml = finalSuggestions.map(function(item) {
+    var t = _upsellDetectType(item.name);
+    var itemKey = _upsellResolveKey(item.name, item.cat);
+    var qty = cart[itemKey] ? cart[itemKey].qty : 0;
+    var inCart = qty > 0;
+    var img = imgMap[item.name] || item.image || '';
+    var dn = item.name.replace(/'/g,"\\'").replace(/"/g,'&quot;');
 
-  // Images from fm_menu
-  var imgMap = {};
-  try {
-    var fm2 = JSON.parse(localStorage.getItem('shakti_fm_menu') || '{}');
-    Object.values(fm2).forEach(function(arr) {
-      (arr || []).forEach(function(item) { if (item.image) imgMap[item.name] = item.image; });
-    });
-  } catch(e) {}
+    var thumb = img
+      ? '<img src="'+img+'" style="width:22px;height:22px;border-radius:5px;object-fit:cover;flex-shrink:0;">'
+      : '<span class="iuc-emoji">'+(typeEmoji[t]||'🍽️')+'</span>';
 
-  var html = '<div style="margin:16px 0 4px;">'
-    + '<div style="font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);margin-bottom:10px;">Pairs well with your order</div>'
-    + '<div style="display:flex;flex-direction:column;gap:8px;">';
+    var stepper = inCart
+      ? '<div class="iuc-stepper">'
+          + '<button class="iuc-btn" onclick="_cartUpsellQty(\''+itemKey+'\',\''+dn+'\','+item.price+',-1,this)">−</button>'
+          + '<span class="iuc-qty" id="cuq-'+itemKey+'">'+qty+'</span>'
+          + '<button class="iuc-btn" onclick="_cartUpsellQty(\''+itemKey+'\',\''+dn+'\','+item.price+',1,this)">+</button>'
+        + '</div>'
+      : '<div class="iuc-stepper">'
+          + '<button class="iuc-btn add-btn" onclick="_cartUpsellQty(\''+itemKey+'\',\''+dn+'\','+item.price+',1,this)">+</button>'
+        + '</div>';
 
-  suggestions.forEach(function(name) {
-    var price = candidates[name];
-    var img = imgMap[name] || '';
-    // find item key from published menu
-    var itemKey = 'up_' + name.replace(/[^a-z0-9]/gi,'_');
-    try {
-      var pub2 = JSON.parse(localStorage.getItem('shakti_menu') || '{}');
-      Object.keys(pub2).forEach(function(k) {
-        var idx = (pub2[k]||[]).findIndex(function(i){ return i.name === name; });
-        if (idx !== -1) itemKey = k + '_' + idx;
-      });
-    } catch(e) {}
+    return '<div class="inline-upsell-chip'+(inCart?' in-cart':'')+'" id="cupc-'+itemKey+'">'
+      + thumb
+      + '<div class="iuc-info">'
+        + '<span class="iuc-name">'+item.name+'</span>'
+        + '<span class="iuc-price">₹'+item.price+'</span>'
+      + '</div>'
+      + stepper
+      + '</div>';
+  }).join('');
 
-    var dn = name.replace(/"/g, '&quot;');
-    html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;'
-          + 'background:var(--surface);border:1px solid var(--card-border);border-radius:12px;">';
-    if (img) html += '<img src="' + img + '" style="width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0;">';
-    html += '<div style="flex:1;min-width:0;">'
-          + '<div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:1px;">' + name + '</div>'
-          + '<div style="font-size:12px;color:var(--gold);">₹' + price + '</div>'
-          + '</div>'
-          + '<button data-key="' + itemKey + '" data-name="' + dn + '" data-price="' + price + '" '
-          + 'onclick="addItem(this.dataset.key,this.dataset.name,parseFloat(this.dataset.price))" '
-          + 'style="width:32px;height:32px;border-radius:50%;background:var(--gold);border:none;'
-          + 'color:var(--dark);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">+</button>'
-          + '</div>';
-  });
+  upsellDiv.innerHTML = '<div style="margin:16px 0 2px;">'
+    + missingPieceHtml
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">'
+    + '<div style="flex:1;height:1px;background:var(--card-border);"></div>'
+    + '<div style="font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold);white-space:nowrap;padding:0 6px;">Complete your order</div>'
+    + '<div style="flex:1;height:1px;background:var(--card-border);"></div>'
+    + '</div>'
+    + (cartConciergeReason ? '<div style="font-family:\'Cormorant Garamond\',serif;font-style:italic;font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.5;padding:0 2px;">' + cartConciergeReason + '</div>' : '')
+    + '<div class="inline-upsell-row" id="cart-upsell-chips" style="-webkit-mask-image:linear-gradient(to right,black 80%,transparent 100%);mask-image:linear-gradient(to right,black 80%,transparent 100%);">'
+    + chipsHtml
+    + '</div>'
+    + '</div>';
+}
 
-  html += '</div></div>';
-  upsellDiv.innerHTML = html;
+function _cartUpsellQty(key, name, price, delta, btn) {
+  if (delta > 0) {
+    if (!cart[key]) cart[key] = { name: name, price: price, qty: 0 };
+    cart[key].qty += 1;
+  } else {
+    if (!cart[key]) return;
+    cart[key].qty -= 1;
+    if (cart[key].qty <= 0) delete cart[key];
+  }
+  var newQty = cart[key] ? cart[key].qty : 0;
+
+  // Update cart total
+  var totalAmt = Object.values(cart).reduce(function(s,i){ return s+i.qty*i.price; },0);
+  var totalQty = Object.values(cart).reduce(function(s,i){ return s+i.qty; },0);
+  var ctEl = document.getElementById('cart-total');
+  if (ctEl) ctEl.textContent = '₹' + totalAmt;
+  var ciqEl = document.getElementById('cart-item-count');
+  if (ciqEl) ciqEl.textContent = totalQty > 0 ? totalQty + ' item' + (totalQty > 1 ? 's' : '') : '';
+  updateCartBtn();
+
+  var chip = document.getElementById('cupc-' + key);
+  if (!chip) return;
+
+  if (newQty === 0) {
+    chip.classList.remove('in-cart');
+    var st = chip.querySelector('.iuc-stepper');
+    if (st) st.innerHTML = '<button class="iuc-btn add-btn" onclick="_cartUpsellQty(\''+key+'\',\''+name.replace(/'/g,"\\'")+'\','+price+',1,this)">+</button>';
+    // Remove from cart-items list
+    var ci = document.getElementById('ci-' + key);
+    if (ci) { ci.classList.add('removing'); setTimeout(function(){ ci.remove(); }, 220); }
+  } else if (newQty === 1 && delta > 0) {
+    // First add — expand stepper + add to cart items list
+    chip.classList.add('in-cart');
+    var st2 = chip.querySelector('.iuc-stepper');
+    if (st2) st2.innerHTML = '<button class="iuc-btn" onclick="_cartUpsellQty(\''+key+'\',\''+name.replace(/'/g,"\\'")+'\','+price+',-1,this)">−</button>'
+      + '<span class="iuc-qty" id="cuq-'+key+'">1</span>'
+      + '<button class="iuc-btn" onclick="_cartUpsellQty(\''+key+'\',\''+name.replace(/'/g,"\\'")+'\','+price+',1,this)">+</button>';
+    // Add row to cart items
+    var container = document.getElementById('cart-items');
+    if (container) {
+      var row = document.createElement('div');
+      row.className = 'cart-item';
+      row.id = 'ci-' + key;
+      row.innerHTML = '<div class="cart-item-name">'+name+'</div>'
+        + '<div class="cart-item-controls">'
+        + '<button class="ci-btn minus" onclick="cartQty(\''+key+'\',-1)">−</button>'
+        + '<span class="ci-qty" id="ciq-'+key+'">1</span>'
+        + '<button class="ci-btn plus" onclick="cartQty(\''+key+'\',1)">+</button>'
+        + '<button class="ci-btn del" onclick="cartRemove(\''+key+'\')" title="Remove">'
+        + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>'
+        + '</button></div>'
+        + '<div class="ci-price" id="cip-'+key+'">₹'+price+'</div>';
+      container.appendChild(row);
+      document.getElementById('place-btn').disabled = false;
+      document.getElementById('place-btn').style.opacity = '1';
+    }
+  } else {
+    // Update qty & price display in both chip and cart row
+    var qEl = document.getElementById('cuq-' + key);
+    if (qEl) qEl.textContent = newQty;
+    var ciqEl2 = document.getElementById('ciq-' + key);
+    if (ciqEl2) ciqEl2.textContent = newQty;
+    var cipEl = document.getElementById('cip-' + key);
+    if (cipEl) cipEl.textContent = '₹' + (newQty * price);
+  }
 }
 
 function cartQty(key, delta) {
