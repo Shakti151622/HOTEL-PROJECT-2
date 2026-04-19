@@ -2501,7 +2501,9 @@ function filterCat(cat, el) {
 }
 
 function _getLiveItems(cat) {
-  // Try shakti_menu (published) first, fallback to hardcoded menuData
+  // Priority 1: Firestore live menu (synced across all devices)
+  if(_firestoreMenu && _firestoreMenu[cat] && _firestoreMenu[cat].length) return _firestoreMenu[cat];
+  // Priority 2: localStorage cache (from previous publish or same-device admin)
   try {
     var sm = localStorage.getItem('shakti_menu');
     if (sm) {
@@ -2509,6 +2511,7 @@ function _getLiveItems(cat) {
       if (parsed[cat] && parsed[cat].length) return parsed[cat];
     }
   } catch(e) {}
+  // Priority 3: hardcoded fallback
   return menuData[cat] || [];
 }
 
@@ -4979,6 +4982,43 @@ setTimeout(function(){try{_initDb();}catch(e){}},1000);
 // If Firebase SDKs never loaded (e.g. file:// or content:// URL), mark unavailable after 3s
 setTimeout(function(){ if(!_db && typeof firebase==='undefined'){ _firebaseUnavailable=true; console.warn('Firebase not available — running in offline mode'); } }, 3000);
 function _waitDb(){return new Promise(function(resolve){if(_db){resolve(_db);return;}if(_firebaseUnavailable){resolve(null);return;}var n=0,iv=setInterval(function(){try{_initDb();}catch(e){}if(_db){clearInterval(iv);resolve(_db);}else if(_firebaseUnavailable||++n>30){clearInterval(iv);resolve(null);}},200);});}
+
+// ── Live menu from Firestore — loaded once on startup ──
+var _firestoreMenu = null;      // parsed shakti_menu object
+var _firestoreMeta = null;      // catLabels / catEmojis
+var _menuLoaded    = false;
+
+function _loadMenuFromFirestore(){
+  _waitDb().then(function(db){
+    if(!db) return;
+    db.collection('menu_config').doc('published').get().then(function(doc){
+      if(!doc.exists) return;
+      var data = doc.data();
+      try{
+        if(data.menu){
+          _firestoreMenu = JSON.parse(data.menu);
+          // Also cache in localStorage so offline works
+          try{ localStorage.setItem('shakti_menu', data.menu); }catch(e){}
+        }
+        if(data.meta){
+          _firestoreMeta = JSON.parse(data.meta);
+          try{
+            if(_firestoreMeta.catLabels) localStorage.setItem('fm_cat_labels', JSON.stringify(_firestoreMeta.catLabels));
+            if(_firestoreMeta.catEmojis) localStorage.setItem('fm_cat_emojis', JSON.stringify(_firestoreMeta.catEmojis));
+          }catch(e){}
+        }
+        _menuLoaded = true;
+        // Re-render cat tabs and current menu with live data
+        if(typeof buildCatTabs === 'function') buildCatTabs();
+        var curCat = typeof currentCat !== 'undefined' ? currentCat : 'breakfast';
+        if(typeof renderMenu === 'function') renderMenu(curCat);
+      }catch(e){ console.warn('Menu parse error:', e); }
+    }).catch(function(e){ console.warn('Menu load error:', e); });
+  });
+}
+
+// Start loading immediately — don't block page render
+setTimeout(_loadMenuFromFirestore, 500);
 
 // ── ENTRY SCREEN
 document.addEventListener('DOMContentLoaded', function() {
