@@ -2114,12 +2114,12 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 <div class="screen active" id="screen-entry">
   <div class="entry-bg"></div>
   <div class="logo-mark"><span>H</span></div>
-  <div class="hotel-name">Hyatt Hotel</div>
-  <div class="welcome-text">Good evening,<br>welcome back.</div>
+  <div class="hotel-name" id="guest-hotel-name">Hyatt Hotel</div>
+  <div class="welcome-text" id="guest-welcome-text">Good evening,<br>welcome back.</div>
   <div class="room-badge">
     <div class="room-label">Your Room</div>
-    <div class="room-number">203</div>
-    <div class="guest-name">R*** S***</div>
+    <div class="room-number" id="guest-room-number">203</div>
+    <div class="guest-name" id="guest-name-display">R*** S***</div>
   </div>
   <button class="btn-primary" onclick="go('home')">Continue</button>
 </div>
@@ -3790,40 +3790,50 @@ window.guestSyncCurrentStatuses = guestSyncCurrentStatuses;
 // ══ GUEST: KITCHEN STATUS CHECK ══
 var _guestKitchenOpen = true;
 
-function _guestCheckKitchen() {
-  if (window.APP_MODE !== 'guest') return;
-  _waitDb().then(function(db) {
-    if (!db) return;
-    db.collection('settings').doc('hotel').get().then(function(doc) {
-      if (!doc.exists) return;
-      var d = doc.data();
-      var isOpen   = d.kitchen_open !== false;
-      var reopen   = d.reopen_time || '';
-      _guestKitchenOpen = isOpen;
-      _applyGuestKitchenState(isOpen, reopen);
-    }).catch(function(){});
-  });
-}
-
 function _applyGuestKitchenState(isOpen, reopenTime) {
-  var banner  = document.getElementById('kitchen-closed-banner');
+  _guestKitchenOpen = isOpen;
+  var banner   = document.getElementById('kitchen-closed-banner');
   var placeBtn = document.getElementById('place-btn');
-  var msg     = document.getElementById('kitchen-reopen-msg');
+  var msg      = document.getElementById('kitchen-reopen-msg');
 
   if (!isOpen) {
-    if (banner)  banner.style.display = 'block';
-    if (msg)     msg.textContent = reopenTime ? 'Reopens at ' + reopenTime : "We'll be back soon";
+    if (banner)   banner.style.display = 'block';
+    if (msg)      msg.textContent = reopenTime ? 'Reopens at ' + reopenTime : "We'll be back soon";
     if (placeBtn) { placeBtn.disabled = true; placeBtn.style.opacity = '0.45'; placeBtn.title = 'Kitchen is closed'; }
   } else {
-    if (banner)  banner.style.display = 'none';
+    if (banner)   banner.style.display = 'none';
     if (placeBtn) { placeBtn.disabled = false; placeBtn.style.opacity = '1'; placeBtn.title = ''; }
   }
 }
 
-// Check on load and every 30 seconds
+// Real-time kitchen status — updates instantly when staff opens/closes kitchen
+var _kitchenSettingsUnsub = null;
+function _guestWatchKitchen() {
+  if (window.APP_MODE !== 'guest') return;
+  var db = window.guestSb;
+  if (!db) { setTimeout(_guestWatchKitchen, 500); return; }
+
+  // Cancel previous listener if any
+  if (_kitchenSettingsUnsub) { try{ _kitchenSettingsUnsub(); }catch(e){} }
+
+  _kitchenSettingsUnsub = db.collection('settings').doc('hotel')
+    .onSnapshot(function(doc) {
+      if (!doc.exists) return;
+      var d = doc.data();
+      _applyGuestKitchenState(
+        d.kitchen_open !== false,
+        d.reopen_time || ''
+      );
+    }, function(err) {
+      // Firestore error — assume open so guest isn't blocked
+      console.warn('Kitchen watch error:', err.message);
+      _applyGuestKitchenState(true, '');
+    });
+}
+
+// Start watching after Firebase connects
 if (window.APP_MODE === 'guest') {
-  setTimeout(_guestCheckKitchen, 2000);
-  setInterval(_guestCheckKitchen, 30000);
+  setTimeout(_guestWatchKitchen, 1500);
 }
 
 // ── Supabase-aware placeOrder (overwrites the local-only version above)
@@ -10184,26 +10194,82 @@ if (document.readyState === 'complete') {
   var mode = window.APP_MODE || 'staff';
   if (mode === 'guest') {
     document.getElementById('staff-root').style.display = 'none';
-    var r = window.ROOM_NUM || '203';
+
+    var r = window.ROOM_NUM   || '—';
     var g = window.GUEST_NAME || 'Guest';
-    // Token validation not used in Firebase version — QR links are room-based
-    var token = window.ROOM_TOKEN; // kept for future use
-    // Patch all room text
-    var rn = document.querySelector('.room-number'); if(rn) rn.textContent = r;
-    var gn = document.querySelector('.guest-name');  if(gn) gn.textContent = g;
-    document.querySelectorAll('.topbar-room').forEach(function(el){ el.textContent = 'Room ' + r; });
-    document.querySelectorAll('.topbar-label').forEach(function(el){ if(el.textContent.trim()==='Room 203') el.textContent='Room '+r; });
+
+    // ── 1. Patch room number everywhere ──
+    var rn = document.getElementById('guest-room-number');
+    if(rn) rn.textContent = r;
+    document.querySelectorAll('.topbar-room').forEach(function(el){
+      el.textContent = 'Room ' + r;
+    });
+    document.querySelectorAll('.topbar-label').forEach(function(el){
+      if(el.textContent.trim() === 'Room 203') el.textContent = 'Room ' + r;
+    });
     var ss = document.getElementById('order-success');
-    if(ss){var sub=ss.querySelector('.success-sub');if(sub)sub.textContent='Room '+r+' · Your food is being prepared';}
-    var ms = document.querySelector('.merge-sub'); if(ms) ms.textContent='Someone in Room '+r+' just ordered. Want to add to it?';
-    // Init guest theme
+    if(ss){ var sub = ss.querySelector('.success-sub'); if(sub) sub.textContent = 'Room ' + r + ' · Your food is being prepared'; }
+    var ms = document.querySelector('.merge-sub');
+    if(ms) ms.textContent = 'Someone in Room ' + r + ' just ordered. Want to add to it?';
+
+    // ── 2. Patch guest name ──
+    var gn = document.getElementById('guest-name-display');
+    if(gn){
+      // Mask name for privacy: "Rahul Sharma" → "R*** S***"
+      var masked = g.split(' ').map(function(w){
+        return w.length > 1 ? w[0] + '***' : w;
+      }).join(' ');
+      gn.textContent = masked;
+    }
+
+    // ── 3. Set greeting based on time of day ──
+    var wt = document.getElementById('guest-welcome-text');
+    if(wt){
+      var hr = new Date().getHours();
+      var greeting = hr < 12 ? 'Good morning,' : hr < 17 ? 'Good afternoon,' : 'Good evening,';
+      var firstName = g.split(' ')[0];
+      wt.innerHTML = greeting + '<br>' + (firstName !== 'Guest' ? 'welcome, ' + firstName + '.' : 'welcome back.');
+    }
+
+    // ── 4. Load hotel branding from Firestore ──
+    // Try localStorage first (instant), then Firestore (authoritative)
+    var cachedHotel = localStorage.getItem('hyatt_hotel_name') || '';
+    if(cachedHotel){
+      var hn = document.getElementById('guest-hotel-name');
+      if(hn) hn.textContent = cachedHotel;
+      document.title = cachedHotel + ' · Room ' + r;
+    }
+    // Always fetch fresh from Firestore
+    setTimeout(function(){
+      var db = window.guestSb;
+      if(!db){ setTimeout(arguments.callee, 500); return; }
+      db.collection('settings').doc('hotel').get().then(function(doc){
+        if(!doc.exists) return;
+        var d = doc.data();
+        var name = d.hotel_name || cachedHotel || 'Hotel';
+        // Update hotel name on entry screen
+        var hn = document.getElementById('guest-hotel-name');
+        if(hn) hn.textContent = name;
+        document.title = name + ' · Room ' + r;
+        // Cache for next load
+        try{ localStorage.setItem('hyatt_hotel_name', name); }catch(e){}
+        // Apply logo if set
+        if(d.logo_url){
+          var lm = document.querySelector('.logo-mark');
+          if(lm) lm.innerHTML = '<img src="'+d.logo_url+'" style="width:48px;height:48px;border-radius:50%;object-fit:cover;" onerror="this.parentElement.innerHTML='<span>H</span>'">';
+        }
+      }).catch(function(){});
+    }, 800);
+
+    // ── 5. Init guest theme ──
     if(typeof initTheme === 'function') initTheme();
     if(typeof _navigate === 'function') _navigate('entry');
-    // Re-subscribe all active orders/services from localStorage after Firebase connects
-    // This handles the page-refresh case where listeners are lost
+
+    // ── 6. Re-subscribe active orders/services after Firebase connects ──
     setTimeout(function() {
       if (typeof guestResubscribeAll === 'function') guestResubscribeAll();
     }, 1500);
+
   } else {
     document.getElementById('guest-root').style.display = 'none';
   }
