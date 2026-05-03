@@ -3786,7 +3786,7 @@ window.CHEF_IMG_SRC = './images/chef.webp';
         <div class="info-row-icon">📶</div>
         <div class="info-row-content">
           <div class="info-row-label">Network Name (SSID)</div>
-          <div class="info-row-value mono" id="wifi-ssid">Shakti_Guests</div>
+          <div class="info-row-value mono" id="wifi-ssid" style="color:var(--text-muted);font-style:italic;">Loading…</div>
         </div>
         <button class="info-copy-btn" onclick="copyInfo('wifi-ssid','Network')">Copy</button>
       </div>
@@ -3794,7 +3794,7 @@ window.CHEF_IMG_SRC = './images/chef.webp';
         <div class="info-row-icon">🔑</div>
         <div class="info-row-content">
           <div class="info-row-label">Password</div>
-          <div class="info-row-value mono" id="wifi-pass">welcome2024</div>
+          <div class="info-row-value mono" id="wifi-pass" style="color:var(--text-muted);font-style:italic;">Loading…</div>
         </div>
         <button class="info-copy-btn" onclick="copyInfo('wifi-pass','Password')">Copy</button>
       </div>
@@ -4218,7 +4218,7 @@ window.CHEF_IMG_SRC = './images/chef.webp';
         </div>
         <div class="profile-wifi-detail-body">
           <div class="profile-wifi-detail-label">Network (SSID)</div>
-          <div class="profile-wifi-detail-value" id="profile-ssid-display">Shakti_Guests</div>
+          <div class="profile-wifi-detail-value" id="profile-ssid-display">Loading…</div>
         </div>
         <button class="profile-wifi-copy-btn" onclick="event.stopPropagation();copyWifiField('ssid')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
@@ -4412,7 +4412,7 @@ window.CHEF_IMG_SRC = './images/chef.webp';
       <div class="wifi-field-block">
         <div class="wifi-field-label">WiFi Name (SSID)</div>
         <div class="wifi-field-value-row">
-          <div class="wifi-field-value" id="modal-ssid">Shakti_Guests</div>
+          <div class="wifi-field-value" id="modal-ssid">Loading…</div>
           <button class="wifi-field-copy-btn" onclick="copyWifiField('ssid')">Copy</button>
         </div>
       </div>
@@ -4443,7 +4443,7 @@ window.CHEF_IMG_SRC = './images/chef.webp';
         <!-- iOS / others: manual tip -->
         <div id="wifi-manual-tip" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--surface2);border-radius:12px;border:1px solid var(--card-border);">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <span style="font-size:13px;color:var(--text-muted);line-height:1.4;">Go to <strong style="color:var(--text);">Settings → Wi-Fi</strong>, select <strong style="color:var(--text);">Shakti_Guests</strong> and paste the password.</span>
+          <span style="font-size:13px;color:var(--text-muted);line-height:1.4;">Go to <strong style="color:var(--text);">Settings → Wi-Fi</strong>, select <strong style="color:var(--text);" id="wifi-manual-ssid-tip">the network</strong> and paste the password.</span>
         </div>
 
       <!-- Hint -->
@@ -4459,7 +4459,7 @@ window.CHEF_IMG_SRC = './images/chef.webp';
           </li>
           <li class="wifi-hint-step">
             <span class="wifi-hint-num">3</span>
-            <span>Select <span class="wifi-hint-ssid" id="hint-ssid-label">Shakti_Guests</span> and paste the password</span>
+            <span>Select <span class="wifi-hint-ssid" id="hint-ssid-label">…</span> and paste the password</span>
           </li>
         </ol>
       </div>
@@ -8598,10 +8598,12 @@ function editGuestName() {
 window.editGuestName = editGuestName;
 
 
-// ── WIFI DATA  (synced from Firebase settings/hotel; hardcoded values are fallbacks)
-var WIFI_SSID = 'Shakti_Guests';
-var WIFI_PASS = 'welcome2024';
+// ── WIFI DATA  — Firebase is the SOLE source of truth. No hardcoded credentials shown to guests.
+var WIFI_SSID = '';  // empty until loaded from Firebase
+var WIFI_PASS = '';  // empty until loaded from Firebase
 var _wifiPassVisible = false;
+var _wifiLoaded = false;
+var _wifiListener = null;
 
 // Pick the right WiFi zone for this guest's room number
 function _resolveWifiForRoom(zones, roomNum) {
@@ -8613,7 +8615,6 @@ function _resolveWifiForRoom(zones, roomNum) {
     for (var j = 0; j < parts.length; j++) {
       var part = parts[j].trim();
       if (!part) continue;
-      // Support ranges like "101-108"
       var range = part.match(/^(\d+)-(\d+)$/);
       if (range) {
         var lo = parseInt(range[1], 10), hi = parseInt(range[2], 10), r = parseInt(room, 10);
@@ -8623,40 +8624,74 @@ function _resolveWifiForRoom(zones, roomNum) {
       }
     }
   }
-  return zones[0]; // fallback to first zone
+  return zones[0];
 }
 
-// Refresh every DOM element that shows the SSID or password
+// Apply loaded credentials to every DOM element that shows SSID or password
 function _applyWifiToUI() {
-  var el;
-  el = document.getElementById('wifi-ssid');            if (el) el.textContent = WIFI_SSID;
-  el = document.getElementById('profile-ssid-display'); if (el) el.textContent = WIFI_SSID;
-  el = document.getElementById('modal-ssid');           if (el) el.textContent = WIFI_SSID;
-  el = document.getElementById('hint-ssid-label');      if (el) el.textContent = WIFI_SSID;
+  function _set(id, val) { var el = document.getElementById(id); if (el) { el.textContent = val; el.style.fontStyle = ''; el.style.color = ''; } }
+  _set('wifi-ssid',            WIFI_SSID || '—');
+  _set('wifi-pass',            WIFI_PASS || '—');
+  _set('profile-ssid-display', WIFI_SSID || '—');
+  _set('modal-ssid',           WIFI_SSID || '—');
+  _set('hint-ssid-label',      WIFI_SSID || '—');
+  _set('wifi-manual-ssid-tip',  WIFI_SSID || 'the network');
+  var pd = document.getElementById('modal-pass-display');
+  if (pd) pd.textContent = _wifiPassVisible ? (WIFI_PASS || '—') : '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
 }
 
-// Load WiFi credentials from Firestore and refresh all UI
-function _loadWifiFromFirebase() {
+// Show loading state while Firebase responds
+function _setWifiLoadingState() {
+  function _loading(id) {
+    var el = document.getElementById(id);
+    if (el) { el.textContent = 'Loading\u2026'; el.style.fontStyle = 'italic'; el.style.color = 'var(--text-muted)'; }
+  }
+  _loading('wifi-ssid'); _loading('wifi-pass');
+  _loading('profile-ssid-display'); _loading('modal-ssid'); _loading('hint-ssid-label');
+}
+
+// Parse Firebase doc and apply to UI; returns true if data was found
+function _applyFirebaseWifiDoc(doc) {
+  if (!doc || !doc.exists) return false;
+  var d = doc.data();
+  var zone = null;
+  if (d.wifi_zones && Array.isArray(d.wifi_zones) && d.wifi_zones.length > 0) {
+    zone = _resolveWifiForRoom(d.wifi_zones, window.ROOM_NUM);
+  } else if (d.wifi_ssid) {
+    zone = { ssid: d.wifi_ssid, pass: d.wifi_pass || '' };
+  }
+  if (!zone) return false;
+  if (zone.ssid !== undefined) WIFI_SSID = zone.ssid;
+  if (zone.pass !== undefined) WIFI_PASS = zone.pass;
+  _wifiLoaded = true;
+  _applyWifiToUI();
+  return true;
+}
+
+// Real-time Firestore listener — auto-updates when staff saves new credentials in index.html
+function _startWifiListener() {
   _waitDb().then(function(db) {
-    if (!db) return;
-    db.collection('settings').doc('hotel').get().then(function(doc) {
-      if (!doc.exists) return;
-      var d = doc.data();
-      var zone = null;
-      if (d.wifi_zones && Array.isArray(d.wifi_zones) && d.wifi_zones.length > 0) {
-        zone = _resolveWifiForRoom(d.wifi_zones, window.ROOM_NUM);
-      } else if (d.wifi_ssid) {
-        // Legacy single-wifi fields
-        zone = { ssid: d.wifi_ssid, pass: d.wifi_pass || '' };
-      }
-      if (!zone) return;
-      if (zone.ssid) WIFI_SSID = zone.ssid;
-      if (zone.pass !== undefined) WIFI_PASS = zone.pass;
-      _applyWifiToUI();
-    }).catch(function(e) { console.warn('Wi-Fi load failed:', e); });
+    if (!db) { console.warn('Wi-Fi: Firebase unavailable'); return; }
+    try {
+      _wifiListener = db.collection('settings').doc('hotel').onSnapshot(function(doc) {
+        _applyFirebaseWifiDoc(doc);
+      }, function(err) {
+        console.warn('Wi-Fi listener error, falling back to one-time get:', err);
+        db.collection('settings').doc('hotel').get()
+          .then(_applyFirebaseWifiDoc)
+          .catch(function(e){ console.warn('Wi-Fi load failed:', e); });
+      });
+    } catch(e) {
+      // Environment doesn't support onSnapshot (e.g. file://) — one-time get
+      db.collection('settings').doc('hotel').get()
+        .then(_applyFirebaseWifiDoc)
+        .catch(function(e){ console.warn('Wi-Fi load failed:', e); });
+    }
   });
 }
-_loadWifiFromFirebase();
+
+_setWifiLoadingState();
+_startWifiListener();
 
 function _updateProfileScreen() {
   var gn = window.GUEST_NAME || 'Guest';
@@ -8664,8 +8699,6 @@ function _updateProfileScreen() {
   el = document.getElementById('profile-guest-name-display'); if (el) el.textContent = gn;
   el = document.getElementById('profile-avatar-letter'); if (el) el.textContent = gn.trim().charAt(0).toUpperCase();
   el = document.getElementById('profile-hotel-name'); if (el) el.textContent = window.HOTEL_NAME || 'Shakti Hotels';
-  el = document.getElementById('profile-ssid-display'); if (el) el.textContent = WIFI_SSID;
-  el = document.getElementById('modal-ssid'); if (el) el.textContent = WIFI_SSID;
 }
 
 
@@ -8699,7 +8732,7 @@ window.openHotelLocation = openHotelLocation;
 function openWifiModal() {
   _wifiPassVisible = false;
   var pd = document.getElementById('modal-pass-display');
-  if (pd) pd.textContent = '••••••••';
+  if (pd) pd.textContent = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
   var ei = document.getElementById('eye-icon');
   if (ei) ei.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
   var ov = document.getElementById('wifi-modal-overlay');
@@ -8707,28 +8740,11 @@ function openWifiModal() {
   document.body.style.overflow = 'hidden';
   var sheet = document.querySelector('.wifi-modal-sheet');
   if (sheet) sheet.scrollTop = 0;
-  // Fetch fresh from Firestore on every open — never show stale/hardcoded values
-  _waitDb().then(function(db) {
-    if (!db) { _applyWifiToUI(); _initWifiModalForDevice(); _drawWifiQR(); return; }
-    db.collection('settings').doc('hotel').get().then(function(doc) {
-      if (doc.exists) {
-        var d = doc.data();
-        var zone = null;
-        if (d.wifi_zones && Array.isArray(d.wifi_zones) && d.wifi_zones.length > 0) {
-          zone = _resolveWifiForRoom(d.wifi_zones, window.ROOM_NUM);
-        } else if (d.wifi_ssid) {
-          zone = { ssid: d.wifi_ssid, pass: d.wifi_pass || '' };
-        }
-        if (zone) {
-          if (zone.ssid) WIFI_SSID = zone.ssid;
-          if (zone.pass !== undefined) WIFI_PASS = zone.pass;
-        }
-      }
-      _applyWifiToUI();
-      _initWifiModalForDevice();
-      _drawWifiQR();
-    }).catch(function() { _applyWifiToUI(); _initWifiModalForDevice(); _drawWifiQR(); });
-  });
+  // The real-time listener (_startWifiListener) already keeps WIFI_SSID/WIFI_PASS current.
+  // Just apply whatever is loaded and draw the QR. If not yet loaded, Firebase will update shortly.
+  _applyWifiToUI();
+  _initWifiModalForDevice();
+  _drawWifiQR();
 }
 
 function closeWifiModal() {
