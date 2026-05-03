@@ -9196,6 +9196,12 @@ var STATIC_ROOMS = {
 };
 
 function buildRoomsData() {
+  // Merge persisted occupancy overrides (written by Firestore check-in/checkout listeners)
+  // back into STATIC_ROOMS so guest names and statuses survive page refresh
+  try {
+    var _ov = JSON.parse(localStorage.getItem('hyatt_rooms_override') || 'null');
+    if (_ov && typeof _ov === 'object') Object.assign(STATIC_ROOMS, _ov);
+  } catch(e) {}
   var rooms = [];
   floorConfig.forEach(function(floor) {
     for (var i = 0; i < floor.count; i++) {
@@ -9376,6 +9382,8 @@ function saveRoomConfig() {
   if (document.getElementById('view-rooms').classList.contains('active')) {
     renderRooms();
   }
+  // Rebuild Wi-Fi zone room picker list so newly added rooms appear immediately
+  if (typeof window._hsRebuildRoomList === 'function') window._hsRebuildRoomList();
   showToast('service', 'Rooms Updated', total + ' rooms configured across ' + floorConfig.length + ' floors');
 }
 
@@ -14940,10 +14948,21 @@ window.hsToggleRoomChip = function(idx, room, el) {
   hsAutoSaveWifi();
 };
 
+function _normaliseWifiZones(zones) {
+  // Ensure zone.rooms is always a comma-separated string before any Firestore write.
+  // The chip picker stores rooms as an array; _resolveWifiForRoom in Guest.html
+  // expects a string it can split. Normalise here so both paths are consistent.
+  return zones.map(function(z) {
+    var r = z.rooms;
+    if (Array.isArray(r)) r = r.join(',');
+    return Object.assign({}, z, { rooms: r || '' });
+  });
+}
+
 function hsAutoSaveWifi() {
   var db = getDb();
   if (!db) return;
-  db.collection('settings').doc('hotel').set({ wifi_zones: _hsWifiZones }, { merge: true })
+  db.collection('settings').doc('hotel').set({ wifi_zones: _normaliseWifiZones(_hsWifiZones) }, { merge: true })
     .catch(function(e) { console.warn('Wi-Fi auto-save error:', e); });
 }
 
@@ -15103,7 +15122,7 @@ window.saveHotelSetup = function() {
     phone:         val('hs-phone'),
     checkin_time:  val('hs-checkin'),
     checkout_time: val('hs-checkout'),
-    wifi_zones:    _hsWifiZones,
+    wifi_zones:    _normaliseWifiZones(_hsWifiZones),
     stars:         _hsStars,
     policies:      { smoking: hsToggleState('smoking'), pets: hsToggleState('pets') },
     facilities:    facilities
