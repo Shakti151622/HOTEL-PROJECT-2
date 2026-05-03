@@ -2114,12 +2114,12 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 <div class="screen active" id="screen-entry">
   <div class="entry-bg"></div>
   <div class="logo-mark"><span>H</span></div>
-  <div class="hotel-name" id="guest-hotel-name">Hyatt Hotel</div>
-  <div class="welcome-text" id="guest-welcome-text">Good evening,<br>welcome back.</div>
+  <div class="hotel-name">Hyatt Hotel</div>
+  <div class="welcome-text">Good evening,<br>welcome back.</div>
   <div class="room-badge">
     <div class="room-label">Your Room</div>
-    <div class="room-number" id="guest-room-number">203</div>
-    <div class="guest-name" id="guest-name-display">R*** S***</div>
+    <div class="room-number">203</div>
+    <div class="guest-name">R*** S***</div>
   </div>
   <button class="btn-primary" onclick="go('home')">Continue</button>
 </div>
@@ -3790,50 +3790,40 @@ window.guestSyncCurrentStatuses = guestSyncCurrentStatuses;
 // ══ GUEST: KITCHEN STATUS CHECK ══
 var _guestKitchenOpen = true;
 
+function _guestCheckKitchen() {
+  if (window.APP_MODE !== 'guest') return;
+  _waitDb().then(function(db) {
+    if (!db) return;
+    db.collection('settings').doc('hotel').get().then(function(doc) {
+      if (!doc.exists) return;
+      var d = doc.data();
+      var isOpen   = d.kitchen_open !== false;
+      var reopen   = d.reopen_time || '';
+      _guestKitchenOpen = isOpen;
+      _applyGuestKitchenState(isOpen, reopen);
+    }).catch(function(){});
+  });
+}
+
 function _applyGuestKitchenState(isOpen, reopenTime) {
-  _guestKitchenOpen = isOpen;
-  var banner   = document.getElementById('kitchen-closed-banner');
+  var banner  = document.getElementById('kitchen-closed-banner');
   var placeBtn = document.getElementById('place-btn');
-  var msg      = document.getElementById('kitchen-reopen-msg');
+  var msg     = document.getElementById('kitchen-reopen-msg');
 
   if (!isOpen) {
-    if (banner)   banner.style.display = 'block';
-    if (msg)      msg.textContent = reopenTime ? 'Reopens at ' + reopenTime : "We'll be back soon";
+    if (banner)  banner.style.display = 'block';
+    if (msg)     msg.textContent = reopenTime ? 'Reopens at ' + reopenTime : "We'll be back soon";
     if (placeBtn) { placeBtn.disabled = true; placeBtn.style.opacity = '0.45'; placeBtn.title = 'Kitchen is closed'; }
   } else {
-    if (banner)   banner.style.display = 'none';
+    if (banner)  banner.style.display = 'none';
     if (placeBtn) { placeBtn.disabled = false; placeBtn.style.opacity = '1'; placeBtn.title = ''; }
   }
 }
 
-// Real-time kitchen status — updates instantly when staff opens/closes kitchen
-var _kitchenSettingsUnsub = null;
-function _guestWatchKitchen() {
-  if (window.APP_MODE !== 'guest') return;
-  var db = window.guestSb;
-  if (!db) { setTimeout(_guestWatchKitchen, 500); return; }
-
-  // Cancel previous listener if any
-  if (_kitchenSettingsUnsub) { try{ _kitchenSettingsUnsub(); }catch(e){} }
-
-  _kitchenSettingsUnsub = db.collection('settings').doc('hotel')
-    .onSnapshot(function(doc) {
-      if (!doc.exists) return;
-      var d = doc.data();
-      _applyGuestKitchenState(
-        d.kitchen_open !== false,
-        d.reopen_time || ''
-      );
-    }, function(err) {
-      // Firestore error — assume open so guest isn't blocked
-      console.warn('Kitchen watch error:', err.message);
-      _applyGuestKitchenState(true, '');
-    });
-}
-
-// Start watching after Firebase connects
+// Check on load and every 30 seconds
 if (window.APP_MODE === 'guest') {
-  setTimeout(_guestWatchKitchen, 1500);
+  setTimeout(_guestCheckKitchen, 2000);
+  setInterval(_guestCheckKitchen, 30000);
 }
 
 // ── Supabase-aware placeOrder (overwrites the local-only version above)
@@ -4666,6 +4656,7 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
   </div>
 </div>
 
+
 <!-- Settings Panel (slide-in from right) -->
 <div class="notif-panel" id="settings-panel">
   <div class="notif-header">
@@ -4673,57 +4664,55 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
     <button onclick="closeSettings()" class="notif-close">×</button>
   </div>
   <div class="notif-body">
+
     <!-- Staff card -->
-    <div style="background:var(--surface);border:1px solid var(--topbar-border);border-radius:16px;padding:18px;margin-bottom:20px;display:flex;align-items:center;gap:14px;">
+    <div style="background:var(--surface);border:1px solid var(--topbar-border);border-radius:16px;padding:16px 18px;margin-bottom:20px;display:flex;align-items:center;gap:14px;">
       <div class="staff-avatar" style="width:44px;height:44px;font-size:16px;">RS</div>
-      <div>
+      <div style="flex:1;">
         <div style="font-size:15px;font-weight:500;color:var(--text);">Rajan Singh</div>
         <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Front Desk Manager</div>
       </div>
+      <div class="time-display" id="clock" style="font-size:12px;">--:--</div>
     </div>
-    <!-- Theme -->
-    <div class="settings-row">
+
+    <!-- ── GROUP: HOTEL ── -->
+    <div style="font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--text-dim);padding:4px 0 10px;">Hotel</div>
+
+    <div class="settings-row" onclick="openHotelSetupModal()" style="cursor:pointer;">
+      <div class="settings-label">
+        <div class="settings-label-title">Hotel Setup</div>
+        <div class="settings-label-sub" id="hotel-setup-sub">Name, contact, WiFi, policies</div>
+      </div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
+
+    <div class="settings-row" onclick="openAppearanceModal()" style="cursor:pointer;">
       <div class="settings-label">
         <div class="settings-label-title">Appearance</div>
-        <div class="settings-label-sub">Auto-switches at 6 AM / 8 PM</div>
-      </div>
-      <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">
-        <span class="theme-toggle-icon icon-night">🌙</span>
-        <span class="theme-toggle-icon icon-day">☀️</span>
-      </button>
-    </div>
-    <!-- Supabase -->
-    <div class="settings-row" onclick="if(window.autoConnect)window.autoConnect();" style="cursor:pointer;" title="Tap to reconnect">
-      <div class="settings-label">
-        <div class="settings-label-title">Database</div>
-        <div class="settings-label-sub">Firebase database — live orders</div>
-      </div>
-      <button class="conn-badge connecting" id="conn-badge" style="pointer-events:none;"><span class="conn-dot"></span><span id="conn-label">Connecting…</span></button>
-    </div>
-    <!-- Manage Rooms -->
-    <div class="settings-row" onclick="openRoomConfig()" style="cursor:pointer;">
-      <div class="settings-label">
-        <div class="settings-label-title">Manage Rooms</div>
-        <div class="settings-label-sub" id="rooms-config-sub">20 rooms configured</div>
+        <div class="settings-label-sub" id="appearance-sub">Login photo, hero image, dining slots</div>
       </div>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
     </div>
-    <!-- Simulate -->
-    <div class="settings-row" onclick="simulateNewOrder();closeSettings();" style="cursor:pointer;">
+
+    <div class="settings-row" onclick="openGuestDashModal()" style="cursor:pointer;">
       <div class="settings-label">
-        <div class="settings-label-title">Simulate Order</div>
-        <div class="settings-label-sub">Add a test order to demo mode</div>
+        <div class="settings-label-title">Guest Dashboard</div>
+        <div class="settings-label-sub">Services, offer banner, profile</div>
       </div>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
     </div>
-    <!-- Clock -->
-    <div class="settings-row">
+
+    <!-- ── GROUP: OPERATIONS ── -->
+    <div style="font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--text-dim);padding:20px 0 10px;">Operations</div>
+
+    <div class="settings-row" style="cursor:pointer;" onclick="closeSettings();openKitchenModal();">
       <div class="settings-label">
-        <div class="settings-label-title">Current Time</div>
+        <div class="settings-label-title">Dining & Kitchen</div>
+        <div class="settings-label-sub" id="kitchen-status-sub">Checking…</div>
       </div>
-      <div class="time-display" id="clock">--:--:--</div>
+      <button id="kitchen-toggle-btn" style="padding:6px 14px;border-radius:20px;border:1px solid rgba(76,175,125,0.4);background:rgba(76,175,125,0.1);color:var(--green);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer;pointer-events:none;letter-spacing:0.04em;">Open</button>
     </div>
-    <!-- Order History -->
+
     <div class="settings-row" onclick="closeSettings();switchView('orders',document.getElementById('bnav-orders'));setTimeout(ohShowHistory,50);" style="cursor:pointer;">
       <div class="settings-label">
         <div class="settings-label-title">Order History</div>
@@ -4731,7 +4720,7 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
       </div>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
     </div>
-    <!-- Analytics -->
+
     <div class="settings-row" onclick="closeSettings();switchView('analytics',document.getElementById('desk-nav-analytics')||document.getElementById('bnav-analytics'));" style="cursor:pointer;">
       <div class="settings-label">
         <div class="settings-label-title">Analytics</div>
@@ -4739,37 +4728,48 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
       </div>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
     </div>
-    <!-- Room QR Codes -->
-    <div class="settings-row" onclick="closeSettings();switchView('rooms',document.getElementById('desk-nav-rooms')||document.getElementById('bnav-rooms'));" style="cursor:pointer;">
+
+    <!-- ── GROUP: SYSTEM ── -->
+    <div style="font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--text-dim);padding:20px 0 10px;">System</div>
+
+    <div class="settings-row">
       <div class="settings-label">
-        <div class="settings-label-title">Room QR Codes</div>
-        <div class="settings-label-sub">View &amp; print QR codes for all rooms</div>
+        <div class="settings-label-title">Dashboard Theme</div>
+        <div class="settings-label-sub">Auto-switches 6 AM / 8 PM</div>
       </div>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="4" height="4"/></svg>
+      <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">
+        <span class="theme-toggle-icon icon-night">🌙</span>
+        <span class="theme-toggle-icon icon-day">☀️</span>
+      </button>
     </div>
-    <!-- Dashboard Settings -->
-    <div class="settings-row" onclick="openDashboardSettings()" style="cursor:pointer;">
+
+    <div class="settings-row" onclick="if(window.autoConnect)window.autoConnect();" style="cursor:pointer;">
       <div class="settings-label">
-        <div class="settings-label-title">Dashboard Settings</div>
-        <div class="settings-label-sub">PIN, display, and configuration</div>
+        <div class="settings-label-title">Database</div>
+        <div class="settings-label-sub">Firebase · tap to reconnect</div>
+      </div>
+      <button class="conn-badge connecting" id="conn-badge" style="pointer-events:none;"><span class="conn-dot"></span><span id="conn-label">Connecting…</span></button>
+    </div>
+
+    <div class="settings-row" onclick="openRoomConfig()" style="cursor:pointer;">
+      <div class="settings-label">
+        <div class="settings-label-title">Manage Rooms</div>
+        <div class="settings-label-sub" id="rooms-config-sub">20 rooms configured</div>
       </div>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
     </div>
-  </div>
-</div>
 
-<!-- ══ DASHBOARD SETTINGS SUB-PANEL ══ -->
-<div class="notif-panel" id="dashboard-settings-panel" style="z-index:1100;">
-  <div class="notif-header">
-    <button onclick="closeDashboardSettings()" style="width:34px;height:34px;border-radius:10px;border:1px solid var(--topbar-border);background:transparent;color:var(--text-muted);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">←</button>
-    <div class="notif-title" style="flex:1;margin-left:10px;">Dashboard Settings</div>
-  </div>
-  <div class="notif-body">
+    <div class="settings-row" onclick="closeSettings();switchView('rooms',document.getElementById('desk-nav-rooms')||document.getElementById('bnav-rooms'));" style="cursor:pointer;">
+      <div class="settings-label">
+        <div class="settings-label-title">Room QR Codes</div>
+        <div class="settings-label-sub">View &amp; print QR codes</div>
+      </div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="4" height="4"/></svg>
+    </div>
 
-    <!-- Section label -->
-    <div style="font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--text-muted);padding:4px 0 10px;">Security</div>
+    <!-- ── GROUP: SECURITY ── -->
+    <div style="font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--text-dim);padding:20px 0 10px;">Security</div>
 
-    <!-- Change PIN -->
     <div class="settings-row" onclick="openChangePinModal()" style="cursor:pointer;">
       <div class="settings-label">
         <div class="settings-label-title">Change Staff PIN</div>
@@ -4778,76 +4778,308 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
     </div>
 
-    <!-- Require PIN toggle -->
     <div class="settings-row" style="cursor:pointer;" onclick="openPinToggleModal()">
       <div class="settings-label">
         <div class="settings-label-title">Require PIN on Login</div>
         <div class="settings-label-sub" id="pin-toggle-sub">PIN lock is enabled</div>
       </div>
       <div id="pin-toggle-switch" style="width:42px;height:24px;border-radius:12px;background:#5C3317;position:relative;transition:background 0.25s;flex-shrink:0;">
-        <div id="pin-toggle-thumb" style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left 0.25s;left:21px;"></div>
+        <div id="pin-toggle-thumb" style="position:absolute;top:3px;left:21px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left 0.25s;"></div>
       </div>
     </div>
 
-    <div style="font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--text-muted);padding:20px 0 10px;">Hotel</div>
-    <div class="settings-row" onclick="openHotelBrandModal()" style="cursor:pointer;">
+    <!-- Dev / debug -->
+    <div class="settings-row" onclick="simulateNewOrder();closeSettings();" style="cursor:pointer;opacity:0.5;">
       <div class="settings-label">
-        <div class="settings-label-title">Hotel Name & Logo</div>
-        <div class="settings-label-sub" id="hotel-brand-sub">Tap to configure</div>
+        <div class="settings-label-title">Simulate Order</div>
+        <div class="settings-label-sub">Add a test order to demo mode</div>
       </div>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-    </div>
-
-    <div style="font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--text-muted);padding:20px 0 10px;">Kitchen</div>
-    <div class="settings-row">
-      <div class="settings-label">
-        <div class="settings-label-title">Kitchen Status</div>
-        <div class="settings-label-sub" id="kitchen-status-sub">Checking…</div>
-      </div>
-      <button id="kitchen-toggle-btn" onclick="openKitchenModal()" style="padding:8px 16px;border-radius:20px;border:1px solid rgba(76,175,125,0.4);background:rgba(76,175,125,0.1);color:var(--green);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s;letter-spacing:0.04em;">Open</button>
     </div>
 
   </div>
 </div>
 
-<!-- ══ HOTEL BRAND MODAL ══ -->
-<div id="hotel-brand-modal" style="display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;padding:24px;">
-  <div style="background:var(--surface);border:1px solid var(--topbar-border);border-radius:20px;padding:24px;width:100%;max-width:360px;">
 
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;">
-      <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--text);">Hotel Branding</div>
-      <button onclick="closeHotelBrandModal()" style="width:34px;height:34px;border-radius:10px;border:1px solid var(--topbar-border);background:transparent;color:var(--text-muted);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>
+
+<!-- ══ HOTEL SETUP MODAL ══ -->
+<div id="hotel-setup-modal" style="display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,0.65);align-items:flex-end;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--topbar-border);border-radius:20px 20px 0 0;width:100%;max-width:520px;max-height:92vh;display:flex;flex-direction:column;animation:slideUpD 0.28s ease;">
+
+    <!-- Header -->
+    <div style="padding:18px 20px 0;flex-shrink:0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--text);">Hotel Setup</div>
+        <button onclick="closeHotelSetupModal()" style="width:34px;height:34px;border-radius:10px;border:1px solid var(--topbar-border);background:transparent;color:var(--text-muted);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>
+      </div>
+      <!-- Tabs -->
+      <div style="display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;margin-bottom:0;">
+        <button id="hs-tab-identity" onclick="hsSwitchTab('identity')" class="hs-tab hs-tab-active">🏷️ Identity</button>
+        <button id="hs-tab-contact"  onclick="hsSwitchTab('contact')"  class="hs-tab">📍 Contact</button>
+        <button id="hs-tab-wifi"     onclick="hsSwitchTab('wifi')"     class="hs-tab">📶 Wi-Fi</button>
+        <button id="hs-tab-policies" onclick="hsSwitchTab('policies')" class="hs-tab">📋 Policies</button>
+      </div>
     </div>
 
-    <!-- Hotel Name -->
-    <div style="margin-bottom:16px;">
-      <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Hotel Name</div>
-      <input id="hb-name-input" type="text" placeholder="e.g. Shakti Hotels"
-        style="width:100%;background:var(--surface2);border:1px solid var(--input-border);border-radius:12px;padding:13px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;outline:none;box-sizing:border-box;transition:border-color 0.2s;"
-        onfocus="this.style.borderColor='rgba(201,169,110,0.5)'"
-        onblur="this.style.borderColor='var(--input-border)'">
+    <!-- Tab body — scrollable -->
+    <div style="flex:1;overflow-y:auto;padding:20px 20px 40px;-webkit-overflow-scrolling:touch;">
+
+      <!-- ── IDENTITY TAB ── -->
+      <div id="hs-panel-identity">
+        <div class="hs-field-group">
+          <div class="hs-label">Hotel Name</div>
+          <input id="hs-name" type="text" class="hs-input" placeholder="e.g. Shakti Hotels">
+        </div>
+        <div class="hs-field-group">
+          <div class="hs-label">Tagline <span class="hs-optional">optional</span></div>
+          <input id="hs-tagline" type="text" class="hs-input" placeholder="e.g. Where every stay is a story">
+        </div>
+        <div class="hs-field-group">
+          <div class="hs-label">Logo URL <span class="hs-optional">optional</span></div>
+          <input id="hs-logo" type="url" class="hs-input" placeholder="https://..." oninput="hsPreviewLogo()">
+          <div id="hs-logo-preview" style="display:none;margin-top:10px;padding:12px;background:var(--surface2);border-radius:10px;text-align:center;">
+            <img id="hs-logo-img" src="" style="max-height:56px;max-width:160px;object-fit:contain;" onerror="document.getElementById('hs-logo-preview').style.display='none'">
+          </div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:6px;">Use a transparent PNG. Appears on guest screen and QR codes.</div>
+        </div>
+        <div class="hs-field-group">
+          <div class="hs-label">Star Rating</div>
+          <div style="display:flex;gap:8px;" id="hs-stars-row">
+            <button class="hs-star-btn" onclick="hsSetStars(1)" data-v="1">★</button>
+            <button class="hs-star-btn" onclick="hsSetStars(2)" data-v="2">★★</button>
+            <button class="hs-star-btn" onclick="hsSetStars(3)" data-v="3">★★★</button>
+            <button class="hs-star-btn" onclick="hsSetStars(4)" data-v="4">★★★★</button>
+            <button class="hs-star-btn" onclick="hsSetStars(5)" data-v="5">★★★★★</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── CONTACT TAB ── -->
+      <div id="hs-panel-contact" style="display:none;">
+        <div class="hs-field-group">
+          <div class="hs-label">Address</div>
+          <input id="hs-address" type="text" class="hs-input" placeholder="12 Palace Road, Udaipur, Rajasthan">
+        </div>
+        <div class="hs-field-group">
+          <div class="hs-label">Front Desk Phone</div>
+          <input id="hs-phone" type="tel" class="hs-input" placeholder="+91 294 246 0000">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="hs-field-group" style="margin-bottom:0;">
+            <div class="hs-label">Check-in From</div>
+            <input id="hs-checkin" type="time" class="hs-input" value="14:00">
+          </div>
+          <div class="hs-field-group" style="margin-bottom:0;">
+            <div class="hs-label">Check-out Until</div>
+            <input id="hs-checkout" type="time" class="hs-input" value="12:00">
+          </div>
+        </div>
+        <div style="height:1px;background:var(--topbar-border);margin:20px 0;"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-size:13px;font-weight:500;color:var(--text);">Wi-Fi Zones</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;" id="hs-wifi-summary">Configure networks by room range</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── WI-FI ZONES TAB ── -->
+      <div id="hs-panel-wifi" style="display:none;">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;line-height:1.6;">
+          Add one zone per Wi-Fi network. Assign the room numbers it covers — guests in those rooms will automatically see the correct network name and password.
+        </div>
+
+        <!-- Zone list — rendered by JS -->
+        <div id="hs-wifi-zones-list"></div>
+
+        <!-- Add zone button -->
+        <button onclick="hsAddWifiZone()" style="width:100%;margin-top:8px;padding:12px;border:1px dashed rgba(201,169,110,0.35);border-radius:12px;background:transparent;color:var(--gold);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='rgba(201,169,110,0.06)'" onmouseout="this.style.background='transparent'">
+          + Add Wi-Fi Zone
+        </button>
+      </div>
+
+      <!-- ── POLICIES TAB ── -->
+      <div id="hs-panel-policies" style="display:none;">
+        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:14px;">Property Policies</div>
+
+        <div class="hs-toggle-row">
+          <div>
+            <div class="hs-toggle-title">Smoking Allowed</div>
+            <div class="hs-toggle-sub">Designated smoking areas on property</div>
+          </div>
+          <div class="hs-toggle" id="hs-tog-smoking" onclick="hsToggle('smoking')"><div class="hs-toggle-thumb"></div></div>
+        </div>
+        <div class="hs-toggle-row">
+          <div>
+            <div class="hs-toggle-title">Pets Welcome</div>
+            <div class="hs-toggle-sub">Pets permitted on property</div>
+          </div>
+          <div class="hs-toggle" id="hs-tog-pets" onclick="hsToggle('pets')"><div class="hs-toggle-thumb"></div></div>
+        </div>
+
+        <div style="height:1px;background:var(--topbar-border);margin:20px 0;"></div>
+        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:14px;">Facilities &amp; Hours</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:16px;">Leave blank to hide from guests.</div>
+
+        <div id="hs-facilities-list">
+          <!-- Generated by JS -->
+        </div>
+      </div>
+
     </div>
 
-    <!-- Logo URL -->
-    <div style="margin-bottom:8px;">
-      <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Logo URL <span style="font-size:10px;text-transform:none;letter-spacing:0;">(optional)</span></div>
-      <input id="hb-logo-input" type="url" placeholder="https://your-hotel.com/logo.png"
-        style="width:100%;background:var(--surface2);border:1px solid var(--input-border);border-radius:12px;padding:13px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;box-sizing:border-box;transition:border-color 0.2s;"
-        onfocus="this.style.borderColor='rgba(201,169,110,0.5)'"
-        onblur="this.style.borderColor='var(--input-border)'"
-        oninput="hbPreviewLogo()">
+    <!-- Sticky footer save -->
+    <div style="padding:14px 20px;border-top:1px solid var(--topbar-border);background:var(--surface);flex-shrink:0;">
+      <button onclick="saveHotelSetup()" style="width:100%;padding:14px;background:var(--gold);border:none;border-radius:12px;color:var(--dark);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;letter-spacing:0.03em;">Save &amp; Apply</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ APPEARANCE & GUEST DASH MODALS ══ -->
+<!-- ══ APPEARANCE MODAL ══ -->
+<div id="appearance-modal" style="display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,0.65);align-items:flex-end;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--topbar-border);border-radius:20px 20px 0 0;width:100%;max-width:520px;max-height:92vh;display:flex;flex-direction:column;animation:slideUpD 0.28s ease;">
+
+    <div style="padding:18px 20px 0;flex-shrink:0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+        <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--text);">Appearance</div>
+        <button onclick="closeAppearanceModal()" style="width:34px;height:34px;border-radius:10px;border:1px solid var(--topbar-border);background:transparent;color:var(--text-muted);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>
+      </div>
     </div>
 
-    <!-- Logo preview -->
-    <div id="hb-logo-preview" style="display:none;margin-bottom:16px;padding:12px;background:var(--surface2);border-radius:10px;text-align:center;">
-      <img id="hb-logo-img" src="" style="max-height:60px;max-width:180px;object-fit:contain;border-radius:6px;" onerror="document.getElementById('hb-logo-preview').style.display='none'">
+    <div style="flex:1;overflow-y:auto;padding:0 20px 40px;-webkit-overflow-scrolling:touch;">
+
+      <!-- Login Photo -->
+      <div class="ap-section">
+        <div class="ap-section-title">Login Screen Photo</div>
+        <div class="ap-section-sub">Shown as background when guests open the app</div>
+        <div class="ap-presets" id="ap-login-presets">
+          <!-- Filled by JS -->
+        </div>
+        <button class="ap-upload-btn" onclick="apTriggerUpload('login')">+ Upload custom photo</button>
+        <input type="file" id="ap-upload-login" accept="image/*" style="display:none;" onchange="apHandleUpload('login',this)">
+      </div>
+
+      <div style="height:1px;background:var(--topbar-border);margin:4px 0 20px;"></div>
+
+      <!-- Hero Photo -->
+      <div class="ap-section">
+        <div class="ap-section-title">Guest Home — Hero Photo</div>
+        <div class="ap-section-sub">Fixed hotel ambience image on the guest home screen</div>
+        <div class="ap-presets" id="ap-hero-presets">
+          <!-- Filled by JS -->
+        </div>
+        <button class="ap-upload-btn" onclick="apTriggerUpload('hero')">+ Upload custom photo</button>
+        <input type="file" id="ap-upload-hero" accept="image/*" style="display:none;" onchange="apHandleUpload('hero',this)">
+      </div>
+
+      <div style="height:1px;background:var(--topbar-border);margin:4px 0 20px;"></div>
+
+      <!-- Dining Slots -->
+      <div class="ap-section">
+        <div class="ap-section-title">Dining Card — Time Slots</div>
+        <div class="ap-section-sub">Choose which dish photo shows in each time window</div>
+        <div id="ap-dining-slots">
+          <!-- Filled by JS -->
+        </div>
+      </div>
+
     </div>
 
-    <div style="font-size:11px;color:var(--text-dim);margin-bottom:18px;line-height:1.5;">Logo appears on guest menu screen and QR codes. Use a transparent PNG for best results.</div>
+    <div style="padding:14px 20px;border-top:1px solid var(--topbar-border);background:var(--surface);flex-shrink:0;">
+      <button onclick="saveAppearance()" style="width:100%;padding:14px;background:var(--gold);border:none;border-radius:12px;color:var(--dark);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;letter-spacing:0.03em;">Save Appearance</button>
+    </div>
+  </div>
+</div>
 
-    <!-- Save button -->
-    <button onclick="saveHotelBrand()" style="width:100%;padding:14px;background:var(--gold);border:none;border-radius:12px;color:var(--dark);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;letter-spacing:0.03em;">Save & Apply</button>
 
+<!-- ══ GUEST DASHBOARD MODAL ══ -->
+<div id="guest-dash-modal" style="display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,0.65);align-items:flex-end;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--topbar-border);border-radius:20px 20px 0 0;width:100%;max-width:520px;max-height:92vh;display:flex;flex-direction:column;animation:slideUpD 0.28s ease;">
+
+    <div style="padding:18px 20px 0;flex-shrink:0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--text);">Guest Dashboard</div>
+        <button onclick="closeGuestDashModal()" style="width:34px;height:34px;border-radius:10px;border:1px solid var(--topbar-border);background:transparent;color:var(--text-muted);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>
+      </div>
+      <div style="display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;margin-bottom:0;">
+        <button id="gd-tab-services" onclick="gdSwitchTab('services')" class="hs-tab hs-tab-active">⚡ Services</button>
+        <button id="gd-tab-offer"    onclick="gdSwitchTab('offer')"    class="hs-tab">🎁 Offer Banner</button>
+        <button id="gd-tab-profile"  onclick="gdSwitchTab('profile')"  class="hs-tab">👤 Profile</button>
+      </div>
+    </div>
+
+    <div style="flex:1;overflow-y:auto;padding:20px 20px 40px;-webkit-overflow-scrolling:touch;">
+
+      <!-- ── SERVICES TAB ── -->
+      <div id="gd-panel-services">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Toggle which service tiles appear on the guest home screen. Tap the label to rename.</div>
+        <div id="gd-services-list">
+          <!-- Filled by JS -->
+        </div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:12px;line-height:1.6;">Services shown to guests in the order above. Tap the label to rename.</div>
+      </div>
+
+      <!-- ── OFFER BANNER TAB ── -->
+      <div id="gd-panel-offer" style="display:none;">
+        <div class="hs-toggle-row" style="margin-bottom:20px;">
+          <div>
+            <div class="hs-toggle-title">Show Offer Banner</div>
+            <div class="hs-toggle-sub">Displays a promotional strip on guest home screen</div>
+          </div>
+          <div class="hs-toggle" id="gd-tog-offer" onclick="gdToggleOffer()"><div class="hs-toggle-thumb"></div></div>
+        </div>
+        <div id="gd-offer-fields">
+          <div class="hs-field-group">
+            <div class="hs-label">Title</div>
+            <input id="gd-offer-title" type="text" class="hs-input" placeholder="Special offers for you">
+          </div>
+          <div class="hs-field-group">
+            <div class="hs-label">Subtitle</div>
+            <input id="gd-offer-sub" type="text" class="hs-input" placeholder="Explore exclusive dining and stay offers.">
+          </div>
+          <div class="hs-field-group">
+            <div class="hs-label">Link URL <span class="hs-optional">optional</span></div>
+            <input id="gd-offer-link" type="url" class="hs-input" placeholder="https://...">
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PROFILE TAB ── -->
+      <div id="gd-panel-profile" style="display:none;">
+        <div class="hs-field-group">
+          <div class="hs-label">Guest Welcome Tagline</div>
+          <input id="gd-profile-tagline" type="text" class="hs-input" placeholder="We're delighted to have you with us.">
+          <div style="font-size:11px;color:var(--text-dim);margin-top:5px;">Shown under guest name on the home screen.</div>
+        </div>
+        <div style="height:1px;background:var(--topbar-border);margin:16px 0;"></div>
+        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:14px;">Loyalty Section</div>
+        <div class="hs-toggle-row" style="margin-bottom:16px;">
+          <div>
+            <div class="hs-toggle-title">Show Loyalty Badge</div>
+            <div class="hs-toggle-sub">Gold / Silver / Platinum tier on profile</div>
+          </div>
+          <div class="hs-toggle" id="gd-tog-loyalty" onclick="gdToggleLoyalty()"><div class="hs-toggle-thumb"></div></div>
+        </div>
+        <div id="gd-loyalty-fields">
+          <div class="hs-field-group">
+            <div class="hs-label">Tier Label</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="hs-chip" onclick="gdSetTier('Silver')">Silver</button>
+              <button class="hs-chip" onclick="gdSetTier('Gold')">Gold</button>
+              <button class="hs-chip" onclick="gdSetTier('Platinum')">Platinum</button>
+              <button class="hs-chip" onclick="gdSetTier('Elite')">Elite</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="padding:14px 20px;border-top:1px solid var(--topbar-border);background:var(--surface);flex-shrink:0;">
+      <button onclick="saveGuestDash()" style="width:100%;padding:14px;background:var(--gold);border:none;border-radius:12px;color:var(--dark);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;letter-spacing:0.03em;">Save &amp; Apply</button>
+    </div>
   </div>
 </div>
 
@@ -7242,7 +7474,7 @@ function filterOrders(f,el){if(typeof setTypeFilter==='function')setTypeFilter(f
 function renderStaffServices(){if(typeof updateServiceSummaryBar==='function')updateServiceSummaryBar();var list=document.getElementById('svc-list');if(!list)return;var filtered=services.filter(function(s){if(svcFilter==='all') return s.status!=='done';return s.status===svcFilter;});var _sc=document.getElementById('svc-count');if(_sc)_sc.textContent=filtered.length+' requests';var _sbCount=services.filter(function(s){return s.status!=='done';}).length;var _sb=document.getElementById('service-badge');if(_sb)_sb.textContent=_sbCount;var _dsb=document.getElementById('desk-service-badge');if(_dsb){_dsb.textContent=_sbCount||'';_dsb.style.display=_sbCount>0?'inline':'none';}var _scd=document.getElementById('svc-completed-count');if(_scd){var _doneCount=services.filter(function(s){return s.status==='done';}).length;var _sct=document.getElementById('svc-completed-text');if(_sct)_sct.textContent=_doneCount+' done';_scd.style.display=_doneCount>0?'flex':'none';}var _sp=document.getElementById('stat-svc-pending');if(_sp)_sp.textContent=services.filter(function(s){return s.status!=='done';}).length;if(!filtered.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">✓</div><div style="color:var(--text-muted);font-size:15px;font-family:&quot;Cormorant Garamond&quot;,serif">No requests</div></div>';return;}var pills={received:'<span class="status-pill pill-received"><span class="pill-dot"></span>New</span>',assigned:'<span class="status-pill pill-assigned"><span class="pill-dot"></span>Assigned</span>',inprogress:'<span class="status-pill pill-inprogress"><span class="pill-dot"></span>In Progress</span>',done:'<span class="status-pill pill-done"><span class="pill-dot"></span>Done</span>'};list.innerHTML=filtered.map(function(s){var qtyStr=s.qty?' ×'+s.qty:'';var btns='';if(s.status==='received')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'assigned\')">Assign to Staff</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='assigned')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'inprogress\')" style="background:rgba(76,175,125,0.08);border-color:rgba(76,175,125,0.22);color:var(--green)">In Progress</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='inprogress')btns='<button class="svc-complete" style="width:100%" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Completed</button>';else btns='<span style="font-size:13px;color:var(--text-muted);padding:4px 0;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>Completed</span>';return'<div class="svc-card" id="svc-card-'+s.id+'"><div class="svc-head"><div class="svc-icon-box">'+s.icon+'</div><div><div class="svc-room">Room '+s.room+'</div><div class="svc-type">'+s.type+qtyStr+'</div>'+(s.note?'<div class="svc-note">"'+ s.note+'"</div>':'')+ '</div><div class="svc-meta">'+(pills[s.status]||'')+'<div class="svc-time" style="margin-top:6px">'+s.id+'</div><div class="svc-elapsed '+elapsedClass(s.placedAt)+'">'+elapsed(s.placedAt)+'</div></div></div><div class="svc-actions">'+btns+'<button class="btn-call" onclick="callRoom(\''+s.room+'\')" title="Call room" style="width:36px;height:36px;border-radius:10px;background:var(--surface2);border:1px solid var(--card-border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6z"/></svg></button></div></div>';}).join('');}
 function filterSvc(f,el){svcFilter=f;document.querySelectorAll('#view-services .filter-tab').forEach(function(t){t.classList.remove('active');});el.classList.add('active');renderStaffServices();}
 function getGuestBaseUrl(){
-  return 'https://shakti151622.github.io/HOTEL-PROJECT-2/hyatt-guest-ui-final_2.html';
+  return localStorage.getItem('roocan_guest_url') || 'https://Shakti151622.github.io/HOTEL-PROJECT-2/Guest_compressed.html';
 }
 function renderRooms(){var data=(typeof buildRoomsData==='function')?buildRoomsData():[];var grid=document.getElementById('rooms-grid');if(!grid)return;grid.innerHTML=data.map(function(r){var dots='';if(r.orders>0)dots+='<div class="room-dot order">'+r.orders+'🍽</div>';if(r.services>0)dots+='<div class="room-dot service">'+r.services+'🛎</div>';var isOccupied=r.status==='occupied'||r.status==='checkout';var _hn=localStorage.getItem('hyatt_hotel_name')||'';var fixedUrl=getGuestBaseUrl()+'?room='+encodeURIComponent(r.num)+(_hn?'&hotel='+encodeURIComponent(_hn):'');var qrSrc='https://chart.googleapis.com/chart?chs=72x72&cht=qr&chl='+encodeURIComponent(fixedUrl)+'&choe=UTF-8&chld=M|0';return'<div class="room-tile '+r.status+'" onclick="showRoomQR(\''+r.num+'\')">'+'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'+'<div class="room-number">'+r.num+'</div>'+'</div>'+'<div class="room-guest">'+(r.guest||'Vacant')+'</div>'+'<div style="display:flex;justify-content:center;margin:6px 0 4px;">'+'<div style="background:white;border-radius:6px;padding:3px;display:inline-block;position:relative;">'+'<img src="'+qrSrc+'" width="66" height="66" style="display:block;border-radius:2px;" loading="lazy" alt="QR '+r.num+'">'+'<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;background:white;border-radius:3px;display:flex;align-items:center;justify-content:center;">'+'<div style="width:10px;height:10px;background:#C9A96E;border-radius:2px;"></div>'+'</div>'+'</div>'+'</div>'+'<div class="room-status-row"><div class="room-checkout" style="font-size:10px;color:var(--text-dim)">'+r.checkout+'</div>'+'<div class="room-actions-active">'+dots+'</div></div>'+(isOccupied?'<button onclick="event.stopPropagation()" style="width:100%;margin-top:6px;background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.2);border-radius:8px;color:var(--red);font-size:11px;padding:5px;cursor:pointer;letter-spacing:0.04em;">Check Out</button>':'')+'</div>';}).join('');}
 // ── Analytics period state ──────────────────────────────────────────
@@ -8940,6 +9172,7 @@ var floorConfig = JSON.parse(localStorage.getItem('hyatt_floors') || 'null') || 
 // Static room data — real guest names + real checkout dates
 // Keyed by room number so the grid is always consistent
 var STATIC_ROOMS = {
+  '000':{guest:'Demo / Preview', status:'vacant',   checkout:'—'},
   '101':{guest:'Arjun Mehta',  status:'occupied', checkout:'20 Mar'},
   '102':{guest:'Priya Sharma', status:'occupied', checkout:'21 Mar'},
   '103':{guest:'—',            status:'vacant',   checkout:'—'},
@@ -8982,6 +9215,12 @@ function buildRoomsData() {
 function getTotalRooms() {
   return floorConfig.reduce(function(s,f){ return s + f.count; }, 0);
 }
+
+// Expose room list globally for Wi-Fi zone picker
+window._hsAllRooms = ['000'].concat(buildRoomsData().map(function(r){ return r.num; }));
+window._hsRebuildRoomList = function() {
+  window._hsAllRooms = ['000'].concat(buildRoomsData().map(function(r){ return r.num; }));
+};
 
 function openRoomConfig() {
   closeSettings();
@@ -10194,82 +10433,26 @@ if (document.readyState === 'complete') {
   var mode = window.APP_MODE || 'staff';
   if (mode === 'guest') {
     document.getElementById('staff-root').style.display = 'none';
-
-    var r = window.ROOM_NUM   || '—';
+    var r = window.ROOM_NUM || '203';
     var g = window.GUEST_NAME || 'Guest';
-
-    // ── 1. Patch room number everywhere ──
-    var rn = document.getElementById('guest-room-number');
-    if(rn) rn.textContent = r;
-    document.querySelectorAll('.topbar-room').forEach(function(el){
-      el.textContent = 'Room ' + r;
-    });
-    document.querySelectorAll('.topbar-label').forEach(function(el){
-      if(el.textContent.trim() === 'Room 203') el.textContent = 'Room ' + r;
-    });
+    // Token validation not used in Firebase version — QR links are room-based
+    var token = window.ROOM_TOKEN; // kept for future use
+    // Patch all room text
+    var rn = document.querySelector('.room-number'); if(rn) rn.textContent = r;
+    var gn = document.querySelector('.guest-name');  if(gn) gn.textContent = g;
+    document.querySelectorAll('.topbar-room').forEach(function(el){ el.textContent = 'Room ' + r; });
+    document.querySelectorAll('.topbar-label').forEach(function(el){ if(el.textContent.trim()==='Room 203') el.textContent='Room '+r; });
     var ss = document.getElementById('order-success');
-    if(ss){ var sub = ss.querySelector('.success-sub'); if(sub) sub.textContent = 'Room ' + r + ' · Your food is being prepared'; }
-    var ms = document.querySelector('.merge-sub');
-    if(ms) ms.textContent = 'Someone in Room ' + r + ' just ordered. Want to add to it?';
-
-    // ── 2. Patch guest name ──
-    var gn = document.getElementById('guest-name-display');
-    if(gn){
-      // Mask name for privacy: "Rahul Sharma" → "R*** S***"
-      var masked = g.split(' ').map(function(w){
-        return w.length > 1 ? w[0] + '***' : w;
-      }).join(' ');
-      gn.textContent = masked;
-    }
-
-    // ── 3. Set greeting based on time of day ──
-    var wt = document.getElementById('guest-welcome-text');
-    if(wt){
-      var hr = new Date().getHours();
-      var greeting = hr < 12 ? 'Good morning,' : hr < 17 ? 'Good afternoon,' : 'Good evening,';
-      var firstName = g.split(' ')[0];
-      wt.innerHTML = greeting + '<br>' + (firstName !== 'Guest' ? 'welcome, ' + firstName + '.' : 'welcome back.');
-    }
-
-    // ── 4. Load hotel branding from Firestore ──
-    // Try localStorage first (instant), then Firestore (authoritative)
-    var cachedHotel = localStorage.getItem('hyatt_hotel_name') || '';
-    if(cachedHotel){
-      var hn = document.getElementById('guest-hotel-name');
-      if(hn) hn.textContent = cachedHotel;
-      document.title = cachedHotel + ' · Room ' + r;
-    }
-    // Always fetch fresh from Firestore
-    setTimeout(function(){
-      var db = window.guestSb;
-      if(!db){ setTimeout(arguments.callee, 500); return; }
-      db.collection('settings').doc('hotel').get().then(function(doc){
-        if(!doc.exists) return;
-        var d = doc.data();
-        var name = d.hotel_name || cachedHotel || 'Hotel';
-        // Update hotel name on entry screen
-        var hn = document.getElementById('guest-hotel-name');
-        if(hn) hn.textContent = name;
-        document.title = name + ' · Room ' + r;
-        // Cache for next load
-        try{ localStorage.setItem('hyatt_hotel_name', name); }catch(e){}
-        // Apply logo if set
-        if(d.logo_url){
-          var lm = document.querySelector('.logo-mark');
-          if(lm) lm.innerHTML = '<img src="'+d.logo_url+'" style="width:48px;height:48px;border-radius:50%;object-fit:cover;" onerror="this.parentElement.innerHTML='<span>H</span>'">';
-        }
-      }).catch(function(){});
-    }, 800);
-
-    // ── 5. Init guest theme ──
+    if(ss){var sub=ss.querySelector('.success-sub');if(sub)sub.textContent='Room '+r+' · Your food is being prepared';}
+    var ms = document.querySelector('.merge-sub'); if(ms) ms.textContent='Someone in Room '+r+' just ordered. Want to add to it?';
+    // Init guest theme
     if(typeof initTheme === 'function') initTheme();
     if(typeof _navigate === 'function') _navigate('entry');
-
-    // ── 6. Re-subscribe active orders/services after Firebase connects ──
+    // Re-subscribe all active orders/services from localStorage after Firebase connects
+    // This handles the page-refresh case where listeners are lost
     setTimeout(function() {
       if (typeof guestResubscribeAll === 'function') guestResubscribeAll();
     }, 1500);
-
   } else {
     document.getElementById('guest-root').style.display = 'none';
   }
@@ -14041,6 +14224,1248 @@ window.ohArchiveSvc       = ohArchiveSvc;
     <button onclick="fmAddCustomCombo()" style="width:100%;padding:12px;background:var(--surface2);border:1px dashed rgba(201,169,110,0.3);border-radius:12px;color:var(--gold);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;">+ Add custom combo</button>
   </div>
 </div>
+
+
+<!-- ══ SETTINGS STYLES + JS ══ -->
+<style>
+/* ── Shared modal tab button ── */
+.hs-tab {
+  flex-shrink:0;
+  padding:7px 14px;
+  border-radius:100px;
+  border:1px solid rgba(255,255,255,0.1);
+  background:transparent;
+  color:var(--text-muted);
+  font-family:'DM Sans',sans-serif;
+  font-size:12px;
+  cursor:pointer;
+  transition:all 0.15s;
+  white-space:nowrap;
+}
+.hs-tab-active, .hs-tab:hover {
+  border-color:var(--gold);
+  background:var(--gold);
+  color:var(--dark);
+  font-weight:600;
+}
+
+/* ── Shared form fields ── */
+.hs-field-group { margin-bottom:16px; }
+.hs-label {
+  font-size:10px;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--text-muted);
+  margin-bottom:7px;
+  display:block;
+}
+.hs-optional { text-transform:none; letter-spacing:0; color:var(--text-dim); font-size:10px; }
+.hs-input {
+  width:100%;
+  padding:11px 14px;
+  background:var(--surface2);
+  border:1px solid var(--input-border);
+  border-radius:10px;
+  font-family:'DM Sans',sans-serif;
+  font-size:14px;
+  color:var(--text);
+  outline:none;
+  box-sizing:border-box;
+  transition:border-color 0.2s;
+}
+.hs-input:focus { border-color:rgba(201,169,110,0.5); }
+.hs-input::placeholder { color:var(--text-dim); }
+
+/* ── Toggle switch ── */
+.hs-toggle {
+  width:42px; height:24px;
+  border-radius:12px;
+  background:var(--surface2);
+  border:1px solid var(--topbar-border);
+  position:relative;
+  cursor:pointer;
+  transition:background 0.22s, border-color 0.22s;
+  flex-shrink:0;
+}
+.hs-toggle.on { background:var(--gold); border-color:var(--gold); }
+.hs-toggle-thumb {
+  position:absolute;
+  top:3px; left:3px;
+  width:16px; height:16px;
+  border-radius:50%;
+  background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,0.25);
+  transition:left 0.22s cubic-bezier(0.34,1.2,0.64,1);
+}
+.hs-toggle.on .hs-toggle-thumb { left:21px; }
+
+/* ── Toggle row ── */
+.hs-toggle-row {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:12px 0;
+  border-bottom:1px solid var(--topbar-border);
+}
+.hs-toggle-row:last-child { border-bottom:none; }
+.hs-toggle-title { font-size:14px; color:var(--text); }
+.hs-toggle-sub { font-size:11px; color:var(--text-muted); margin-top:2px; }
+
+/* ── Star rating buttons ── */
+.hs-star-btn {
+  flex:1;
+  padding:8px 4px;
+  background:var(--surface2);
+  border:1px solid var(--topbar-border);
+  border-radius:9px;
+  color:var(--text-muted);
+  font-size:12px;
+  cursor:pointer;
+  transition:all 0.15s;
+  font-family:'DM Sans',sans-serif;
+  white-space:nowrap;
+  overflow:hidden;
+}
+.hs-star-btn.active {
+  background:rgba(201,169,110,0.12);
+  border-color:var(--gold);
+  color:var(--gold);
+  font-weight:600;
+}
+
+/* ── Facility row ── */
+.hs-facility-row {
+  display:grid;
+  grid-template-columns:1fr 90px 90px;
+  gap:8px;
+  align-items:center;
+  padding:10px 0;
+  border-bottom:1px solid var(--topbar-border);
+}
+.hs-facility-row:last-child { border-bottom:none; }
+.hs-facility-label { font-size:13px; color:var(--text); }
+.hs-facility-time {
+  background:var(--surface2);
+  border:1px solid var(--input-border);
+  border-radius:8px;
+  padding:7px 8px;
+  color:var(--text);
+  font-family:'DM Sans',sans-serif;
+  font-size:12px;
+  outline:none;
+  width:100%;
+  box-sizing:border-box;
+}
+
+/* ── Chip buttons ── */
+.hs-chip {
+  padding:7px 14px;
+  border-radius:100px;
+  border:1px solid var(--topbar-border);
+  background:var(--surface2);
+  color:var(--text-muted);
+  font-family:'DM Sans',sans-serif;
+  font-size:12px;
+  cursor:pointer;
+  transition:all 0.15s;
+}
+.hs-chip.active {
+  background:rgba(201,169,110,0.12);
+  border-color:var(--gold);
+  color:var(--gold);
+  font-weight:600;
+}
+
+/* ── Appearance presets ── */
+.ap-section { margin-bottom:8px; }
+.ap-section-title { font-size:13px; font-weight:600; color:var(--text); margin-bottom:4px; }
+.ap-section-sub { font-size:11px; color:var(--text-muted); margin-bottom:14px; }
+.ap-presets {
+  display:flex;
+  gap:10px;
+  overflow-x:auto;
+  padding-bottom:10px;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+  margin-bottom:10px;
+}
+.ap-presets::-webkit-scrollbar { display:none; }
+.ap-preset-item {
+  flex-shrink:0;
+  width:100px;
+  height:68px;
+  border-radius:12px;
+  border:2px solid transparent;
+  cursor:pointer;
+  position:relative;
+  overflow:hidden;
+  transition:border-color 0.2s, transform 0.15s;
+  background:var(--surface2);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.ap-preset-item:active { transform:scale(0.96); }
+.ap-preset-item.selected { border-color:var(--gold); }
+.ap-preset-item.selected::after {
+  content:'✓';
+  position:absolute;
+  top:4px; right:6px;
+  font-size:12px;
+  font-weight:700;
+  color:var(--gold);
+  text-shadow:0 1px 3px rgba(0,0,0,0.5);
+}
+.ap-preset-item img { width:100%; height:100%; object-fit:cover; }
+.ap-preset-label {
+  position:absolute;
+  bottom:0; left:0; right:0;
+  padding:4px 6px;
+  font-size:9px;
+  font-weight:600;
+  letter-spacing:0.06em;
+  color:#fff;
+  background:linear-gradient(transparent, rgba(0,0,0,0.65));
+  text-transform:uppercase;
+}
+.ap-upload-btn {
+  padding:9px 16px;
+  border:1px dashed rgba(201,169,110,0.35);
+  border-radius:10px;
+  background:transparent;
+  color:var(--gold);
+  font-family:'DM Sans',sans-serif;
+  font-size:12px;
+  cursor:pointer;
+  width:100%;
+  margin-bottom:16px;
+  transition:background 0.15s;
+}
+.ap-upload-btn:hover { background:rgba(201,169,110,0.06); }
+
+/* ── Dining slot accordion ── */
+.ap-slot-row {
+  border:1px solid var(--topbar-border);
+  border-radius:12px;
+  overflow:hidden;
+  margin-bottom:8px;
+}
+.ap-slot-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:12px 14px;
+  cursor:pointer;
+  background:var(--surface2);
+  -webkit-tap-highlight-color:transparent;
+}
+.ap-slot-header:active { background:var(--dark3); }
+.ap-slot-title { font-size:13px; font-weight:500; color:var(--text); }
+.ap-slot-time { font-size:11px; color:var(--text-muted); }
+.ap-slot-preview { width:36px; height:36px; border-radius:8px; object-fit:cover; flex-shrink:0; background:var(--surface); }
+.ap-slot-body { display:none; padding:12px 14px 14px; }
+.ap-slot-body.open { display:block; }
+.ap-dish-grid {
+  display:grid;
+  grid-template-columns:repeat(4, 1fr);
+  gap:8px;
+}
+.ap-dish-item {
+  border-radius:10px;
+  overflow:hidden;
+  border:2px solid transparent;
+  cursor:pointer;
+  position:relative;
+  aspect-ratio:1;
+  background:var(--surface2);
+  transition:border-color 0.15s;
+}
+.ap-dish-item.selected { border-color:var(--gold); }
+.ap-dish-item.selected::after {
+  content:'✓';
+  position:absolute;
+  top:3px; right:4px;
+  font-size:10px;
+  font-weight:700;
+  color:var(--gold);
+  text-shadow:0 1px 2px rgba(0,0,0,0.6);
+}
+.ap-dish-item img { width:100%; height:100%; object-fit:cover; display:block; }
+.ap-dish-name {
+  position:absolute;
+  bottom:0; left:0; right:0;
+  padding:3px 4px;
+  font-size:8px;
+  font-weight:600;
+  color:#fff;
+  background:linear-gradient(transparent, rgba(0,0,0,0.7));
+  text-align:center;
+  letter-spacing:0.04em;
+}
+
+/* ── Services list in guest dash modal ── */
+.gd-service-row {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:12px 0;
+  border-bottom:1px solid var(--topbar-border);
+}
+.gd-service-row:last-child { border-bottom:none; }
+.gd-service-icon { font-size:18px; width:28px; text-align:center; flex-shrink:0; }
+.gd-service-name-wrap { flex:1; }
+.gd-service-name {
+  font-size:13px;
+  color:var(--text);
+  background:transparent;
+  border:none;
+  outline:none;
+  font-family:'DM Sans',sans-serif;
+  width:100%;
+  cursor:text;
+  padding:0;
+}
+.gd-service-name:focus { border-bottom:1px solid var(--gold); }
+.gd-service-sub { font-size:11px; color:var(--text-muted); }
+
+/* ── Toast ── */
+.settings-toast {
+  position:fixed;
+  bottom:24px;
+  left:50%;
+  transform:translateX(-50%) translateY(60px);
+  background:var(--dark2);
+  border:1px solid var(--topbar-border);
+  border-radius:100px;
+  padding:10px 20px;
+  font-family:'DM Sans',sans-serif;
+  font-size:13px;
+  color:var(--text);
+  z-index:99999;
+  transition:transform 0.3s cubic-bezier(0.34,1.2,0.64,1), opacity 0.3s;
+  opacity:0;
+  pointer-events:none;
+  white-space:nowrap;
+}
+.settings-toast.show { transform:translateX(-50%) translateY(0); opacity:1; }
+</style>
+
+<div id="settings-toast" class="settings-toast"></div>
+
+<script>
+(function() {
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+function getDb() {
+  if (window.guestSb) return window.guestSb;
+  if (window.db) return window.db;
+  if (window._db) return window._db;
+  return null;
+}
+
+function showToast(msg) {
+  var t = document.getElementById('settings-toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function() { t.classList.remove('show'); }, 2400);
+}
+
+function hsToggle(key) {
+  var el = document.getElementById('hs-tog-' + key);
+  if (!el) return;
+  el.classList.toggle('on');
+}
+function hsToggleState(key) {
+  var el = document.getElementById('hs-tog-' + key);
+  return el ? el.classList.contains('on') : false;
+}
+function hsSetToggle(key, val) {
+  var el = document.getElementById('hs-tog-' + key);
+  if (!el) return;
+  if (val) el.classList.add('on'); else el.classList.remove('on');
+}
+
+// ═══════════════════════════════════════════════════════════
+// HOTEL SETUP MODAL
+// ═══════════════════════════════════════════════════════════
+var _hsStars = 3;
+var _hsPolicies = { smoking: false, pets: false };
+var _hsFacilities = [
+  { key:'restaurant', label:'Restaurant',    open:'07:00', close:'23:00' },
+  { key:'pool',       label:'Swimming Pool', open:'06:00', close:'21:00' },
+  { key:'spa',        label:'Spa & Wellness',open:'09:00', close:'20:00' },
+  { key:'gym',        label:'Fitness Centre',open:'05:00', close:'22:00' },
+];
+
+window.openHotelSetupModal = function() {
+  var modal = document.getElementById('hotel-setup-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  hsSwitchTab('identity');
+  hsLoadData();
+};
+window.closeHotelSetupModal = function() {
+  var modal = document.getElementById('hotel-setup-modal');
+  if (modal) modal.style.display = 'none';
+};
+// Keep old name working (called from existing hotel-brand row if present)
+window.openHotelBrandModal = window.openHotelSetupModal;
+window.closeHotelBrandModal = window.closeHotelSetupModal;
+
+window.hsSwitchTab = function(tab) {
+  ['identity','contact','wifi','policies'].forEach(function(t) {
+    var btn = document.getElementById('hs-tab-' + t);
+    var panel = document.getElementById('hs-panel-' + t);
+    if (!btn || !panel) return;
+    if (t === tab) {
+      btn.classList.add('hs-tab-active');
+      panel.style.display = '';
+    } else {
+      btn.classList.remove('hs-tab-active');
+      panel.style.display = 'none';
+    }
+  });
+  if (tab === 'policies') hsRenderFacilities();
+  if (tab === 'wifi') {
+    hsRenderWifiZones();
+    // If zones are still empty (Firestore may not have resolved yet), reload
+    if (_hsWifiZones.length === 1 && !_hsWifiZones[0].ssid) hsLoadData();
+  }
+};
+
+function hsRenderFacilities() {
+  var list = document.getElementById('hs-facilities-list');
+  if (!list) return;
+  list.innerHTML = _hsFacilities.map(function(f) {
+    return '<div class="hs-facility-row">'
+      + '<div class="hs-facility-label">' + f.label + '</div>'
+      + '<input type="time" class="hs-facility-time" id="hf-open-' + f.key + '" value="' + f.open + '" title="Opens">'
+      + '<input type="time" class="hs-facility-time" id="hf-close-' + f.key + '" value="' + f.close + '" title="Closes">'
+      + '</div>';
+  }).join('');
+}
+
+window.hsSetStars = function(n) {
+  _hsStars = n;
+  document.querySelectorAll('.hs-star-btn').forEach(function(btn) {
+    btn.classList.toggle('active', parseInt(btn.getAttribute('data-v')) === n);
+  });
+};
+
+window.hsPreviewLogo = function() {
+  var url = document.getElementById('hs-logo') && document.getElementById('hs-logo').value.trim();
+  var preview = document.getElementById('hs-logo-preview');
+  var img = document.getElementById('hs-logo-img');
+  if (url && preview && img) { img.src = url; preview.style.display = 'block'; }
+  else if (preview) { preview.style.display = 'none'; }
+};
+
+function hsLoadData() {
+  var db = getDb();
+  // Pre-fill from localStorage first (instant)
+  var name = localStorage.getItem('hyatt_hotel_name') || '';
+  var logo = localStorage.getItem('hyatt_hotel_logo') || '';
+  if (document.getElementById('hs-name')) document.getElementById('hs-name').value = name;
+  if (document.getElementById('hs-logo')) { document.getElementById('hs-logo').value = logo; hsPreviewLogo(); }
+
+  if (!db) return;
+  db.collection('settings').doc('hotel').get().then(function(doc) {
+    if (!doc.exists) return;
+    var d = doc.data();
+    var inp = function(id, val) { var el = document.getElementById(id); if (el && val) el.value = val; };
+    inp('hs-name',     d.hotel_name);
+    inp('hs-tagline',  d.tagline);
+    inp('hs-logo',     d.logo_url);
+    inp('hs-address',  d.address);
+    inp('hs-phone',    d.phone);
+    inp('hs-checkin',  d.checkin_time);
+    inp('hs-checkout', d.checkout_time);
+    // Legacy single-wifi fields (backward compat)
+    if (d.wifi_zones && Array.isArray(d.wifi_zones) && d.wifi_zones.length > 0) {
+      _hsWifiZones = JSON.parse(JSON.stringify(d.wifi_zones));
+    } else if (d.wifi_ssid) {
+      // Migrate old single-wifi to zones array
+      _hsWifiZones = [{ name: 'Main Network', ssid: d.wifi_ssid, pass: d.wifi_pass || '', rooms: '' }];
+    }
+    // Always re-render wifi zones so data is ready when tab is clicked
+    hsRenderWifiZones();
+    // Update contact tab summary
+    var wsum = document.getElementById('hs-wifi-summary');
+    if (wsum) wsum.textContent = _hsWifiZones.length + ' zone' + (_hsWifiZones.length !== 1 ? 's' : '') + ' configured';
+    if (d.stars) { _hsStars = d.stars; hsSetStars(d.stars); }
+    if (d.policies) {
+      hsSetToggle('smoking', !!d.policies.smoking);
+      hsSetToggle('pets',    !!d.policies.pets);
+    }
+    if (d.facilities) {
+      _hsFacilities.forEach(function(f) {
+        if (d.facilities[f.key]) {
+          f.open  = d.facilities[f.key].open  || f.open;
+          f.close = d.facilities[f.key].close || f.close;
+        }
+      });
+    }
+    hsPreviewLogo();
+    var sub = document.getElementById('hotel-setup-sub');
+    if (sub && d.hotel_name) sub.textContent = d.hotel_name;
+  }).catch(function() {});
+}
+
+// ═══════════════════════════════════════════════════════════
+// WI-FI ZONES
+// ═══════════════════════════════════════════════════════════
+var _hsWifiZones = [
+  { name: 'Main Network', ssid: '', pass: '', rooms: '' }
+];
+
+window.hsAddWifiZone = function() {
+  _hsWifiZones.push({ name: 'Zone ' + (_hsWifiZones.length + 1), ssid: '', pass: '', rooms: '' });
+  hsRenderWifiZones();
+  hsAutoSaveWifi();
+  var list = document.getElementById('hs-wifi-zones-list');
+  if (list) setTimeout(function() { list.lastElementChild && list.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 60);
+};
+
+window.hsRemoveWifiZone = function(idx) {
+  if (_hsWifiZones.length <= 1) { showToast('At least one Wi-Fi zone required'); return; }
+  _hsWifiZones.splice(idx, 1);
+  hsRenderWifiZones();
+  hsAutoSaveWifi();
+};
+
+window.hsWifiField = function(idx, field, value) {
+  if (_hsWifiZones[idx]) _hsWifiZones[idx][field] = value;
+  // Live-update contact tab summary
+  var wsum = document.getElementById('hs-wifi-summary');
+  if (wsum) wsum.textContent = _hsWifiZones.length + ' zone' + (_hsWifiZones.length !== 1 ? 's' : '') + ' configured';
+  // Auto-save
+  hsAutoSaveWifi();
+};
+
+// Parse "101-108, 201, 205" → ["101","102",...,"108","201","205"]
+function hsParseRooms(str) {
+  if (!str || !str.trim()) return [];
+  var rooms = [];
+  str.split(',').forEach(function(part) {
+    part = part.trim();
+    var range = part.match(/^(\d+)-(\d+)$/);
+    if (range) {
+      var from = parseInt(range[1]), to = parseInt(range[2]);
+      for (var i = from; i <= to; i++) rooms.push(String(i));
+    } else if (part) {
+      rooms.push(part);
+    }
+  });
+  return rooms;
+}
+
+function hsRenderWifiZones() {
+  var list = document.getElementById('hs-wifi-zones-list');
+  if (!list) return;
+  list.innerHTML = _hsWifiZones.map(function(zone, idx) {
+    var roomCount = hsParseRooms(zone.rooms).length;
+    var roomBadge = roomCount > 0
+      ? '<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(76,175,125,0.12);color:var(--green);border:1px solid rgba(76,175,125,0.22);margin-left:8px;">' + roomCount + ' rooms</span>'
+      : '';
+    return '<div style="border:1px solid var(--topbar-border);border-radius:14px;padding:16px;margin-bottom:10px;background:var(--surface2);">'
+
+      // Zone header row
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
+      + '<div style="display:flex;align-items:center;gap:6px;">'
+      + '<span style="font-size:15px;">📶</span>'
+      + '<input value="' + _esc(zone.name) + '" onchange="hsWifiField(' + idx + ',\x27name\x27,this.value)" '
+      + 'style="background:transparent;border:none;border-bottom:1px solid var(--topbar-border);color:var(--text);font-family:\x27DM Sans\x27,sans-serif;font-size:13px;font-weight:600;outline:none;width:130px;padding:2px 0;" placeholder="Zone name">'
+      + roomBadge
+      + '</div>'
+      + '<button onclick="hsRemoveWifiZone(' + idx + ')" style="width:28px;height:28px;border-radius:8px;border:1px solid var(--topbar-border);background:transparent;color:var(--text-muted);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="Remove zone">×</button>'
+      + '</div>'
+
+      // SSID — searchable dropdown
+      + '<div style="margin-bottom:10px;position:relative;" id="hs-ssid-wrap-' + idx + '">'
+      + '<div class="hs-label" style="margin-bottom:5px;">Network Name (SSID)</div>'
+      + '<input type="text" id="hs-ssid-' + idx + '" value="' + _esc(zone.ssid) + '" '
+      + 'class="hs-input" placeholder="Search or type network name…" autocomplete="off" '
+      + 'oninput="hsSSIDInput(' + idx + ',this.value)" '
+      + 'onfocus="hsSSIDFocus(' + idx + ')" '
+      + 'onchange="hsWifiField(' + idx + ',\'ssid\',this.value)">'
+      + '<div id="hs-ssid-drop-' + idx + '" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;background:var(--surface);border:1px solid var(--topbar-border);border-radius:10px;z-index:999;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.3);">'
+      + '</div>'
+      + '</div>'
+
+      // Password
+      + '<div style="margin-bottom:10px;">'
+      + '<div class="hs-label" style="margin-bottom:5px;">Password</div>'
+      + '<div style="position:relative;">'
+      + '<input type="password" id="hs-wifi-pass-' + idx + '" value="' + _esc(zone.pass) + '" onchange="hsWifiField(' + idx + ',\x27pass\x27,this.value)" class="hs-input" placeholder="Wi-Fi password" style="padding-right:44px;">'
+      + '<button onclick="hsTogglePassVis(' + idx + ')" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;padding:0;" title="Show/hide">👁</button>'
+      + '</div>'
+      + '</div>'
+
+      // Room picker (search + tap)
+      + '<div>'
+      + '<div class="hs-label" style="margin-bottom:6px;">Rooms Covered</div>'
+      + (function() { try { return hsRenderRoomPicker(idx, zone.rooms); } catch(e) { return '<input type="text" value="' + _esc(zone.rooms) + '" oninput="hsWifiField(' + idx + ',\'rooms\',this.value)" class="hs-input" placeholder="e.g. 101-108, 201, 205">'; } })()
+      + '</div>'
+
+      + '</div>';
+  }).join('');
+}
+
+// ── ROOM PICKER: search + tap chips ──────────────────────────
+
+// Returns set of rooms already assigned to OTHER zones (not idx)
+function hsTakenRooms(idx) {
+  var taken = {};
+  _hsWifiZones.forEach(function(z, i) {
+    if (i === idx) return;
+    hsParseRooms(z.rooms).forEach(function(r) { taken[r] = true; });
+  });
+  return taken;
+}
+
+function hsRenderRoomPicker(idx, roomsStr) {
+  var selected = hsParseRooms(roomsStr);
+  var allRooms = (window._hsAllRooms && window._hsAllRooms.length) ? window._hsAllRooms : [];
+  var taken = hsTakenRooms(idx);
+  // Only show rooms not taken by other zones (or already selected by this zone)
+  var visibleRooms = allRooms.filter(function(r) { return !taken[r]; });
+  var count = selected.length;
+
+  var chipsHtml = visibleRooms.map(function(r) {
+    var sel = selected.indexOf(r) !== -1;
+    return '<div onclick="hsToggleRoomChip(' + idx + ',\'' + r + '\',this)" '
+      + 'style="display:inline-flex;align-items:center;justify-content:center;'
+      + 'min-width:48px;padding:5px 10px;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;user-select:none;'
+      + 'border:1px solid ' + (sel ? 'rgba(76,175,125,0.5)' : 'var(--topbar-border)') + ';'
+      + 'background:' + (sel ? 'rgba(76,175,125,0.12)' : 'var(--surface)') + ';'
+      + 'color:' + (sel ? 'var(--green)' : 'var(--text-muted)') + ';'
+      + 'transition:background 0.15s,color 0.15s,border-color 0.15s;" '
+      + 'data-room="' + r + '">'
+      + r + (sel ? ' ✓' : '')
+      + '</div>';
+  }).join('');
+
+  var summaryHtml = count > 0
+    ? '<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(76,175,125,0.12);color:var(--green);border:1px solid rgba(76,175,125,0.22);margin-right:4px;">' + count + ' rooms</span>'
+      + '<span style="font-size:11px;color:var(--text-dim);">' + _roomPreviewText(roomsStr) + '</span>'
+    : '<span style="font-size:11px;color:var(--text-dim);">No rooms assigned yet</span>';
+
+  return '<div id="hs-wifi-room-picker-' + idx + '">'
+    + '<div style="position:relative;margin-bottom:8px;">'
+    + '<input type="text" id="hs-wifi-room-search-' + idx + '" '
+    + 'oninput="hsFilterRoomChips(' + idx + ',this.value)" '
+    + 'class="hs-input" placeholder="Search room…" style="padding-left:32px;">'
+    + '<span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:13px;pointer-events:none;">🔍</span>'
+    + '</div>'
+    + '<div id="hs-wifi-chips-' + idx + '" style="display:flex;flex-wrap:wrap;gap:6px;max-height:130px;overflow-y:auto;padding:2px 0;">'
+    + chipsHtml
+    + '</div>'
+    + '<div id="hs-wifi-rooms-badge-' + idx + '" style="font-size:11px;color:var(--text-dim);margin-top:6px;display:flex;align-items:center;gap:4px;">'
+    + summaryHtml
+    + '</div>'
+    + '</div>';
+}
+
+window.hsToggleRoomChip = function(idx, room, el) {
+  var zone = _hsWifiZones[idx];
+  if (!zone) return;
+  var rooms = hsParseRooms(zone.rooms);
+  var pos = rooms.indexOf(room);
+  var adding = pos === -1;
+
+  if (adding) {
+    rooms.push(room);
+    rooms.sort(function(a,b){ return parseInt(a,10) - parseInt(b,10); });
+    el.style.background = 'rgba(76,175,125,0.12)';
+    el.style.borderColor = 'rgba(76,175,125,0.5)';
+    el.style.color = 'var(--green)';
+    el.textContent = room + ' ✓';
+    // Hide this chip in all other zone pickers
+    _hsWifiZones.forEach(function(_, i) {
+      if (i === idx) return;
+      var otherChip = document.querySelector('#hs-wifi-chips-' + i + ' [data-room="' + room + '"]');
+      if (otherChip) otherChip.style.display = 'none';
+    });
+  } else {
+    rooms.splice(pos, 1);
+    el.style.background = 'var(--surface)';
+    el.style.borderColor = 'var(--topbar-border)';
+    el.style.color = 'var(--text-muted)';
+    el.textContent = room;
+    // Restore this chip in all other zone pickers
+    _hsWifiZones.forEach(function(_, i) {
+      if (i === idx) return;
+      var otherChip = document.querySelector('#hs-wifi-chips-' + i + ' [data-room="' + room + '"]');
+      if (otherChip) otherChip.style.display = '';
+    });
+  }
+
+  zone.rooms = rooms.join(', ');
+  _hsWifiZones[idx].rooms = zone.rooms;
+
+  // Update summary badge
+  var badge = document.getElementById('hs-wifi-rooms-badge-' + idx);
+  if (badge) {
+    badge.innerHTML = rooms.length > 0
+      ? '<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(76,175,125,0.12);color:var(--green);border:1px solid rgba(76,175,125,0.22);margin-right:4px;">' + rooms.length + ' rooms</span>'
+        + '<span style="font-size:11px;color:var(--text-dim);">' + _roomPreviewText(zone.rooms) + '</span>'
+      : '<span style="font-size:11px;color:var(--text-dim);">No rooms assigned yet</span>';
+  }
+
+  // Auto-save to Firestore
+  hsAutoSaveWifi();
+};
+
+function hsAutoSaveWifi() {
+  var db = getDb();
+  if (!db) return;
+  db.collection('settings').doc('hotel').set({ wifi_zones: _hsWifiZones }, { merge: true })
+    .catch(function(e) { console.warn('Wi-Fi auto-save error:', e); });
+}
+
+// ── SSID SEARCHABLE DROPDOWN ──────────────────────────────────
+// Suggested hotel network name patterns
+var _ssidSuggestions = [
+  'Hotel_WiFi', 'Hotel_Guest', 'Hotel_5G',
+  'Guest_Network', 'Guest_WiFi', 'Guest_5G',
+  'Property_WiFi', 'Lobby_WiFi', 'Reception_WiFi',
+  'Floor1_WiFi', 'Floor2_WiFi', 'Floor3_WiFi',
+  'WingA_WiFi', 'WingB_WiFi', 'WingC_WiFi',
+  'Pool_WiFi', 'Restaurant_WiFi', 'Spa_WiFi'
+];
+
+function hsGetSSIDOptions(idx, query) {
+  // Collect SSIDs already saved in other zones
+  var saved = [];
+  _hsWifiZones.forEach(function(z, i) {
+    if (i !== idx && z.ssid && z.ssid.trim() && saved.indexOf(z.ssid.trim()) === -1) {
+      saved.push(z.ssid.trim());
+    }
+  });
+  var allOptions = saved.concat(_ssidSuggestions.filter(function(s) {
+    return saved.indexOf(s) === -1;
+  }));
+  if (!query) return allOptions.slice(0, 8);
+  var q = query.toLowerCase();
+  return allOptions.filter(function(s) { return s.toLowerCase().indexOf(q) !== -1; }).slice(0, 8);
+}
+
+window.hsSSIDFocus = function(idx) {
+  hsSSIDShowDrop(idx, document.getElementById('hs-ssid-' + idx).value);
+  // Close other dropdowns
+  _hsWifiZones.forEach(function(_, i) {
+    if (i !== idx) { var d = document.getElementById('hs-ssid-drop-' + i); if (d) d.style.display = 'none'; }
+  });
+};
+
+window.hsSSIDInput = function(idx, val) {
+  hsWifiField(idx, 'ssid', val);
+  hsSSIDShowDrop(idx, val);
+};
+
+function hsSSIDShowDrop(idx, query) {
+  var drop = document.getElementById('hs-ssid-drop-' + idx);
+  if (!drop) return;
+  var options = hsGetSSIDOptions(idx, query);
+  if (!options.length) { drop.style.display = 'none'; return; }
+  drop.innerHTML = options.map(function(s) {
+    var isSaved = _hsWifiZones.some(function(z, i) { return i !== idx && z.ssid === s; });
+    return '<div onclick="hsSSIDPick(' + idx + ',\'' + s.replace(/'/g, "\\'") + '\')" '
+      + 'style="padding:10px 14px;cursor:pointer;font-size:13px;color:var(--text);display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--topbar-border);transition:background 0.1s;" '
+      + 'onmouseover="this.style.background=\'rgba(201,169,110,0.08)\'" onmouseout="this.style.background=\'transparent\'">'
+      + '<span style="font-size:14px;">' + (isSaved ? '📶' : '🔍') + '</span>'
+      + '<span>' + s + '</span>'
+      + (isSaved ? '<span style="margin-left:auto;font-size:10px;color:var(--gold);">saved</span>' : '')
+      + '</div>';
+  }).join('');
+  drop.style.display = 'block';
+  // Auto-close on outside click
+  setTimeout(function() {
+    function outsideClick(e) {
+      var wrap = document.getElementById('hs-ssid-wrap-' + idx);
+      if (wrap && !wrap.contains(e.target)) {
+        drop.style.display = 'none';
+        document.removeEventListener('click', outsideClick, true);
+      }
+    }
+    document.addEventListener('click', outsideClick, true);
+  }, 0);
+}
+
+window.hsSSIDPick = function(idx, ssid) {
+  var inp = document.getElementById('hs-ssid-' + idx);
+  if (inp) inp.value = ssid;
+  hsWifiField(idx, 'ssid', ssid);
+  var drop = document.getElementById('hs-ssid-drop-' + idx);
+  if (drop) drop.style.display = 'none';
+  // Focus password field next
+  var passEl = document.getElementById('hs-wifi-pass-' + idx);
+  if (passEl) setTimeout(function(){ passEl.focus(); }, 50);
+};
+// ─────────────────────────────────────────────────────────────
+
+window.hsFilterRoomChips = function(idx, query) {
+  var container = document.getElementById('hs-wifi-chips-' + idx);
+  if (!container) return;
+  var q = query.trim().toLowerCase();
+  container.querySelectorAll('[data-room]').forEach(function(chip) {
+    if (chip.style.display === 'none' && !q) return; // keep hidden (taken by other zone)
+    var room = chip.getAttribute('data-room').toLowerCase();
+    chip.style.display = (!q || room.indexOf(q) !== -1) ? '' : 'none';
+  });
+};
+// ─────────────────────────────────────────────────────────────
+
+function _esc(s) {
+  return (s || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function _roomPreviewText(rooms) {
+  var parsed = hsParseRooms(rooms);
+  if (!parsed.length) return 'No rooms assigned yet';
+  if (parsed.length <= 8) return parsed.join(', ');
+  return parsed.slice(0,8).join(', ') + ' … +' + (parsed.length - 8) + ' more';
+}
+
+window.hsUpdateRoomBadge = function(idx, val) {
+  var prev = document.getElementById('hs-wifi-rooms-preview-' + idx);
+  if (prev) prev.textContent = _roomPreviewText(val);
+};
+
+window.hsTogglePassVis = function(idx) {
+  var inp = document.getElementById('hs-wifi-pass-' + idx);
+  if (!inp) return;
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+};
+
+// Called from Guest.html sync to find which zone applies to a given room
+window.hsGetWifiForRoom = function(roomNum, zones) {
+  if (!zones || !Array.isArray(zones)) return null;
+  var roomStr = String(roomNum);
+  for (var i = 0; i < zones.length; i++) {
+    var rooms = hsParseRooms(zones[i].rooms);
+    if (rooms.indexOf(roomStr) !== -1) return zones[i];
+  }
+  return zones[0] || null; // fallback to first zone
+};
+
+window.saveHotelSetup = function() {
+  var val = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  var name = val('hs-name');
+  if (!name) { document.getElementById('hs-name').focus(); return; }
+
+  var facilities = {};
+  _hsFacilities.forEach(function(f) {
+    var openEl  = document.getElementById('hf-open-'  + f.key);
+    var closeEl = document.getElementById('hf-close-' + f.key);
+    facilities[f.key] = {
+      open:  openEl  ? openEl.value  : f.open,
+      close: closeEl ? closeEl.value : f.close
+    };
+  });
+
+  var data = {
+    hotel_name:    name,
+    tagline:       val('hs-tagline'),
+    logo_url:      val('hs-logo'),
+    address:       val('hs-address'),
+    phone:         val('hs-phone'),
+    checkin_time:  val('hs-checkin'),
+    checkout_time: val('hs-checkout'),
+    wifi_zones:    _hsWifiZones,
+    stars:         _hsStars,
+    policies:      { smoking: hsToggleState('smoking'), pets: hsToggleState('pets') },
+    facilities:    facilities
+  };
+
+  // Apply immediately
+  localStorage.setItem('hyatt_hotel_name', name);
+  if (data.logo_url) localStorage.setItem('hyatt_hotel_logo', data.logo_url);
+  if (window._applyHotelBrand) _applyHotelBrand(name, data.logo_url);
+
+  // Sync to Firestore
+  var db = getDb();
+  if (db) {
+    db.collection('settings').doc('hotel').set(data, { merge: true })
+      .then(function() { showToast('✓ Hotel settings saved'); })
+      .catch(function(e) { showToast('Saved locally · Firebase error'); console.warn(e); });
+  } else {
+    showToast('✓ Saved locally');
+  }
+
+  // Update settings panel subtitle
+  var sub = document.getElementById('hotel-setup-sub');
+  if (sub) sub.textContent = name;
+
+  closeHotelSetupModal();
+};
+
+
+
+// ═══════════════════════════════════════════════════════════
+// APPEARANCE MODAL
+// ═══════════════════════════════════════════════════════════
+var _apState = {
+  login: '',
+  hero:  '',
+  dining: { morning:'', lunch:'', evening:'', dinner:'', late:'' }
+};
+
+var _apLoginPresets = [
+  { key:'login_1',  label:'Lobby',    emoji:'🏛️' },
+  { key:'login_2',  label:'Pool',     emoji:'🏊' },
+  { key:'login_3',  label:'Garden',   emoji:'🌿' },
+  { key:'login_4',  label:'Heritage', emoji:'🏰' },
+  { key:'login_5',  label:'Rooftop',  emoji:'🌆' },
+  { key:'login_6',  label:'Suite',    emoji:'🛏️' },
+  { key:'login_7',  label:'Spa',      emoji:'💆' },
+  { key:'login_8',  label:'Mountain', emoji:'⛰️' },
+  { key:'login_9',  label:'Courtyard',emoji:'🏡' },
+  { key:'login_10', label:'Sunset',   emoji:'🌅' },
+];
+
+var _apHeroPresets = [
+  { key:'hero_1',  label:'Food Spread', emoji:'🍱' },
+  { key:'hero_2',  label:'Chef',        emoji:'👨‍🍳' },
+  { key:'hero_3',  label:'Candlelit',   emoji:'🕯️' },
+  { key:'hero_4',  label:'Breakfast',   emoji:'🍳' },
+  { key:'hero_5',  label:'Curry',       emoji:'🍛' },
+  { key:'hero_6',  label:'Thali',       emoji:'🥘' },
+  { key:'hero_7',  label:'Dessert',     emoji:'🍮' },
+  { key:'hero_8',  label:'Mocktail',    emoji:'🍹' },
+  { key:'hero_9',  label:'Biryani',     emoji:'🍚' },
+  { key:'hero_10', label:'Dining Room', emoji:'🍽️' },
+];
+
+var _apDishKeys = [
+  { key:'aloo_paratha',         label:'Aloo Paratha' },
+  { key:'chana_masala',         label:'Chana Masala' },
+  { key:'dal_makhani',          label:'Dal Makhani' },
+  { key:'garlic_naan',          label:'Garlic Naan' },
+  { key:'gobi_paratha',         label:'Gobi Paratha' },
+  { key:'idli_sambar',          label:'Idli Sambar' },
+  { key:'malai_kofta',          label:'Malai Kofta' },
+  { key:'masala_dosa',          label:'Masala Dosa' },
+  { key:'mix_paratha',          label:'Mix Paratha' },
+  { key:'paneer_biryani',       label:'Paneer Biryani' },
+  { key:'paneer_butter_masala', label:'Paneer Butter Masala' },
+  { key:'shahi_paneer',         label:'Shahi Paneer' },
+  { key:'paneer_tikka',         label:'Paneer Tikka' },
+  { key:'paratha',              label:'Paratha' },
+  { key:'chai',                 label:'Chai' },
+  { key:'dal_makhani2',         label:'Dal Makhani (alt)' },
+];
+
+var _apDiningSlots = [
+  { key:'morning', label:'Morning',   time:'5 AM – 11 AM',  default:'paratha' },
+  { key:'lunch',   label:'Lunch',     time:'11 AM – 3 PM',  default:'paneer_butter_masala' },
+  { key:'evening', label:'Evening',   time:'3 PM – 8 PM',   default:'paneer_tikka' },
+  { key:'dinner',  label:'Dinner',    time:'8 PM – 12 AM',  default:'dal_makhani2' },
+  { key:'late',    label:'Late Night',time:'12 AM – 5 AM',  default:'chai' },
+];
+
+function apMakePicUrl(key) {
+  return './images/' + key + '.webp';
+}
+
+function apRenderPresets(containerId, presets, stateKey) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = presets.map(function(p) {
+    var selected = (_apState[stateKey] === apMakePicUrl(p.key)) ? ' selected' : '';
+    return '<div class="ap-preset-item' + selected + '" onclick="apSelectPreset(\'' + stateKey + '\',\'' + p.key + '\',this)">'
+      + '<div style="font-size:24px;">' + p.emoji + '</div>'
+      + '<div class="ap-preset-label">' + p.label + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function apRenderDiningSlots() {
+  var container = document.getElementById('ap-dining-slots');
+  if (!container) return;
+  container.innerHTML = _apDiningSlots.map(function(slot) {
+    var cur = _apState.dining[slot.key] || apMakePicUrl(slot.default);
+    var previewStyle = 'background:var(--surface2);';
+    return '<div class="ap-slot-row">'
+      + '<div class="ap-slot-header" onclick="apToggleSlot(\'' + slot.key + '\')">'
+      + '<div><div class="ap-slot-title">' + slot.label + '</div><div class="ap-slot-time">' + slot.time + '</div></div>'
+      + '<div style="display:flex;align-items:center;gap:8px;">'
+      + '<img class="ap-slot-preview" id="ap-slot-prev-' + slot.key + '" src="' + cur + '" onerror="this.style.opacity=0.3" style="' + previewStyle + '">'
+      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" id="ap-slot-chevron-' + slot.key + '"><polyline points="6 9 12 15 18 9"/></svg>'
+      + '</div></div>'
+      + '<div class="ap-slot-body" id="ap-slot-body-' + slot.key + '">'
+      + '<div class="ap-dish-grid">'
+      + _apDishKeys.map(function(dish) {
+          var sel = (cur === apMakePicUrl(dish.key)) ? ' selected' : '';
+          return '<div class="ap-dish-item' + sel + '" onclick="apSelectDish(\'' + slot.key + '\',\'' + dish.key + '\')">'
+            + '<img src="' + apMakePicUrl(dish.key) + '" onerror="this.style.opacity=0.2" loading="lazy">'
+            + '<div class="ap-dish-name">' + dish.label + '</div>'
+            + '</div>';
+        }).join('')
+      + '</div></div>'
+      + '</div>';
+  }).join('');
+}
+
+window.apToggleSlot = function(key) {
+  var body    = document.getElementById('ap-slot-body-' + key);
+  var chevron = document.getElementById('ap-slot-chevron-' + key);
+  if (!body) return;
+  var open = body.classList.toggle('open');
+  if (chevron) chevron.style.transform = open ? 'rotate(180deg)' : '';
+};
+
+window.apSelectPreset = function(stateKey, presetKey, el) {
+  _apState[stateKey] = apMakePicUrl(presetKey);
+  var container = el.parentElement;
+  container.querySelectorAll('.ap-preset-item').forEach(function(item) { item.classList.remove('selected'); });
+  el.classList.add('selected');
+};
+
+window.apSelectDish = function(slotKey, dishKey) {
+  _apState.dining[slotKey] = apMakePicUrl(dishKey);
+  // Update preview thumbnail
+  var prev = document.getElementById('ap-slot-prev-' + slotKey);
+  if (prev) prev.src = apMakePicUrl(dishKey);
+  // Update selected state in grid
+  var body = document.getElementById('ap-slot-body-' + slotKey);
+  if (body) {
+    body.querySelectorAll('.ap-dish-item').forEach(function(item) { item.classList.remove('selected'); });
+    var allItems = body.querySelectorAll('.ap-dish-item');
+    _apDishKeys.forEach(function(d, i) {
+      if (d.key === dishKey && allItems[i]) allItems[i].classList.add('selected');
+    });
+  }
+};
+
+window.apTriggerUpload = function(type) {
+  var el = document.getElementById('ap-upload-' + type);
+  if (el) el.click();
+};
+
+window.apHandleUpload = function(type, input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  // Preview locally via object URL
+  var url = URL.createObjectURL(file);
+  _apState[type] = url;
+  // Mark all presets unselected
+  var container = document.getElementById('ap-' + type + '-presets');
+  if (container) container.querySelectorAll('.ap-preset-item').forEach(function(item) { item.classList.remove('selected'); });
+  showToast('Photo selected · save to apply');
+  // TODO: upload to Firebase Storage and replace url with download URL
+};
+
+window.openAppearanceModal = function() {
+  var modal = document.getElementById('appearance-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  apLoadData();
+};
+
+window.closeAppearanceModal = function() {
+  var modal = document.getElementById('appearance-modal');
+  if (modal) modal.style.display = 'none';
+};
+
+function apLoadData() {
+  apRenderPresets('ap-login-presets', _apLoginPresets, 'login');
+  apRenderPresets('ap-hero-presets',  _apHeroPresets,  'hero');
+  apRenderDiningSlots();
+  var db = getDb();
+  if (!db) return;
+  db.collection('settings').doc('hotel').get().then(function(doc) {
+    if (!doc.exists) return;
+    var d = doc.data();
+    if (d.login_img) _apState.login = d.login_img;
+    if (d.hero_img)  _apState.hero  = d.hero_img;
+    if (d.dining_imgs && typeof d.dining_imgs === 'object') {
+      Object.keys(d.dining_imgs).forEach(function(k) { _apState.dining[k] = d.dining_imgs[k]; });
+    }
+    // Re-render with loaded state
+    apRenderPresets('ap-login-presets', _apLoginPresets, 'login');
+    apRenderPresets('ap-hero-presets',  _apHeroPresets,  'hero');
+    apRenderDiningSlots();
+  }).catch(function() {});
+}
+
+window.saveAppearance = function() {
+  var data = {
+    login_img:   _apState.login,
+    hero_img:    _apState.hero,
+    dining_imgs: _apState.dining
+  };
+  // Apply immediately on guest view if running
+  var loginBg = document.querySelector('.entry-bg-photo');
+  if (loginBg && data.login_img) loginBg.style.backgroundImage = "url('" + data.login_img + "')";
+  var heroBg = document.querySelector('.home-hero-photo-inner');
+  if (heroBg && data.hero_img) {
+    heroBg.style.backgroundImage = "url('" + data.hero_img + "')";
+    heroBg.style.backgroundSize = 'cover';
+    heroBg.style.backgroundPosition = 'center';
+  }
+
+  var db = getDb();
+  if (db) {
+    db.collection('settings').doc('hotel').set(data, { merge: true })
+      .then(function() { showToast('✓ Appearance saved'); })
+      .catch(function(e) { showToast('Saved · Firebase error'); console.warn(e); });
+  } else {
+    showToast('✓ Appearance saved locally');
+  }
+  var sub = document.getElementById('appearance-sub');
+  if (sub) sub.textContent = 'Saved';
+  closeAppearanceModal();
+};
+
+
+// ═══════════════════════════════════════════════════════════
+// GUEST DASHBOARD MODAL
+// ═══════════════════════════════════════════════════════════
+var _gdDefaultServices = [
+  { id:'services',    label:'Services',    icon:'🛎️', sub:'Housekeeping & amenities', enabled:true },
+  { id:'rtc',         label:'Reception',   icon:'📞', sub:'Call front desk',          enabled:true },
+  { id:'concierge',   label:'Concierge',   icon:'🗺️', sub:'Experiences & reservations',enabled:true },
+  { id:'housekeeping',label:'Housekeeping',icon:'🏠', sub:'Room cleaning & turndown', enabled:true },
+  { id:'spa',         label:'Spa',         icon:'💆', sub:'Book treatments',           enabled:true },
+  { id:'laundry',     label:'Laundry',     icon:'👔', sub:'Pickup & dry cleaning',     enabled:false },
+];
+var _gdServices = JSON.parse(JSON.stringify(_gdDefaultServices));
+var _gdOffer = { enabled: false, title: '', sub: '', link: '' };
+var _gdProfile = { tagline: '', loyalty_visible: true, loyalty_label: 'Gold' };
+
+window.openGuestDashModal = function() {
+  var modal = document.getElementById('guest-dash-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  gdSwitchTab('services');
+  gdLoadData();
+};
+window.closeGuestDashModal = function() {
+  var modal = document.getElementById('guest-dash-modal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.gdSwitchTab = function(tab) {
+  ['services','offer','profile'].forEach(function(t) {
+    var btn   = document.getElementById('gd-tab-' + t);
+    var panel = document.getElementById('gd-panel-' + t);
+    if (!btn || !panel) return;
+    if (t === tab) { btn.classList.add('hs-tab-active'); panel.style.display = ''; }
+    else            { btn.classList.remove('hs-tab-active'); panel.style.display = 'none'; }
+  });
+  if (tab === 'services') gdRenderServices();
+  if (tab === 'profile')  gdRenderProfile();
+};
+
+function gdRenderServices() {
+  var list = document.getElementById('gd-services-list');
+  if (!list) return;
+  list.innerHTML = _gdServices.map(function(svc, i) {
+    return '<div class="gd-service-row">'
+      + '<div class="gd-service-icon">' + svc.icon + '</div>'
+      + '<div class="gd-service-name-wrap">'
+      + '<input class="gd-service-name" value="' + svc.label + '" onchange="_gdServices[' + i + '].label=this.value" title="Tap to rename">'
+      + '<div class="gd-service-sub">' + svc.sub + '</div>'
+      + '</div>'
+      + '<div class="hs-toggle' + (svc.enabled ? ' on' : '') + '" onclick="gdToggleService(' + i + ')"><div class="hs-toggle-thumb"></div></div>'
+      + '</div>';
+  }).join('');
+}
+
+window.gdToggleService = function(i) {
+  _gdServices[i].enabled = !_gdServices[i].enabled;
+  var rows = document.querySelectorAll('.gd-service-row');
+  if (rows[i]) {
+    var tog = rows[i].querySelector('.hs-toggle');
+    if (tog) tog.classList.toggle('on', _gdServices[i].enabled);
+  }
+};
+
+window.gdToggleOffer = function() {
+  var tog = document.getElementById('gd-tog-offer');
+  if (!tog) return;
+  _gdOffer.enabled = !_gdOffer.enabled;
+  tog.classList.toggle('on', _gdOffer.enabled);
+};
+
+function gdRenderProfile() {
+  var el = document.getElementById('gd-profile-tagline');
+  if (el) el.value = _gdProfile.tagline;
+  var loyTog = document.getElementById('gd-tog-loyalty');
+  if (loyTog) loyTog.classList.toggle('on', _gdProfile.loyalty_visible);
+  // Highlight active tier chip
+  document.querySelectorAll('#gd-loyalty-fields .hs-chip').forEach(function(chip) {
+    chip.classList.toggle('active', chip.textContent.trim() === _gdProfile.loyalty_label);
+  });
+}
+
+window.gdToggleLoyalty = function() {
+  var tog = document.getElementById('gd-tog-loyalty');
+  if (!tog) return;
+  _gdProfile.loyalty_visible = !_gdProfile.loyalty_visible;
+  tog.classList.toggle('on', _gdProfile.loyalty_visible);
+};
+
+window.gdSetTier = function(tier) {
+  _gdProfile.loyalty_label = tier;
+  document.querySelectorAll('#gd-loyalty-fields .hs-chip').forEach(function(chip) {
+    chip.classList.toggle('active', chip.textContent.trim() === tier);
+  });
+};
+
+function gdLoadData() {
+  var db = getDb();
+  if (!db) { gdRenderServices(); return; }
+  db.collection('settings').doc('hotel').get().then(function(doc) {
+    if (!doc.exists) { gdRenderServices(); return; }
+    var d = doc.data();
+    if (d.quick_services && Array.isArray(d.quick_services)) _gdServices = d.quick_services;
+    if (d.offer_banner)   _gdOffer   = Object.assign(_gdOffer,   d.offer_banner);
+    if (d.profile_config) _gdProfile = Object.assign(_gdProfile, d.profile_config);
+    gdRenderServices();
+    // Restore offer toggle + fields
+    var offerTog = document.getElementById('gd-tog-offer');
+    if (offerTog) offerTog.classList.toggle('on', _gdOffer.enabled);
+    var setVal = function(id, v) { var el = document.getElementById(id); if (el && v) el.value = v; };
+    setVal('gd-offer-title', _gdOffer.title);
+    setVal('gd-offer-sub',   _gdOffer.sub);
+    setVal('gd-offer-link',  _gdOffer.link);
+  }).catch(function() { gdRenderServices(); });
+}
+
+window.saveGuestDash = function() {
+  // Read offer fields
+  var val = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  _gdOffer.title = val('gd-offer-title');
+  _gdOffer.sub   = val('gd-offer-sub');
+  _gdOffer.link  = val('gd-offer-link');
+  _gdProfile.tagline = val('gd-profile-tagline');
+
+  var data = {
+    quick_services: _gdServices,
+    offer_banner:   _gdOffer,
+    profile_config: _gdProfile
+  };
+
+  var db = getDb();
+  if (db) {
+    db.collection('settings').doc('hotel').set(data, { merge: true })
+      .then(function() { showToast('✓ Guest dashboard saved'); })
+      .catch(function(e) { showToast('Saved · Firebase error'); console.warn(e); });
+  } else {
+    showToast('✓ Saved locally');
+  }
+  closeGuestDashModal();
+};
+
+})();
+</script>
 
 </body>
 </html>
