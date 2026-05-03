@@ -7944,7 +7944,11 @@ document.addEventListener('DOMContentLoaded', function() {
   var rn = window.ROOM_NUM;
   var sRoom = document.getElementById('splash-room-num');
   if (sRoom) sRoom.textContent = rn;
-  document.querySelectorAll('.dyn-room').forEach(function(el){ el.textContent = 'Room ' + rn; });
+  document.querySelectorAll('.dyn-room').forEach(function(el){
+    // svc-details-value already has a "Room" label beside it — just show the number
+    if (el.classList.contains('svc-details-value')) { el.textContent = rn; }
+    else { el.textContent = 'Room ' + rn; }
+  });
   var ss = document.getElementById('success-sub'); if(ss) ss.textContent = 'Room '+rn+' · Your food is being prepared';
   var ms = document.getElementById('merge-sub'); if(ms) ms.textContent = 'Someone in Room '+rn+' just ordered. Want to add to it?';
   // Restore saved guest name — skip entry screen if already set on this device
@@ -8613,9 +8617,10 @@ function _resolveWifiForRoom(zones, roomNum) {
     for (var j = 0; j < parts.length; j++) {
       var part = parts[j].trim();
       if (!part) continue;
-      if (part.indexOf('-') !== -1) {
-        var bounds = part.split('-');
-        var lo = parseInt(bounds[0], 10), hi = parseInt(bounds[1], 10), r = parseInt(room, 10);
+      // Support ranges like "101-108"
+      var range = part.match(/^(\d+)-(\d+)$/);
+      if (range) {
+        var lo = parseInt(range[1], 10), hi = parseInt(range[2], 10), r = parseInt(room, 10);
         if (!isNaN(lo) && !isNaN(hi) && !isNaN(r) && r >= lo && r <= hi) return z;
       } else if (part === room) {
         return z;
@@ -8625,7 +8630,16 @@ function _resolveWifiForRoom(zones, roomNum) {
   return zones[0]; // fallback to first zone
 }
 
-// Load WiFi credentials from Firestore and refresh all UI elements
+// Refresh every DOM element that shows the SSID or password
+function _applyWifiToUI() {
+  var el;
+  el = document.getElementById('wifi-ssid');            if (el) el.textContent = WIFI_SSID;
+  el = document.getElementById('profile-ssid-display'); if (el) el.textContent = WIFI_SSID;
+  el = document.getElementById('modal-ssid');           if (el) el.textContent = WIFI_SSID;
+  el = document.getElementById('hint-ssid-label');      if (el) el.textContent = WIFI_SSID;
+}
+
+// Load WiFi credentials from Firestore and refresh all UI
 function _loadWifiFromFirebase() {
   _waitDb().then(function(db) {
     if (!db) return;
@@ -8636,17 +8650,13 @@ function _loadWifiFromFirebase() {
       if (d.wifi_zones && Array.isArray(d.wifi_zones) && d.wifi_zones.length > 0) {
         zone = _resolveWifiForRoom(d.wifi_zones, window.ROOM_NUM);
       } else if (d.wifi_ssid) {
+        // Legacy single-wifi fields
         zone = { ssid: d.wifi_ssid, pass: d.wifi_pass || '' };
       }
       if (!zone) return;
       if (zone.ssid) WIFI_SSID = zone.ssid;
       if (zone.pass !== undefined) WIFI_PASS = zone.pass;
-      // Refresh every element that shows the SSID
-      var el;
-      el = document.getElementById('wifi-ssid');           if (el) el.textContent = WIFI_SSID;
-      el = document.getElementById('profile-ssid-display'); if (el) el.textContent = WIFI_SSID;
-      el = document.getElementById('modal-ssid');           if (el) el.textContent = WIFI_SSID;
-      el = document.getElementById('hint-ssid-label');      if (el) el.textContent = WIFI_SSID;
+      _applyWifiToUI();
     }).catch(function(e) { console.warn('Wi-Fi load failed:', e); });
   });
 }
@@ -8692,11 +8702,6 @@ window.openHotelLocation = openHotelLocation;
 
 function openWifiModal() {
   _wifiPassVisible = false;
-  // Always refresh SSID label when modal opens (even if _updateProfileScreen hasn't run)
-  var ms = document.getElementById('modal-ssid');
-  if (ms) ms.textContent = WIFI_SSID;
-  var hl = document.getElementById('hint-ssid-label');
-  if (hl) hl.textContent = WIFI_SSID;
   var pd = document.getElementById('modal-pass-display');
   if (pd) pd.textContent = '••••••••';
   var ei = document.getElementById('eye-icon');
@@ -8704,11 +8709,30 @@ function openWifiModal() {
   var ov = document.getElementById('wifi-modal-overlay');
   if (ov) ov.style.display = 'flex';
   document.body.style.overflow = 'hidden';
-  // Always scroll sheet to top so WiFi fields are visible first
   var sheet = document.querySelector('.wifi-modal-sheet');
   if (sheet) sheet.scrollTop = 0;
-  _initWifiModalForDevice();
-  _drawWifiQR();
+  // Always fetch latest WiFi from Firestore when modal opens, then render
+  _waitDb().then(function(db) {
+    if (!db) { _applyWifiToUI(); _initWifiModalForDevice(); _drawWifiQR(); return; }
+    db.collection('settings').doc('hotel').get().then(function(doc) {
+      if (doc.exists) {
+        var d = doc.data();
+        var zone = null;
+        if (d.wifi_zones && Array.isArray(d.wifi_zones) && d.wifi_zones.length > 0) {
+          zone = _resolveWifiForRoom(d.wifi_zones, window.ROOM_NUM);
+        } else if (d.wifi_ssid) {
+          zone = { ssid: d.wifi_ssid, pass: d.wifi_pass || '' };
+        }
+        if (zone) {
+          if (zone.ssid) WIFI_SSID = zone.ssid;
+          if (zone.pass !== undefined) WIFI_PASS = zone.pass;
+        }
+      }
+      _applyWifiToUI();
+      _initWifiModalForDevice();
+      _drawWifiQR();
+    }).catch(function() { _applyWifiToUI(); _initWifiModalForDevice(); _drawWifiQR(); });
+  });
 }
 
 function closeWifiModal() {
