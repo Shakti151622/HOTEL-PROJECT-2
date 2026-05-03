@@ -14632,9 +14632,24 @@ window.hsSwitchTab = function(tab) {
   });
   if (tab === 'policies') hsRenderFacilities();
   if (tab === 'wifi') {
-    hsRenderWifiZones();
-    // If zones still empty (slow connection), reload from Firestore
-    if (_hsWifiZones.length === 1 && !_hsWifiZones[0].ssid) hsLoadData();
+    if (_hsDataLoaded) {
+      // Data already loaded — render immediately
+      hsRenderWifiZones();
+    } else {
+      // Firestore not resolved yet — wait then render
+      var _wifiTabWait = setInterval(function() {
+        if (_hsDataLoaded) {
+          clearInterval(_wifiTabWait);
+          hsRenderWifiZones();
+        }
+      }, 100);
+      // Safety timeout: force reload after 3s if still not loaded
+      setTimeout(function() {
+        clearInterval(_wifiTabWait);
+        if (!_hsDataLoaded) { hsLoadData(); }
+        hsRenderWifiZones();
+      }, 3000);
+    }
   }
 };
 
@@ -14665,7 +14680,10 @@ window.hsPreviewLogo = function() {
   else if (preview) { preview.style.display = 'none'; }
 };
 
+var _hsDataLoaded = false; // flag: Firestore data has been loaded
+
 function hsLoadData() {
+  _hsDataLoaded = false;
   var db = getDb();
   // Pre-fill from localStorage first (instant)
   var name = localStorage.getItem('hyatt_hotel_name') || '';
@@ -14693,6 +14711,7 @@ function hsLoadData() {
       _hsWifiZones = [{ name: 'Main Network', ssid: d.wifi_ssid, pass: d.wifi_pass || '', rooms: '' }];
     }
     // Always re-render wifi zones so data is ready when tab is clicked
+    _hsDataLoaded = true;
     hsRenderWifiZones();
     // Update contact tab summary
     var wsum = document.getElementById('hs-wifi-summary');
@@ -14801,7 +14820,7 @@ function hsRenderWifiZones() {
       + '<div style="margin-bottom:10px;">'
       + '<div class="hs-label" style="margin-bottom:5px;">Password</div>'
       + '<div style="position:relative;">'
-      + '<input type="password" id="hs-wifi-pass-' + idx + '" value="' + _esc(zone.pass) + '" onchange="hsWifiField(' + idx + ',\x27pass\x27,this.value)" class="hs-input" placeholder="Wi-Fi password" style="padding-right:44px;">'
+      + '<input type="password" id="hs-wifi-pass-' + idx + '" value="' + _esc(zone.pass) + '" oninput="hsWifiField(' + idx + ',\x27pass\x27,this.value)" onchange="hsWifiField(' + idx + ',\x27pass\x27,this.value)" class="hs-input" placeholder="Wi-Fi password" style="padding-right:44px;">'
       + '<button onclick="hsTogglePassVis(' + idx + ')" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;padding:0;" title="Show/hide">👁</button>'
       + '</div>'
       + '</div>'
@@ -15058,6 +15077,13 @@ window.saveHotelSetup = function() {
   var val = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
   var name = val('hs-name');
   if (!name) { document.getElementById('hs-name').focus(); return; }
+  // Flush DOM values into _hsWifiZones in case onchange didn't fire (e.g. Save clicked without blur)
+  _hsWifiZones.forEach(function(zone, idx) {
+    var ssidEl = document.getElementById('hs-ssid-' + idx);
+    var passEl = document.getElementById('hs-wifi-pass-' + idx);
+    if (ssidEl && ssidEl.value !== '') zone.ssid = ssidEl.value;
+    if (passEl && passEl.value !== '') zone.pass = passEl.value;
+  });
 
   var facilities = {};
   _hsFacilities.forEach(function(f) {
