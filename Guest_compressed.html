@@ -7944,11 +7944,7 @@ document.addEventListener('DOMContentLoaded', function() {
   var rn = window.ROOM_NUM;
   var sRoom = document.getElementById('splash-room-num');
   if (sRoom) sRoom.textContent = rn;
-  document.querySelectorAll('.dyn-room').forEach(function(el){
-    // svc-details-value already has a "Room" label beside it — just show the number
-    if (el.classList.contains('svc-details-value')) { el.textContent = rn; }
-    else { el.textContent = 'Room ' + rn; }
-  });
+  document.querySelectorAll('.dyn-room').forEach(function(el){ el.textContent = 'Room ' + rn; });
   var ss = document.getElementById('success-sub'); if(ss) ss.textContent = 'Room '+rn+' · Your food is being prepared';
   var ms = document.getElementById('merge-sub'); if(ms) ms.textContent = 'Someone in Room '+rn+' just ordered. Want to add to it?';
   // Restore saved guest name — skip entry screen if already set on this device
@@ -8711,7 +8707,7 @@ function openWifiModal() {
   document.body.style.overflow = 'hidden';
   var sheet = document.querySelector('.wifi-modal-sheet');
   if (sheet) sheet.scrollTop = 0;
-  // Always fetch latest WiFi from Firestore when modal opens, then render
+  // Fetch fresh from Firestore every time modal opens — never use stale/hardcoded values
   _waitDb().then(function(db) {
     if (!db) { _applyWifiToUI(); _initWifiModalForDevice(); _drawWifiQR(); return; }
     db.collection('settings').doc('hotel').get().then(function(doc) {
