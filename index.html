@@ -15186,12 +15186,20 @@ window.saveHotelSetup = function() {
 
   // Sync to Firestore
   var db = getDb();
+  console.log('[SAVE] wifi_zones being saved:', JSON.stringify(data.wifi_zones));
   if (db) {
     db.collection('settings').doc('hotel').set(data, { merge: true })
-      .then(function() { showToast('✓ Hotel settings saved'); })
-      .catch(function(e) { showToast('Saved locally · Firebase error'); console.warn(e); });
+      .then(function() { 
+        showToast('✓ Hotel settings saved');
+        console.log('[SAVE] SUCCESS — wifi_zones written to Firebase');
+      })
+      .catch(function(e) { 
+        showToast('Saved locally · Firebase error'); 
+        console.warn('[SAVE] FAILED:', e.message || e); 
+      });
   } else {
     showToast('✓ Saved locally');
+    console.warn('[SAVE] No Firebase db — saved locally only');
   }
 
   // Update settings panel subtitle
