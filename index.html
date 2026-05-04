@@ -5450,6 +5450,7 @@ window.hbPreviewLogo        = hbPreviewLogo;
 // Load on dashboard init
 setTimeout(_loadHotelBrand, 2000);
 
+
 // ══ KITCHEN STATUS ══
 var _kitchenOpen = true;
 
@@ -9163,11 +9164,41 @@ window.initDashTheme=initDashTheme;
 window.connectSupabase=connectSupabase;
 
 /* ── ROOM CONFIG ── */
+// floorConfig: load from localStorage immediately (so rooms render fast),
+// then Firebase will override with authoritative data once connected.
 var floorConfig = JSON.parse(localStorage.getItem('hyatt_floors') || 'null') || [
   {name:'Floor 1', prefix:'1', start:1, count:8},
   {name:'Floor 2', prefix:'2', start:1, count:8},
   {name:'Floor 3', prefix:'3', start:1, count:4},
 ];
+
+// Load authoritative room config from Firebase (settings/rooms) on startup
+// This ensures Manage Rooms changes made on any device sync everywhere
+(function _syncFloorConfigFromFirebase() {
+  var _attempt = function() {
+    var db = (typeof getDb === 'function') ? getDb() : null;
+    if (!db) { setTimeout(_attempt, 1500); return; }
+    db.collection('settings').doc('rooms').get().then(function(doc) {
+      if (!doc.exists) return; // no Firebase rooms yet — keep localStorage/default
+      var d = doc.data();
+      if (d.floor_config && Array.isArray(d.floor_config) && d.floor_config.length > 0) {
+        floorConfig = d.floor_config;
+        try { localStorage.setItem('hyatt_floors', JSON.stringify(floorConfig)); } catch(e) {}
+        if (typeof window._hsRebuildRoomList === 'function') window._hsRebuildRoomList();
+        if (typeof renderRooms === 'function') renderRooms();
+        if (typeof renderFloorList === 'function') renderFloorList();
+        if (typeof updateRoomTotal === 'function') updateRoomTotal();
+        var total = floorConfig.reduce(function(s,f){ return s + f.count; }, 0);
+        var sub = document.getElementById('rooms-config-sub');
+        if (sub) sub.textContent = total + ' rooms configured';
+        var rb = document.getElementById('rooms-badge'); if (rb) rb.textContent = total;
+        console.log('Room config loaded from Firebase:', floorConfig.length, 'floors,', total, 'rooms');
+      }
+    }).catch(function(e){ console.warn('Floor config load error:', e); });
+  };
+  // Wait for Firebase to connect before trying
+  setTimeout(_attempt, 2500);
+})();
 
 // Static room data — real guest names + real checkout dates
 // Keyed by room number so the grid is always consistent
@@ -9378,13 +9409,16 @@ function saveRoomConfig() {
   if (sub) sub.textContent = total + ' rooms configured';
   var rb=document.getElementById('rooms-badge');if(rb)rb.textContent=total;
   closeRoomConfig();
-  // Re-render rooms view with new config
-  if (document.getElementById('view-rooms').classList.contains('active')) {
-    renderRooms();
-  }
-  // Rebuild Wi-Fi zone room picker list so newly added rooms appear immediately
+  if (document.getElementById('view-rooms').classList.contains('active')) renderRooms();
   if (typeof window._hsRebuildRoomList === 'function') window._hsRebuildRoomList();
   showToast('service', 'Rooms Updated', total + ' rooms configured across ' + floorConfig.length + ' floors');
+  // Save to Firebase — single source of truth for room list across all devices
+  var _saveDb = (typeof getDb === 'function') ? getDb() : null;
+  if (_saveDb) {
+    _saveDb.collection('settings').doc('rooms').set({ floor_config: floorConfig, updated_at: new Date().toISOString() })
+      .then(function(){ console.log('Room config saved to Firebase'); })
+      .catch(function(e){ console.warn('Room config Firebase save error:', e); });
+  }
 }
 
 // renderRooms now uses buildRoomsData() directly
@@ -14721,6 +14755,18 @@ function hsLoadData() {
     // Always re-render wifi zones so data is ready when tab is clicked
     _hsDataLoaded = true;
     hsRenderWifiZones();
+    // Also refresh room list from Firebase settings/rooms so Wi-Fi chip picker is current
+    db.collection('settings').doc('rooms').get().then(function(rDoc) {
+      if (!rDoc.exists) return;
+      var rd = rDoc.data();
+      if (rd.floor_config && Array.isArray(rd.floor_config) && rd.floor_config.length > 0) {
+        floorConfig = rd.floor_config;
+        try { localStorage.setItem('hyatt_floors', JSON.stringify(floorConfig)); } catch(e) {}
+        if (typeof window._hsRebuildRoomList === 'function') window._hsRebuildRoomList();
+        // Re-render wifi zones now that room list is updated
+        hsRenderWifiZones();
+      }
+    }).catch(function(){});
     // Update contact tab summary
     var wsum = document.getElementById('hs-wifi-summary');
     if (wsum) wsum.textContent = _hsWifiZones.length + ' zone' + (_hsWifiZones.length !== 1 ? 's' : '') + ' configured';
