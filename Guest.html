@@ -1153,22 +1153,8 @@ window.addEventListener('error', function(e) {
   .home-status-value { font-size:12px; font-weight:700; color:var(--text-primary); line-height:1.2; }
   .home-status-sub { font-size:9px; color:var(--text-secondary); }
   .home-status-link { font-size:11px; color:var(--gold-primary); font-weight:600; text-decoration:underline; cursor:pointer; }
-  .home-wifi-connected { display:flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color: #B07A20; }
-  .home-wifi-dot { width:7px; height:7px; border-radius:50%; background: #B07A20; flex-shrink:0; transition: background 0.3s; }
-
-  /* State: connected (green) */
-  .home-wifi-connected.wifi-connected { color: #2D7D46; }
-  .home-wifi-connected.wifi-connected .home-wifi-dot { background: #2D7D46; }
-
-  /* State: checking (grey pulsing) */
-  .home-wifi-connected.wifi-checking { color: var(--text-muted); }
-  .home-wifi-connected.wifi-checking .home-wifi-dot { background: var(--text-muted); animation: wifiPulse 1.2s ease-in-out infinite; }
-
-  /* State: disconnected (red) */
-  .home-wifi-connected.wifi-disconnected { color: #C0392B; }
-  .home-wifi-connected.wifi-disconnected .home-wifi-dot { background: #C0392B; }
-
-  @keyframes wifiPulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+  .home-wifi-connected { display:flex; align-items:center; gap:4px; font-size:11px; color:#2D7D46; font-weight:600; }
+  .home-wifi-dot { width:7px; height:7px; border-radius:50%; background:#2D7D46; flex-shrink:0; }
   /* DINING HERO CARD */
   .home-dining-card {
     border-radius:16px;
@@ -1290,59 +1276,112 @@ window.addEventListener('error', function(e) {
   .home-offers-title { font-size:13px; font-weight:600; color:var(--text-primary); margin-bottom:1px; }
   .home-offers-sub { font-size:10px; color:var(--text-secondary); }
   .home-offers-link { font-size:12px; color:var(--gold-primary); font-weight:600; white-space:nowrap; display:flex; align-items:center; gap:4px; }
-  /* WIFI banner — shown when never connected, hidden after first connect */
+  /* WIFI banner */
   .home-wifi-banner {
-    display: flex;
+    display: flex !important;
     align-items: center;
     gap: 14px;
-    background: var(--surface);
-    border: 1px solid var(--card-border);
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
     border-radius: 16px;
-    padding: 14px 16px;
-    margin: 0 0 12px;
+    padding: 16px 18px;
+    margin-bottom: 10px;
     cursor: pointer;
-    transition: opacity 0.3s ease, max-height 0.4s ease, margin 0.4s ease, padding 0.4s ease;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    transition: transform 0.15s, max-height 0.5s ease, opacity 0.5s ease, margin 0.5s ease, padding 0.5s ease;
     overflow: hidden;
     max-height: 100px;
+    opacity: 1;
   }
-  .home-wifi-banner.wifi-banner-hidden {
-    max-height: 0;
-    opacity: 0;
-    padding-top: 0;
-    padding-bottom: 0;
-    margin-bottom: 0;
+  .home-wifi-banner.banner-hiding {
+    max-height: 0 !important;
+    opacity: 0 !important;
+    margin-bottom: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
     pointer-events: none;
   }
-  .home-wifi-icon {
-    width: 44px;
-    height: 44px;
+  .home-wifi-banner:active { transform: scale(0.98); }
+
+  /* Banner states */
+  .home-wifi-banner.state-connecting .home-wifi-banner-icon-bg { background: #E8A030; }
+  .home-wifi-banner.state-connected .home-wifi-banner-icon-bg  { background: var(--green-primary); }
+  .home-wifi-banner.state-failed .home-wifi-banner-icon-bg     { background: #C0392B; }
+
+  /* Header WiFi button */
+  .home-wifi-header-btn {
+    width: 38px; height: 38px;
     border-radius: 50%;
-    background: var(--gold);
+    background: #F4F4F2;
+    border: none;
+    cursor: pointer;
     display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    color: #555;
+    transition: background 0.2s;
+  }
+  .home-wifi-header-dot { display: none; }
+  .home-wifi-header-btn.state-connected   { color: #2D7D46; }
+  .home-wifi-header-btn.state-connecting  { color: #E8A030; }
+  .home-wifi-header-btn.state-reconnecting{ color: #E8A030; }
+  .home-wifi-header-btn.state-failed      { color: #C0392B; }
+  @keyframes wifi-pulse {
+    0%   { opacity: 1;    transform: scale(1); }
+    50%  { opacity: 0.35; transform: scale(0.88); }
+    100% { opacity: 1;    transform: scale(1); }
+  }
+  .home-wifi-header-btn.state-connecting svg,
+  .home-wifi-header-btn.state-reconnecting svg { animation: wifi-pulse 1s ease-in-out infinite; }
+  :root.night .home-wifi-header-btn { background: var(--surface) !important; border: 1px solid var(--card-border); }
+  .home-wifi-icon {
+    display: flex !important;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: var(--green-primary);
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
   }
-  .home-wifi-text { flex: 1; }
-  .home-wifi-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
-  .home-wifi-sub { font-size: 12px; color: var(--text-muted); }
+  .home-wifi-text {
+    display: flex !important;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .home-wifi-title {
+    display: block !important;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.2;
+  }
+  .home-wifi-sub {
+    display: block !important;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+  }
   .home-wifi-btn {
-    flex-shrink: 0;
-    background: var(--gold);
-    color: #fff;
-    border: none;
-    border-radius: 10px;
-    padding: 10px 16px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    white-space: nowrap;
-    display: flex;
+    display: inline-flex !important;
     align-items: center;
     gap: 6px;
+    background: var(--green-primary);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 11px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    flex-shrink: 0;
+    letter-spacing: 0.01em;
+    transition: background 0.2s;
   }
-  .home-wifi-btn:active { opacity: 0.85; transform: scale(0.97); }
+  .home-wifi-btn:active { opacity: 0.85; }
   /* SECTION HEADERS */
   .home-section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
   .home-section-title { font-size:17px; font-weight:700; color:var(--text-primary); }
@@ -3493,6 +3532,10 @@ window.CHEF_IMG_SRC = './images/chef.webp';
       </div>
     </div>
     <div class="home-topbar-right">
+      <button class="home-wifi-header-btn" id="home-wifi-header-btn" onclick="openWifiModal()" style="display:none" title="WiFi">
+        <svg id="home-wifi-header-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/></svg>
+        <span class="home-wifi-header-dot" id="home-wifi-header-dot"></span>
+      </button>
       <button class="home-notif-btn" onclick="go('orders')">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
         <span class="home-notif-dot" id="home-notif-dot" style="display:none"></span>
@@ -3533,42 +3576,17 @@ window.CHEF_IMG_SRC = './images/chef.webp';
   </div>
   <div class="home-content">
     <div id="room-activity-bar" class="room-activity-bar" style="display:none"><div class="activity-pulse"></div><div class="activity-text" id="activity-text"></div><button class="activity-action" onclick="go('orders')">View</button></div>
-    <!-- STATUS BAR -->
-    <div class="home-status-bar">
-      <div class="home-status-item" onclick="openWifiModal()" style="cursor:pointer">
-        <div class="home-status-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg></div>
-        <div>
-          <div class="home-status-label">Complimentary WiFi</div>
-          <div class="home-wifi-connected" id="home-wifi-status"><div class="home-wifi-dot" id="home-wifi-dot"></div><span id="home-wifi-label">Tap to connect</span></div>
-        </div>
-      </div>
-      <div class="home-status-item">
-        <div class="home-status-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-        <div>
-          <div class="home-status-label">Check-out</div>
-          <div class="home-status-value">12:30 PM</div>
-          <div class="home-status-sub" id="checkout-date-display">—</div>
-        </div>
-      </div>
-      <div class="home-status-item" onclick="go('profile')" style="cursor:pointer">
-        <div class="home-status-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg></div>
-        <div>
-          <div class="home-status-label">Gold Privileges</div>
-          <div class="home-status-link">View benefits ›</div>
-        </div>
-      </div>
-    </div>
-    <!-- WIFI BANNER — visible when never connected, hidden after first connect -->
+    <!-- WIFI BANNER -->
     <div class="home-wifi-banner" id="home-wifi-banner" onclick="openWifiModal()">
-      <div class="home-wifi-icon">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+      <div class="home-wifi-icon" id="home-wifi-banner-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1" fill="#ffffff" stroke="none"/></svg>
       </div>
       <div class="home-wifi-text">
-        <div class="home-wifi-title">Free WiFi</div>
-        <div class="home-wifi-sub">Stay connected during your stay.</div>
+        <div class="home-wifi-title" id="home-wifi-banner-title">Free WiFi</div>
+        <div class="home-wifi-sub" id="home-wifi-banner-sub">Stay connected during your stay.</div>
       </div>
-      <button class="home-wifi-btn" onclick="event.stopPropagation();openWifiModal()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+      <button class="home-wifi-btn" id="home-wifi-banner-btn" onclick="event.stopPropagation(); openWifiModal();">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1" fill="#ffffff" stroke="none"/></svg>
         Connect Now
       </button>
     </div>
@@ -3593,6 +3611,7 @@ window.CHEF_IMG_SRC = './images/chef.webp';
         <div id="dining-dots" style="position:absolute; bottom:10px; left:50%; transform:translateX(-50%); z-index:3; display:flex; gap:5px;"></div>
       </div>
     </div>
+
 <svg width="0" height="0" style="position:absolute;overflow:hidden"><defs>
   <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
     <stop offset="0%"   stop-color="#D8C08A"/>
@@ -3874,7 +3893,7 @@ window.CHEF_IMG_SRC = './images/chef.webp';
         <div class="info-row-icon">⚡</div>
         <div class="info-row-content">
           <div class="info-row-label">Speed</div>
-          <div class="info-row-value">100 Mbps · Complimentary</div>
+          <div class="info-row-value">100 Mbps · Free</div>
         </div>
       </div>
     </div>
@@ -4507,30 +4526,39 @@ window.CHEF_IMG_SRC = './images/chef.webp';
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
           Copy Password
         </button>
-        <!-- Android: Open WiFi Settings button -->
+        <!-- Android: open WiFi Settings -->
         <button class="wifi-btn-secondary" id="wifi-android-btn" style="display:none;" onclick="openWifiSettingsAndroid()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
           Open WiFi Settings
         </button>
-        <!-- iOS + others: step-by-step instructions -->
-        <div id="wifi-ios-steps" style="display:none;">
-          <div class="wifi-hint-line" style="margin-top:4px;">
-            <ol class="wifi-hint-steps">
-              <li class="wifi-hint-step">
-                <span class="wifi-hint-num">1</span>
-                <span>Tap <strong>Copy Password</strong> above</span>
-              </li>
-              <li class="wifi-hint-step">
-                <span class="wifi-hint-num">2</span>
-                <span>Open <strong>Settings → Wi-Fi</strong> on your phone</span>
-              </li>
-              <li class="wifi-hint-step">
-                <span class="wifi-hint-num">3</span>
-                <span>Select <span class="wifi-hint-ssid" id="hint-ssid-label">…</span> and paste the password</span>
-              </li>
-            </ol>
-          </div>
+        <!-- iOS: open WiFi Settings via deep link -->
+        <button class="wifi-btn-secondary" id="wifi-ios-btn" style="display:none;" onclick="openWifiSettingsIOS()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+          Open WiFi Settings
+        </button>
+        <!-- Fallback for unsupported browsers only -->
+        <div id="wifi-manual-tip" style="display:none;align-items:center;gap:10px;padding:12px 14px;background:var(--surface2);border-radius:12px;border:1px solid var(--card-border);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span style="font-size:13px;color:var(--text-muted);line-height:1.4;">Go to <strong style="color:var(--text);">Settings → Wi-Fi</strong>, select <strong style="color:var(--text);" id="wifi-manual-ssid-tip">the network</strong> and paste the password.</span>
         </div>
+
+      <!-- Hint -->
+      <div class="wifi-hint-line" style="margin-top:14px;margin-bottom:0;">
+        <ol class="wifi-hint-steps">
+          <li class="wifi-hint-step">
+            <span class="wifi-hint-num">1</span>
+            <span>Tap <strong>Copy Password</strong> above</span>
+          </li>
+          <li class="wifi-hint-step">
+            <span class="wifi-hint-num">2</span>
+            <span>Open <strong>Settings → Wi-Fi</strong> on your phone <span style="font-size:11px;color:var(--text-dim);">(or tap the button above on Android)</span></span>
+          </li>
+          <li class="wifi-hint-step">
+            <span class="wifi-hint-num">3</span>
+            <span>Select <span class="wifi-hint-ssid" id="hint-ssid-label">…</span> and paste the password</span>
+          </li>
+        </ol>
+      </div>
 
       <!-- QR Code -->
       <div class="wifi-qr-wrap">
@@ -8698,134 +8726,6 @@ function _resolveWifiForRoom(zones, roomNum) {
   return zones[0];
 }
 
-// ── WIFI STATUS BADGE STATE MACHINE ─────────────────────────────────────────
-// States:
-//   "tap"          → amber dot · "Tap to connect"   (never connected before)
-//   "connected"    → green dot · "Connected"          (online + previously connected)
-// ── WIFI CONNECTION STATE MACHINE ──────────────────────────────────────────
-//
-// Banner logic:
-//   - Timer starts the moment the guest scans the QR / page loads.
-//   - For 5 minutes: banner is visible with "Free WiFi / Connect Now".
-//   - If guest taps Connect Now and successfully connects → banner disappears
-//     immediately, chip in header goes green "Connected".
-//   - If 5 minutes pass and guest never tried → banner disappears quietly,
-//     only the small chip in the header remains (amber "Tap to connect").
-//   - On the next QR scan (new page load), the 5-min window resets and
-//     banner appears again — until they connect.
-//
-// Header chip states:
-//   amber (default)   → "Tap to connect"   (not connected, banner visible or expired)
-//   wifi-connected    → "Connected"         (navigator.onLine === true)
-//   wifi-checking     → "Checking status"   (was connected, now offline, 4s grace)
-//   wifi-disconnected → "Not connected"     (confirmed offline after prior connect)
-
-var _WIFI_LOAD_KEY      = 'hyatt_wifi_load_ts';   // set once on each page load
-var _WIFI_CONNECTED_KEY = 'hyatt_wifi_connected';  // set permanently once truly online
-var _WIFI_BANNER_WINDOW = 5 * 60 * 1000;          // 5 minutes in ms
-var _wifiBannerTimer    = null;                    // fires when 5-min window expires
-
-function _isActuallyConnected() {
-  try { return !!localStorage.getItem(_WIFI_CONNECTED_KEY); } catch(e) { return false; }
-}
-function _markActuallyConnected() {
-  try { localStorage.setItem(_WIFI_CONNECTED_KEY, '1'); } catch(e) {}
-}
-function _getLoadTimestamp() {
-  try { return parseInt(localStorage.getItem(_WIFI_LOAD_KEY) || '0', 10); } catch(e) { return 0; }
-}
-function _setLoadTimestamp() {
-  // Write a fresh timestamp on every page load
-  try { localStorage.setItem(_WIFI_LOAD_KEY, String(Date.now())); } catch(e) {}
-}
-function _msRemainingInBannerWindow() {
-  var ts = _getLoadTimestamp();
-  if (!ts) return 0;
-  return Math.max(0, _WIFI_BANNER_WINDOW - (Date.now() - ts));
-}
-
-// ── MAIN STATE UPDATE ──────────────────────────────────────────────────────
-function _updateWifiStatusBadge() {
-  var badge  = document.getElementById('home-wifi-status');
-  var label  = document.getElementById('home-wifi-label');
-  var banner = document.getElementById('home-wifi-banner');
-  if (!badge || !label) return;
-
-  badge.classList.remove('wifi-connected', 'wifi-checking', 'wifi-disconnected');
-
-  // ── Case 1: device is genuinely online ──────────────────────────────────
-  if (navigator.onLine) {
-    _markActuallyConnected();
-    _cancelBannerTimer();
-    if (banner) banner.classList.add('wifi-banner-hidden');
-    badge.classList.add('wifi-connected');
-    label.textContent = 'Connected';
-    return;
-  }
-
-  // ── Case 2: was connected before but now offline ─────────────────────────
-  if (_isActuallyConnected()) {
-    if (banner) banner.classList.add('wifi-banner-hidden');
-    badge.classList.add('wifi-checking');
-    label.textContent = 'Checking status';
-    setTimeout(function() {
-      if (navigator.onLine) { _updateWifiStatusBadge(); return; }
-      var b2 = document.getElementById('home-wifi-status');
-      var l2 = document.getElementById('home-wifi-label');
-      if (!b2 || !l2) return;
-      b2.classList.remove('wifi-checking');
-      b2.classList.add('wifi-disconnected');
-      l2.textContent = 'Not connected';
-    }, 4000);
-    return;
-  }
-
-  // ── Case 3: not yet connected ────────────────────────────────────────────
-  var remaining = _msRemainingInBannerWindow();
-
-  if (remaining > 0) {
-    // Still within the 5-min window — show the banner
-    if (banner) banner.classList.remove('wifi-banner-hidden');
-    label.textContent = 'Tap to connect';
-    // Schedule banner hide when window expires (if not already scheduled)
-    _scheduleBannerExpiry(remaining);
-  } else {
-    // 5-min window has expired — hide banner, chip only
-    if (banner) banner.classList.add('wifi-banner-hidden');
-    label.textContent = 'Tap to connect';
-  }
-}
-
-// ── Schedule the banner to auto-hide when the 5-min window expires ─────────
-function _scheduleBannerExpiry(ms) {
-  _cancelBannerTimer(); // don't double-schedule
-  _wifiBannerTimer = setTimeout(function() {
-    if (navigator.onLine || _isActuallyConnected()) return; // already handled
-    var banner = document.getElementById('home-wifi-banner');
-    if (banner) banner.classList.add('wifi-banner-hidden');
-    // chip stays, label stays "Tap to connect"
-  }, ms);
-}
-
-function _cancelBannerTimer() {
-  if (_wifiBannerTimer) { clearTimeout(_wifiBannerTimer); _wifiBannerTimer = null; }
-}
-
-// ── Called when guest taps "Connect Now" / opens the WiFi modal ────────────
-// Nothing extra needed here — opening the modal lets them connect.
-// When navigator.onLine fires true, _updateWifiStatusBadge handles it.
-function _onGuestConnectedWifi() {
-  _updateWifiStatusBadge();
-}
-
-// Listen for device going on/offline in real time
-window.addEventListener('online',  _updateWifiStatusBadge);
-window.addEventListener('offline', _updateWifiStatusBadge);
-
-// ── On every page load: stamp a fresh timestamp, then evaluate state ────────
-_setLoadTimestamp();
-
-
 // Apply loaded credentials to every DOM element that shows SSID or password
 function _applyWifiToUI() {
   console.log('[WiFi-UI] _applyWifiToUI called. SSID=' + WIFI_SSID + ' PASS length=' + (WIFI_PASS||'').length);
@@ -8838,8 +8738,6 @@ function _applyWifiToUI() {
   _set('wifi-manual-ssid-tip',  WIFI_SSID || 'the network');
   var pd = document.getElementById('modal-pass-display');
   if (pd) pd.textContent = _wifiPassVisible ? (WIFI_PASS || '—') : '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
-  // Refresh badge whenever credentials update
-  _updateWifiStatusBadge();
 }
 
 // Show loading state while Firebase responds
@@ -8850,7 +8748,6 @@ function _setWifiLoadingState() {
   }
   _loading('wifi-ssid'); _loading('wifi-pass');
   _loading('profile-ssid-display'); _loading('modal-ssid'); _loading('hint-ssid-label');
-  // Badge is NOT set to loading — it keeps its current state ("Tap to connect" or "Connected" etc.)
 }
 
 // Parse Firebase doc and apply to UI; returns true if data was found
@@ -8975,13 +8872,11 @@ function openWifiModal() {
   document.body.style.overflow = 'hidden';
   var sheet = document.querySelector('.wifi-modal-sheet');
   if (sheet) sheet.scrollTop = 0;
-  _initWifiModalForDevice();
   // The real-time listener (_startWifiListener) already keeps WIFI_SSID/WIFI_PASS current.
   // Just apply whatever is loaded and draw the QR. If not yet loaded, Firebase will update shortly.
   _applyWifiToUI();
+  _initWifiModalForDevice();
   _drawWifiQR();
-  // Guest opened the WiFi modal → counts as "has connected"; update badge accordingly
-  _onGuestConnectedWifi();
 }
 
 function closeWifiModal() {
@@ -9105,14 +9000,248 @@ window.openWifiModal = openWifiModal;
 window.closeWifiModal = closeWifiModal;
 window.toggleWifiPass = toggleWifiPass;
 window.copyWifiField = copyWifiField;
-// openWifiSettings removed — was deleted, reference caused ReferenceError crash on load
 
-// Initialise badge on load based on persisted connection history
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', _updateWifiStatusBadge);
-} else {
-  _updateWifiStatusBadge();
+// ── WIFI BANNER LIFECYCLE ─────────────────────────────────────────────────────
+// States: 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed'
+var _wifiBannerState = 'idle';
+var _wifiBannerDismissTimer = null;
+var _wifiConnectionCheckTimer = null;
+var _wifiWasConnected = false;
+var WIFI_BANNER_DURATION = 5 * 60 * 1000; // 5 minutes
+
+function _getWifiBannerEls() {
+  return {
+    banner:   document.getElementById('home-wifi-banner'),
+    title:    document.getElementById('home-wifi-banner-title'),
+    sub:      document.getElementById('home-wifi-banner-sub'),
+    btn:      document.getElementById('home-wifi-banner-btn'),
+    iconWrap: document.getElementById('home-wifi-banner-icon'),
+    headerBtn: document.getElementById('home-wifi-header-btn'),
+    headerDot: document.getElementById('home-wifi-header-dot'),
+  };
 }
+
+function _setWifiBannerState(state) {
+  _wifiBannerState = state;
+  var e = _getWifiBannerEls();
+  if (!e.banner) return;
+
+  // Reset classes
+  e.banner.classList.remove('state-connecting','state-connected','state-failed','state-reconnecting');
+  if (e.headerBtn) e.headerBtn.classList.remove('state-connecting','state-connected','state-failed','state-reconnecting');
+
+  var iconColor = '#ffffff';
+  var iconBg = 'var(--green-primary)';
+
+  if (state === 'idle') {
+    if (e.title) e.title.textContent = 'Free WiFi';
+    if (e.sub)   e.sub.textContent   = 'Stay connected during your stay.';
+    if (e.btn)   { e.btn.innerHTML = _wifiIconSVG(13) + ' Connect Now'; e.btn.style.background = 'var(--green-primary)'; }
+
+  } else if (state === 'connecting') {
+    e.banner.classList.add('state-connecting');
+    if (e.headerBtn) e.headerBtn.classList.add('state-connecting');
+    iconBg = '#E8A030';
+    if (e.title) e.title.textContent = 'Connecting…';
+    if (e.sub)   e.sub.textContent   = 'Attempting to connect to WiFi.';
+    if (e.btn)   { e.btn.innerHTML = '⏳ Connecting…'; e.btn.style.background = '#E8A030'; }
+    if (e.headerDot) e.headerDot.style.background = '#E8A030';
+
+  } else if (state === 'connected') {
+    e.banner.classList.add('state-connected');
+    if (e.headerBtn) e.headerBtn.classList.add('state-connected');
+    iconBg = 'var(--green-primary)';
+    if (e.title) e.title.textContent = 'Connected';
+    if (e.sub)   e.sub.textContent   = 'You\'re connected to Free WiFi.';
+    if (e.btn)   { e.btn.innerHTML = '✓ Connected'; e.btn.style.background = 'var(--green-primary)'; }
+    if (e.headerDot) e.headerDot.style.background = '#2D7D46';
+    // Auto-dismiss banner shortly after connecting
+    if (_wifiBannerDismissTimer) clearTimeout(_wifiBannerDismissTimer);
+    _wifiBannerDismissTimer = setTimeout(_dismissWifiBanner, 6000);
+
+  } else if (state === 'reconnecting') {
+    e.banner.classList.add('state-reconnecting');
+    if (e.headerBtn) e.headerBtn.classList.add('state-reconnecting');
+    iconBg = '#E8A030';
+    if (e.title) e.title.textContent = 'Reconnecting…';
+    if (e.sub)   e.sub.textContent   = 'Connection dropped. Trying again…';
+    if (e.btn)   { e.btn.innerHTML = '⏳ Reconnecting…'; e.btn.style.background = '#E8A030'; }
+    if (e.headerDot) e.headerDot.style.background = '#E8A030';
+
+  } else if (state === 'failed') {
+    e.banner.classList.add('state-failed');
+    if (e.headerBtn) e.headerBtn.classList.add('state-failed');
+    iconBg = '#C0392B';
+    if (e.title) e.title.textContent = 'Not Connected';
+    if (e.sub)   e.sub.textContent   = 'Tap to connect to Free WiFi.';
+    if (e.btn)   { e.btn.innerHTML = _wifiIconSVG(13) + ' Tap to Connect'; e.btn.style.background = '#C0392B'; }
+    if (e.headerDot) e.headerDot.style.background = '#C0392B';
+  }
+
+  // Update icon background
+  if (e.iconWrap) e.iconWrap.style.background = iconBg;
+
+  // Update header icon visibility & state
+  _syncHeaderWifiIcon(state);
+}
+
+function _wifiIconSVG(size) {
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1" fill="#ffffff" stroke="none"/></svg>';
+}
+
+function _syncHeaderWifiIcon(state) {
+  var btn = document.getElementById('home-wifi-header-btn');
+  var banner = document.getElementById('home-wifi-banner');
+  if (!btn) return;
+  var bannerVisible = banner && !banner.classList.contains('banner-hiding');
+  btn.style.display = bannerVisible ? 'none' : 'flex';
+
+  // Swap icon SVG based on state
+  var SVG_CONNECTED =
+    '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M5 12.55a11 11 0 0114.08 0"/>' +
+    '<path d="M1.42 9a16 16 0 0121.16 0"/>' +
+    '<path d="M8.53 16.11a6 6 0 016.95 0"/>' +
+    '<circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/>' +
+    '</svg>';
+
+  var SVG_FAILED =
+    '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M5 12.55a11 11 0 0114.08 0"/>' +
+    '<path d="M1.42 9a16 16 0 0121.16 0"/>' +
+    '<path d="M8.53 16.11a6 6 0 016.95 0"/>' +
+    '<circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/>' +
+    '<line x1="4" y1="4" x2="20" y2="20" stroke="currentColor" stroke-width="2"/>' +
+    '</svg>';
+
+  var SVG_CONNECTING =
+    '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M5 12.55a11 11 0 0114.08 0"/>' +
+    '<path d="M1.42 9a16 16 0 0121.16 0"/>' +
+    '<path d="M8.53 16.11a6 6 0 016.95 0"/>' +
+    '<circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/>' +
+    '</svg>';
+
+  if (state === 'connected') {
+    btn.innerHTML = SVG_CONNECTED;
+  } else if (state === 'failed') {
+    btn.innerHTML = SVG_FAILED;
+  } else {
+    btn.innerHTML = SVG_CONNECTING;
+  }
+
+  // Re-apply state class so animation works on new svg
+  btn.classList.remove('state-connecting','state-connected','state-failed','state-reconnecting');
+  btn.classList.add('state-' + state);
+}
+
+function _dismissWifiBanner() {
+  var banner = document.getElementById('home-wifi-banner');
+  if (!banner) return;
+  banner.classList.add('banner-hiding');
+  // After transition, show header icon
+  setTimeout(function() {
+    _syncHeaderWifiIcon(_wifiBannerState);
+  }, 500);
+}
+
+function _checkWifiConnection() {
+  // Use navigator.onLine as a proxy for connectivity
+  var online = navigator.onLine;
+  if (online && !_wifiWasConnected) {
+    _wifiWasConnected = true;
+    _setWifiBannerState('connected');
+  } else if (!online && _wifiWasConnected) {
+    // Was connected, now dropped
+    _wifiWasConnected = false;
+    _setWifiBannerState('reconnecting');
+    // After 8s still offline → failed
+    setTimeout(function() {
+      if (!navigator.onLine) _setWifiBannerState('failed');
+    }, 8000);
+  } else if (!online && _wifiBannerState === 'connecting') {
+    // Still trying during banner window
+  }
+}
+
+function initWifiBannerLifecycle() {
+  var e = _getWifiBannerEls();
+  if (!e.banner) return;
+
+  // Show banner, hide header icon initially
+  e.banner.classList.remove('banner-hiding');
+  if (e.headerBtn) e.headerBtn.style.display = 'none';
+
+  // Set initial state based on connectivity
+  if (navigator.onLine) {
+    _wifiWasConnected = true;
+    _setWifiBannerState('connected');
+  } else {
+    _setWifiBannerState('idle');
+    // Start polling connectivity every 3s during banner window
+    _wifiConnectionCheckTimer = setInterval(_checkWifiConnection, 3000);
+  }
+
+  // Dismiss banner after 5 minutes regardless
+  _wifiBannerDismissTimer = setTimeout(function() {
+    clearInterval(_wifiConnectionCheckTimer);
+    _dismissWifiBanner();
+  }, WIFI_BANNER_DURATION);
+
+  // Listen for online/offline events
+  window.addEventListener('online', function() {
+    if (_wifiBannerState === 'connecting' || _wifiBannerState === 'reconnecting' || _wifiBannerState === 'idle') {
+      _wifiWasConnected = true;
+      _setWifiBannerState('connected');
+    }
+  });
+  window.addEventListener('offline', function() {
+    if (_wifiWasConnected) {
+      _wifiWasConnected = false;
+      // Show banner again if hidden
+      var banner = document.getElementById('home-wifi-banner');
+      if (banner) {
+        banner.classList.remove('banner-hiding');
+        if (e.headerBtn) e.headerBtn.style.display = 'none';
+      }
+      _setWifiBannerState('reconnecting');
+      setTimeout(function() {
+        if (!navigator.onLine) _setWifiBannerState('failed');
+      }, 8000);
+    }
+  });
+}
+
+// Override openWifiModal to trigger connecting state from banner
+var _origOpenWifiModal = openWifiModal;
+openWifiModal = function() {
+  // If banner is still visible and not yet connected, show connecting state
+  var banner = document.getElementById('home-wifi-banner');
+  var bannerVisible = banner && !banner.classList.contains('banner-hiding');
+  if (bannerVisible && _wifiBannerState !== 'connected') {
+    _setWifiBannerState('connecting');
+    // Check after 4s grace period
+    setTimeout(function() {
+      if (navigator.onLine) {
+        _wifiWasConnected = true;
+        _setWifiBannerState('connected');
+      } else {
+        _setWifiBannerState('failed');
+      }
+    }, 4000);
+  }
+  _origOpenWifiModal();
+};
+window.openWifiModal = openWifiModal;
+
+// Boot after DOM ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initWifiBannerLifecycle);
+} else {
+  setTimeout(initWifiBannerLifecycle, 200);
+}
+// ── END WIFI BANNER LIFECYCLE ─────────────────────────────────────────────────
+// openWifiSettings removed — was deleted, reference caused ReferenceError crash on load
 
 
 function openWifiSettingsAndroid() {
@@ -9124,13 +9253,31 @@ function openWifiSettingsAndroid() {
   setTimeout(function() { document.body.removeChild(a); }, 300);
 }
 
+function openWifiSettingsIOS() {
+  // Copy password first so guest can paste immediately after Settings opens
+  if (window.WIFI_PASS) {
+    try { navigator.clipboard.writeText(window.WIFI_PASS).catch(function(){}); } catch(e) {}
+  }
+  showGuestToast('Password copied — opening WiFi Settings…', 'green');
+  // App-prefs:root=WIFI works on iOS 14+ in Safari — triggers "Open in Settings?" prompt
+  var a = document.createElement('a');
+  a.href = 'App-prefs:root=WIFI';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function() { document.body.removeChild(a); }, 300);
+}
+
 function _initWifiModalForDevice() {
   var ua = navigator.userAgent || '';
   var isAndroid = /Android/.test(ua);
-  var androidBtn  = document.getElementById('wifi-android-btn');
-  var iosSteps    = document.getElementById('wifi-ios-steps');
+  var isIOS     = /iPhone|iPad|iPod/.test(ua);
+  var androidBtn = document.getElementById('wifi-android-btn');
+  var iosBtn     = document.getElementById('wifi-ios-btn');
+  var manualTip  = document.getElementById('wifi-manual-tip');
   if (androidBtn) androidBtn.style.display = isAndroid ? 'flex' : 'none';
-  if (iosSteps)   iosSteps.style.display   = isAndroid ? 'none' : 'block';
+  if (iosBtn)     iosBtn.style.display     = isIOS     ? 'flex' : 'none';
+  if (manualTip)  manualTip.style.display  = (!isAndroid && !isIOS) ? 'flex' : 'none';
 }
 
 function showGuestToast(msg,color){var toast=document.createElement('div');var bg=color==='red'?'rgba(192,57,43,0.95)':'rgba(76,175,125,0.95)';toast.style.cssText='position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:'+bg+';color:white;border-radius:14px;padding:14px 20px;z-index:999;font-size:14px;font-family:DM Sans,sans-serif;text-align:center;max-width:320px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3);';toast.textContent=msg;document.body.appendChild(toast);setTimeout(function(){if(toast.parentNode)toast.remove();},1000);}
