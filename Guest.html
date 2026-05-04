@@ -8819,15 +8819,32 @@ function _drawWifiQR() {
     return;
   }
   // Load QRious from unpkg (more reliable than cdnjs for local files)
-  if (!window._qriousLoading) {
+  if (!window._qriousLoading && !window._qriousFailed) {
     window._qriousLoading = true;
     var s = document.createElement('script');
     s.src = 'https://unpkg.com/qrious@4.0.2/dist/qrious.min.js';
     s.onload = function() { window._qriousLoading = false; _drawWifiQR(); };
-    s.onerror = function() { _drawQRFallback(canvas, wifiStr); };
+    s.onerror = function() {
+      // BUGFIX: was never resetting _qriousLoading on error -> infinite setTimeout loop
+      window._qriousLoading = false;
+      window._qriousFailed = true; // don't retry again this session
+      _drawQRFallback(canvas, wifiStr);
+    };
     document.head.appendChild(s);
+  } else if (window._qriousFailed) {
+    // CDN failed -- show fallback immediately, don't spin
+    _drawQRFallback(canvas, wifiStr);
   } else {
-    setTimeout(function() { _drawWifiQR(); }, 300);
+    // Still loading -- wait once, with a retry cap to prevent infinite loop
+    window._qriousRetries = (window._qriousRetries || 0) + 1;
+    if (window._qriousRetries <= 5) {
+      setTimeout(function() { _drawWifiQR(); }, 400);
+    } else {
+      // Give up waiting -- mark failed and show fallback
+      window._qriousLoading = false;
+      window._qriousFailed = true;
+      _drawQRFallback(canvas, wifiStr);
+    }
   }
 }
 
@@ -8863,7 +8880,7 @@ window.openWifiModal = openWifiModal;
 window.closeWifiModal = closeWifiModal;
 window.toggleWifiPass = toggleWifiPass;
 window.copyWifiField = copyWifiField;
-window.openWifiSettings = openWifiSettings;
+// openWifiSettings removed — function was deleted, reference removed to prevent ReferenceError crash
 
 
 function openWifiSettingsAndroid() {
