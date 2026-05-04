@@ -8976,199 +8976,103 @@ window.closeWifiModal = closeWifiModal;
 window.toggleWifiPass = toggleWifiPass;
 window.copyWifiField = copyWifiField;
 
-// ── WIFI BANNER LIFECYCLE ─────────────────────────────────────────────────────
-// States: 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed'
-//
-// KEY LOGIC:
-// - localStorage 'wifi_ever_connected' = '1' means guest has connected before
-// - On first visit (no flag): show banner in 'idle' (tap to connect)
-// - On return visit (flag set): skip banner, show header icon in correct state
-// - navigator.onLine is NOT used to auto-set connected — only explicit user
-//   action (Connect Now) triggers connecting → connected flow
-// - Red icon with cross = failed/not-connected; green = connected; pulsing = connecting
+// ── WIFI BANNER + HEADER ICON ─────────────────────────────────────────────────
 
+// ── localStorage flag: has guest ever connected? ──
+var _wifiEverConnected = false;
+function _wifiGetFlag() { try { return localStorage.getItem('wifi_ever_connected') === '1'; } catch(e) { return false; } }
+function _wifiSetFlag() { try { localStorage.setItem('wifi_ever_connected', '1'); } catch(e) {} }
+
+// ── Banner state (idle / connected only — always green) ──
 var _wifiBannerState = 'idle';
 var _wifiBannerDismissTimer = null;
-var _wifiConnectionCheckTimer = null;
-var _wifiEverConnected = false;
-var WIFI_BANNER_DURATION = 5 * 60 * 1000; // 5 minutes
 
-// ── Persistent flag helpers ──
-function _wifiGetFlag()   { try { return localStorage.getItem('wifi_ever_connected') === '1'; } catch(e) { return false; } }
-function _wifiSetFlag()   { try { localStorage.setItem('wifi_ever_connected', '1'); } catch(e) {} }
-function _wifiClearFlag() { try { localStorage.removeItem('wifi_ever_connected'); } catch(e) {} }
-
-// ── DOM helpers ──
-function _getWifiBannerEls() {
-  return {
-    banner:    document.getElementById('home-wifi-banner'),
-    title:     document.getElementById('home-wifi-banner-title'),
-    sub:       document.getElementById('home-wifi-banner-sub'),
-    btn:       document.getElementById('home-wifi-banner-btn'),
-    iconWrap:  document.getElementById('home-wifi-banner-icon'),
-    headerBtn: document.getElementById('home-wifi-header-btn'),
-  };
-}
-
-// ── SVG icons ──
-function _wifiSVG(size, color, cross) {
-  var s = String(size);
-  var out = '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="'+color+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">';
-  out += '<path d="M5 12.55a11 11 0 0114.08 0"/>';
-  out += '<path d="M1.42 9a16 16 0 0121.16 0"/>';
-  out += '<path d="M8.53 16.11a6 6 0 016.95 0"/>';
-  out += '<circle cx="12" cy="20" r="1" fill="'+color+'" stroke="none"/>';
-  if (cross) out += '<line x1="3" y1="3" x2="21" y2="21" stroke="'+color+'" stroke-width="2.2"/>';
-  out += '</svg>';
-  return out;
-}
-
-// ── Update header icon SVG + color + animation ──
-function _syncHeaderWifiIcon(state, forceShow) {
-  var btn = document.getElementById('home-wifi-header-btn');
-  var banner = document.getElementById('home-wifi-banner');
-  if (!btn) return;
-
-  var bannerVisible = banner && !banner.classList.contains('banner-hiding');
-  btn.style.display = (bannerVisible && !forceShow) ? 'none' : 'flex';
-
-  btn.classList.remove('state-connecting','state-connected','state-failed','state-reconnecting','state-idle');
-  btn.classList.add('state-' + state);
-
-  if (state === 'connected') {
-    btn.innerHTML = _wifiSVG(17, '#2D7D46', false);
-  } else if (state === 'failed' || state === 'idle') {
-    btn.innerHTML = _wifiSVG(17, '#C0392B', true);
-  } else {
-    // connecting / reconnecting — orange, pulsing via CSS
-    btn.innerHTML = _wifiSVG(17, '#E8A030', false);
-  }
-}
-
-// ── Set banner state — only idle or connected (green only) ──
 function _setWifiBannerState(state) {
   _wifiBannerState = state;
-  var e = _getWifiBannerEls();
-
+  var title   = document.getElementById('home-wifi-banner-title');
+  var sub     = document.getElementById('home-wifi-banner-sub');
+  var btn     = document.getElementById('home-wifi-banner-btn');
+  var iconWrap= document.getElementById('home-wifi-banner-icon');
+  if (iconWrap) iconWrap.style.background = 'var(--green-primary)';
   if (state === 'connected') {
-    if (e.iconWrap) e.iconWrap.style.background = 'var(--green-primary)';
-    if (e.title) e.title.textContent = 'Connected';
-    if (e.sub)   e.sub.textContent   = 'You\'re connected to Free WiFi.';
-    if (e.btn)   { e.btn.innerHTML = '✓ Connected'; e.btn.style.background = 'var(--green-primary)'; }
-    // Save flag so next login skips banner
+    if (title) title.textContent = 'Connected';
+    if (sub)   sub.textContent   = "You're connected to Free WiFi.";
+    if (btn)   { btn.innerHTML = '✓ Connected'; btn.style.background = 'var(--green-primary)'; }
     _wifiSetFlag();
     _wifiEverConnected = true;
-    // Auto-dismiss banner after 5s
     if (_wifiBannerDismissTimer) clearTimeout(_wifiBannerDismissTimer);
     _wifiBannerDismissTimer = setTimeout(_dismissWifiBanner, 5000);
-
   } else {
-    // idle — default green
-    if (e.iconWrap) e.iconWrap.style.background = 'var(--green-primary)';
-    if (e.title) e.title.textContent = 'Free WiFi';
-    if (e.sub)   e.sub.textContent   = 'Stay connected during your stay.';
-    if (e.btn)   { e.btn.innerHTML = _wifiSVG(13,'#fff',false) + ' Connect Now'; e.btn.style.background = 'var(--green-primary)'; }
+    if (title) title.textContent = 'Free WiFi';
+    if (sub)   sub.textContent   = 'Stay connected during your stay.';
+    if (btn)   { btn.innerHTML = _wifiSVG(13,'#fff',false) + ' Connect Now'; btn.style.background = 'var(--green-primary)'; }
   }
 }
 
-// ── Slide banner up ──
 function _dismissWifiBanner() {
   var banner = document.getElementById('home-wifi-banner');
-  if (!banner) return;
-  banner.classList.add('banner-hiding');
-  setTimeout(function() { _syncHeaderWifiIcon(_wifiBannerState); }, 500);
+  if (banner) banner.classList.add('banner-hiding');
+  setTimeout(function() {
+    var btn = document.getElementById('home-wifi-header-btn');
+    if (btn) btn.style.display = 'flex';
+  }, 500);
 }
 
-// ── Main init ──
-// ── Real connectivity probe — fetch a tiny resource, ignore cache ──
-function _probeNetwork(callback) {
-  var url = 'https://www.gstatic.com/generate_204?' + Date.now();
+// ── Header icon: probe every 3s, update instantly ──
+function _probeNetwork(cb) {
   var done = false;
-  var timer = setTimeout(function() {
-    if (!done) { done = true; callback(false); }
-  }, 1500); // 1.5s timeout — fast enough for real-time feel
-  fetch(url, { method: 'HEAD', cache: 'no-store', mode: 'no-cors' })
-    .then(function() { if (!done) { done = true; clearTimeout(timer); callback(true); } })
-    .catch(function() { if (!done) { done = true; clearTimeout(timer); callback(false); } });
+  var t = setTimeout(function() { if (!done) { done=true; cb(false); } }, 1500);
+  fetch('https://www.gstatic.com/generate_204?' + Date.now(), { method:'HEAD', cache:'no-store', mode:'no-cors' })
+    .then(function() { if (!done) { done=true; clearTimeout(t); cb(true); } })
+    .catch(function() { if (!done) { done=true; clearTimeout(t); cb(false); } });
 }
 
-// ── Header icon only — does NOT touch the banner ──
-var _headerWifiState = 'idle';
-var _wifiRecheckTimer = null;
-
-function _setHeaderWifiIcon(state) {
-  _headerWifiState = state;
-  _syncHeaderWifiIcon(state, true);
+function _updateHeaderIcon(online) {
+  var btn = document.getElementById('home-wifi-header-btn');
+  if (!btn || btn.style.display === 'none') return;
+  btn.className = btn.className.replace(/state-\S+/g, '').trim();
+  if (online) {
+    btn.classList.add('state-connected');
+    btn.innerHTML = _wifiSVG(17, '#2D7D46', false);
+  } else {
+    btn.classList.add('state-failed');
+    btn.innerHTML = _wifiSVG(17, '#C0392B', true);
+  }
 }
 
-function _startWifiRecheck() {
-  clearInterval(_wifiRecheckTimer);
-  _wifiRecheckTimer = setInterval(function() {
-    _probeNetwork(function(online) {
-      _setHeaderWifiIcon(online ? 'connected' : 'failed');
-    });
-  }, 3000); // probe every 3s for near real-time updates
+function _startHeaderProbe() {
+  _probeNetwork(function(online) { _updateHeaderIcon(online); });
+  setInterval(function() {
+    _probeNetwork(function(online) { _updateHeaderIcon(online); });
+  }, 3000);
 }
 
+// ── Init ──
 function initWifiBannerLifecycle() {
-  var e = _getWifiBannerEls();
-  if (!e.banner) return;
+  var banner = document.getElementById('home-wifi-banner');
+  var headerBtn = document.getElementById('home-wifi-header-btn');
+  if (!banner) return;
 
   _wifiEverConnected = _wifiGetFlag();
 
   if (_wifiEverConnected) {
-    // ── RETURN VISIT: skip banner entirely, show header icon with real probe ──
-    _dismissWifiBanner();
-    // Show pulsing orange while probing
-    setTimeout(function() { _setHeaderWifiIcon('connecting'); }, 100);
-    _probeNetwork(function(online) {
-      _setHeaderWifiIcon(online ? 'connected' : 'failed');
-    });
-    _startWifiRecheck();
-
+    // Return visit — skip banner, show header icon immediately
+    banner.classList.add('banner-hiding');
+    if (headerBtn) headerBtn.style.display = 'flex';
+    _startHeaderProbe();
   } else {
-    // ── FIRST VISIT: show banner in idle state, no header icon yet ──
-    e.banner.classList.remove('banner-hiding');
-    if (e.headerBtn) e.headerBtn.style.display = 'none';
+    // First visit — show banner for 5 min
+    banner.classList.remove('banner-hiding');
+    if (headerBtn) headerBtn.style.display = 'none';
     _setWifiBannerState('idle');
-
-    // Dismiss banner after 5 min
-    _wifiBannerDismissTimer = setTimeout(function() {
-      clearInterval(_wifiConnectionCheckTimer);
-      if (_wifiBannerState !== 'connected') _setWifiBannerState('failed');
+    setTimeout(function() {
       _dismissWifiBanner();
-      // Once banner is gone, start probing for header icon
-      setTimeout(function() {
-        _probeNetwork(function(online) {
-          _setHeaderWifiIcon(online ? 'connected' : 'failed');
-        });
-        _startWifiRecheck();
-      }, 600);
-    }, WIFI_BANNER_DURATION);
+      _startHeaderProbe();
+    }, 5 * 60 * 1000);
   }
-
-  // ── offline event: update header icon only ──
-  window.addEventListener('offline', function() {
-    if (_wifiEverConnected) {
-      _setHeaderWifiIcon('reconnecting');
-      setTimeout(function() {
-        _probeNetwork(function(still) {
-          _setHeaderWifiIcon(still ? 'connected' : 'failed');
-        });
-      }, 5000);
-    }
-  });
-
-  window.addEventListener('online', function() {
-    if (_headerWifiState === 'reconnecting' || _headerWifiState === 'failed') {
-      _probeNetwork(function(online) {
-        _setHeaderWifiIcon(online ? 'connected' : 'failed');
-      });
-    }
-  });
 }
 
-// ── Override openWifiModal: probe immediately on open, update banner + header ──
+// ── openWifiModal: probe immediately, mark connected if online ──
 var _origOpenWifiModal = openWifiModal;
 openWifiModal = function() {
   var banner = document.getElementById('home-wifi-banner');
@@ -9177,23 +9081,20 @@ openWifiModal = function() {
     _probeNetwork(function(online) {
       if (online) {
         _setWifiBannerState('connected');
-        _setHeaderWifiIcon('connected');
-        _startWifiRecheck();
+        _startHeaderProbe();
       }
-      // if not online, banner stays idle — no red/orange shown
     });
   }
   _origOpenWifiModal();
 };
 window.openWifiModal = openWifiModal;
 
-// Boot
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initWifiBannerLifecycle);
 } else {
   setTimeout(initWifiBannerLifecycle, 200);
 }
-// ── END WIFI BANNER LIFECYCLE ─────────────────────────────────────────────────
+// ── END WIFI BANNER + HEADER ICON ────────────────────────────────────────────
 // openWifiSettings removed — was deleted, reference caused ReferenceError crash on load
 
 
