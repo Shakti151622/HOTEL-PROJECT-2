@@ -6847,6 +6847,7 @@ function getDb() {
     }
   }
   _db = firebase.firestore();
+  window._db = _db; // expose globally so hotel-setup section can find it
   // Force long polling — eliminates the ~5s WebSocket upgrade delay on mobile/unstable networks
   try {
     _db.settings({
@@ -15148,8 +15149,7 @@ window.hsGetWifiForRoom = function(roomNum, zones) {
 
 // Save ONLY wifi_zones — no hotel name required
 window.saveWifiOnly = function() {
-  var db = getDb();
-  // Flush all DOM values into _hsWifiZones
+  // Flush all DOM values into _hsWifiZones first
   _hsWifiZones.forEach(function(zone, idx) {
     var ssidEl = document.getElementById('hs-ssid-' + idx);
     var passEl = document.getElementById('hs-wifi-pass-' + idx);
@@ -15157,27 +15157,39 @@ window.saveWifiOnly = function() {
     if (passEl && passEl.value !== '') zone.pass = passEl.value;
   });
   var zones = _normaliseWifiZones(_hsWifiZones);
-  // Log exactly what will be saved so you can verify in LOG panel
   console.log('[WiFi-SAVE] About to save ' + zones.length + ' zone(s):');
   zones.forEach(function(z, i) {
     console.log('[WiFi-SAVE] Zone ' + i + ': ssid="' + z.ssid + '" pass="' + (z.pass?'*'.repeat(z.pass.length):'') + '" rooms="' + z.rooms + '"');
   });
-  if (!db) {
-    console.warn('[WiFi-SAVE] BLOCKED — Firebase db is null');
-    showToast('Firebase not connected — cannot save');
-    return;
+
+  function _doSave(db) {
+    showToast('Saving Wi-Fi to Firebase...');
+    db.collection('settings').doc('hotel').set({ wifi_zones: zones }, { merge: true })
+      .then(function() {
+        console.log('[WiFi-SAVE] ✅ SUCCESS — wifi_zones written to Firebase');
+        showToast('✅ Wi-Fi saved!');
+      })
+      .catch(function(e) {
+        console.warn('[WiFi-SAVE] ❌ FAILED — code:' + e.code + ' msg:' + e.message);
+        showToast('❌ Save FAILED: ' + (e.code || e.message));
+      });
   }
-  showToast('Saving Wi-Fi to Firebase...');
-  db.collection('settings').doc('hotel').set({ wifi_zones: zones }, { merge: true })
-    .then(function() {
-      console.log('[WiFi-SAVE] ✅ SUCCESS — wifi_zones written to Firebase');
-      console.log('[WiFi-SAVE] Zones now in Firebase: ' + JSON.stringify(zones));
-      showToast('✅ Wi-Fi saved to Firebase!');
-    })
-    .catch(function(e) {
-      console.warn('[WiFi-SAVE] ❌ FAILED — code:' + e.code + ' msg:' + e.message);
-      showToast('❌ Save FAILED: ' + (e.code || e.message));
-    });
+
+  // Try all possible db references — the two getDb() functions use different variables
+  var db = window._db || window.db || window.guestSb || null;
+  if (!db) { try { db = (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length) ? firebase.firestore() : null; } catch(e){} }
+  if (db) { _doSave(db); return; }
+
+  // db not ready yet — wait up to 5s
+  console.warn('[WiFi-SAVE] db null, waiting for Firebase...');
+  showToast('Connecting to Firebase...');
+  var attempts = 0;
+  var interval = setInterval(function() {
+    var db2 = window._db || window.db || window.guestSb || null;
+    if (!db2) { try { db2 = (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length) ? firebase.firestore() : null; } catch(e){} }
+    if (db2) { clearInterval(interval); _doSave(db2); }
+    else if (++attempts > 25) { clearInterval(interval); console.warn('[WiFi-SAVE] Firebase never connected after 5s'); showToast('Firebase unavailable — check connection'); }
+  }, 200);
 };
 
 window.saveHotelSetup = function() {
