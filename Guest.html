@@ -8629,7 +8629,8 @@ function _resolveWifiForRoom(zones, roomNum) {
 
 // Apply loaded credentials to every DOM element that shows SSID or password
 function _applyWifiToUI() {
-  function _set(id, val) { var el = document.getElementById(id); if (el) { el.textContent = val; el.style.fontStyle = ''; el.style.color = ''; } }
+  console.log('[WiFi-UI] _applyWifiToUI called. SSID=' + WIFI_SSID + ' PASS length=' + (WIFI_PASS||'').length);
+  function _set(id, val) { var el = document.getElementById(id); if (el) { el.textContent = val; el.style.fontStyle = ''; el.style.color = ''; console.log('[WiFi-UI] Set #' + id + ' = ' + val); } else { console.warn('[WiFi-UI] Element #' + id + ' NOT FOUND in DOM'); } }
   _set('wifi-ssid',            WIFI_SSID || '—');
   _set('wifi-pass',            WIFI_PASS || '—');
   _set('profile-ssid-display', WIFI_SSID || '—');
@@ -8652,28 +8653,39 @@ function _setWifiLoadingState() {
 
 // Parse Firebase doc and apply to UI; returns true if data was found
 function _applyFirebaseWifiDoc(doc) {
-  if (!doc || !doc.exists) return false;
+  if (!doc || !doc.exists) { console.warn('[WiFi-6] Doc missing or does not exist'); return false; }
   var d = doc.data();
+  console.log('[WiFi-6] Doc fields:', JSON.stringify(Object.keys(d)));
+  console.log('[WiFi-6] wifi_zones present:', !!(d.wifi_zones), 'length:', (d.wifi_zones||[]).length);
+  if (d.wifi_zones && d.wifi_zones.length > 0) {
+    console.log('[WiFi-6] Zone[0]:', JSON.stringify(d.wifi_zones[0]));
+  }
   var zone = null;
   if (d.wifi_zones && Array.isArray(d.wifi_zones) && d.wifi_zones.length > 0) {
     zone = _resolveWifiForRoom(d.wifi_zones, window.ROOM_NUM);
   } else if (d.wifi_ssid) {
     zone = { ssid: d.wifi_ssid, pass: d.wifi_pass || '' };
   }
-  if (!zone) return false;
+  if (!zone) { console.warn('[WiFi-7] No zone matched for room=' + (window.ROOM_NUM||'?') + '. All zones: ' + JSON.stringify(d.wifi_zones)); return false; }
+  console.log('[WiFi-7] Matched zone: ssid=' + zone.ssid + ' rooms=' + zone.rooms + ' for room=' + window.ROOM_NUM);
   if (zone.ssid !== undefined) WIFI_SSID = zone.ssid;
   if (zone.pass !== undefined) WIFI_PASS = zone.pass;
   _wifiLoaded = true;
+  console.log('[WiFi-8] Applied. WIFI_SSID=' + WIFI_SSID + ' Calling _applyWifiToUI...');
   _applyWifiToUI();
+  console.log('[WiFi-9] Done. wifi-ssid element now shows: ' + (document.getElementById('wifi-ssid')||{}).textContent);
   return true;
 }
 
 // Real-time Firestore listener — auto-updates when staff saves new credentials in index.html
 function _startWifiListener() {
+  console.log('[WiFi-3] _waitDb called...');
   _waitDb().then(function(db) {
-    if (!db) { console.warn('Wi-Fi: Firebase unavailable'); return; }
+    if (!db) { console.warn('[WiFi-3] FAIL: Firebase db is null/unavailable'); return; }
+    console.log('[WiFi-4] Firebase db ready. Attaching onSnapshot to settings/hotel...');
     try {
       _wifiListener = db.collection('settings').doc('hotel').onSnapshot(function(doc) {
+        console.log('[WiFi-5] Snapshot received. exists=' + (doc && doc.exists) + ' data=' + (doc&&doc.exists?JSON.stringify(Object.keys(doc.data())):'none'));
         _applyFirebaseWifiDoc(doc);
       }, function(err) {
         console.warn('Wi-Fi listener error, falling back to one-time get:', err);
@@ -8691,6 +8703,8 @@ function _startWifiListener() {
 }
 
 _setWifiLoadingState();
+console.log('[WiFi-1] Page loaded. ROOM_NUM=' + (window.ROOM_NUM||'?'));
+console.log('[WiFi-2] Calling _startWifiListener...');
 _startWifiListener();
 
 function _updateProfileScreen() {

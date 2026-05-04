@@ -14752,21 +14752,26 @@ function hsLoadData() {
       // Migrate old single-wifi to zones array
       _hsWifiZones = [{ name: 'Main Network', ssid: d.wifi_ssid, pass: d.wifi_pass || '', rooms: '' }];
     }
-    // Always re-render wifi zones so data is ready when tab is clicked
-    _hsDataLoaded = true;
-    hsRenderWifiZones();
-    // Also refresh room list from Firebase settings/rooms so Wi-Fi chip picker is current
+    // Load room list from Firebase settings/rooms FIRST, then render Wi-Fi zones
+    // This ensures chip picker shows correct rooms with correct pre-selection
     db.collection('settings').doc('rooms').get().then(function(rDoc) {
-      if (!rDoc.exists) return;
-      var rd = rDoc.data();
-      if (rd.floor_config && Array.isArray(rd.floor_config) && rd.floor_config.length > 0) {
-        floorConfig = rd.floor_config;
-        try { localStorage.setItem('hyatt_floors', JSON.stringify(floorConfig)); } catch(e) {}
-        if (typeof window._hsRebuildRoomList === 'function') window._hsRebuildRoomList();
-        // Re-render wifi zones now that room list is updated
-        hsRenderWifiZones();
+      if (rDoc.exists) {
+        var rd = rDoc.data();
+        if (rd.floor_config && Array.isArray(rd.floor_config) && rd.floor_config.length > 0) {
+          floorConfig = rd.floor_config;
+          try { localStorage.setItem('hyatt_floors', JSON.stringify(floorConfig)); } catch(e) {}
+        }
       }
-    }).catch(function(){});
+      // Always rebuild room list and render wifi AFTER rooms are known
+      if (typeof window._hsRebuildRoomList === 'function') window._hsRebuildRoomList();
+      _hsDataLoaded = true;
+      hsRenderWifiZones();
+    }).catch(function() {
+      // Fallback: render with whatever rooms we have
+      if (typeof window._hsRebuildRoomList === 'function') window._hsRebuildRoomList();
+      _hsDataLoaded = true;
+      hsRenderWifiZones();
+    });
     // Update contact tab summary
     var wsum = document.getElementById('hs-wifi-summary');
     if (wsum) wsum.textContent = _hsWifiZones.length + ' zone' + (_hsWifiZones.length !== 1 ? 's' : '') + ' configured';
