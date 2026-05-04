@@ -9018,39 +9018,27 @@ function _dismissWifiBanner() {
   }, 500);
 }
 
-// ── Header icon: probe every 3s, update instantly ──
-// Probes Firebase (hotel backend) not generic internet,
-// so mobile data won't give false green — only hotel WiFi will succeed
-function _probeNetwork(cb) {
-  var done = false;
-  var t = setTimeout(function() { if (!done) { done=true; cb(false); } }, 2000);
-  // Probe the hotel's own Firebase project — fails if not on hotel WiFi
-  fetch('https://roocan-16ea0.firebaseio.com/.json?shallow=true', {
-    method: 'GET', cache: 'no-store', mode: 'no-cors'
-  })
-    .then(function() { if (!done) { done=true; clearTimeout(t); cb(true); } })
-    .catch(function() { if (!done) { done=true; clearTimeout(t); cb(false); } });
-}
-
-function _updateHeaderIcon(online) {
-  var btn = document.getElementById('home-wifi-header-btn');
-  if (!btn) return;
-  btn.style.display = 'flex';
-  btn.className = btn.className.replace(/state-\S+/g, '').trim();
-  if (online) {
-    btn.classList.add('state-connected');
-    btn.innerHTML = _wifiSVG(17, '#2D7D46', false);
-  } else {
-    btn.classList.add('state-failed');
-    btn.innerHTML = _wifiSVG(17, '#C0392B', true);
-  }
-}
-
+// ── Header icon: check every 2s using navigator.onLine ──
 function _startHeaderProbe() {
-  _probeNetwork(function(online) { _updateHeaderIcon(online); });
-  setInterval(function() {
-    _probeNetwork(function(online) { _updateHeaderIcon(online); });
-  }, 3000);
+  function _check() {
+    var online = navigator.onLine;
+    console.log('[WiFi] navigator.onLine=' + online + ' | btn display=' + (document.getElementById('home-wifi-header-btn')||{}).style.display);
+    var btn = document.getElementById('home-wifi-header-btn');
+    if (!btn) return;
+    btn.style.display = 'flex';
+    btn.className = btn.className.replace(/state-\S+/g, '').trim();
+    if (online) {
+      btn.classList.add('state-connected');
+      btn.innerHTML = _wifiSVG(17, '#2D7D46', false);
+      console.log('[WiFi] Icon set GREEN');
+    } else {
+      btn.classList.add('state-failed');
+      btn.innerHTML = _wifiSVG(17, '#C0392B', true);
+      console.log('[WiFi] Icon set RED');
+    }
+  }
+  _check();
+  setInterval(_check, 2000);
 }
 
 // ── Init ──
@@ -9074,18 +9062,13 @@ function initWifiBannerLifecycle() {
   }
 }
 
-// ── openWifiModal: probe immediately, mark connected if online ──
+// ── openWifiModal: mark connected if online ──
 var _origOpenWifiModal = openWifiModal;
 openWifiModal = function() {
   var banner = document.getElementById('home-wifi-banner');
   var bannerVisible = banner && !banner.classList.contains('banner-hiding');
-  if (bannerVisible && _wifiBannerState !== 'connected') {
-    _probeNetwork(function(online) {
-      if (online) {
-        _setWifiBannerState('connected');
-        _startHeaderProbe();
-      }
-    });
+  if (bannerVisible && _wifiBannerState !== 'connected' && navigator.onLine) {
+    _setWifiBannerState('connected');
   }
   _origOpenWifiModal();
 };
@@ -9158,7 +9141,33 @@ window.confirmModify=function(orderId){
 
 </script>
 
-<!-- ── ON-SCREEN DEBUG CONSOLE (remove after testing) ── -->
+<!-- ── ON-SCREEN DEBUG CONSOLE ── -->
+<div id="dbg-toggle" onclick="var p=document.getElementById('dbg-panel');p.style.display=p.style.display==='none'?'block':'none'" style="position:fixed;bottom:80px;right:12px;z-index:9999;background:#1a1a1a;color:#0f0;font-size:11px;font-family:monospace;padding:6px 10px;border-radius:8px;cursor:pointer;opacity:0.85;">🔍 LOG</div>
+<div id="dbg-panel" style="display:none;position:fixed;bottom:130px;left:8px;right:8px;max-height:45vh;overflow-y:auto;z-index:9999;background:rgba(0,0,0,0.93);color:#0f0;font-size:10px;font-family:monospace;padding:8px;border-radius:10px;border:1px solid #333;">
+  <div style="color:#fff;font-weight:bold;margin-bottom:4px;">Debug Log <span onclick="document.getElementById('dbg-body').innerHTML=''" style="color:#f66;cursor:pointer;float:right;">clear</span></div>
+  <div id="dbg-body"></div>
+</div>
+<script>
+(function(){
+  function _log(type, msg) {
+    var body = document.getElementById('dbg-body');
+    if (!body) return;
+    var col = type==='error'?'#f66':type==='warn'?'#fa0':'#0f0';
+    var line = document.createElement('div');
+    line.style.cssText = 'color:'+col+';border-bottom:1px solid #222;padding:2px 0;word-break:break-all;';
+    line.textContent = new Date().toLocaleTimeString() + ' ' + msg;
+    body.insertBefore(line, body.firstChild);
+    while(body.children.length > 60) body.removeChild(body.lastChild);
+  }
+  var _ol = console.log.bind(console);
+  var _ow = console.warn.bind(console);
+  var _oe = console.error.bind(console);
+  console.log   = function(){ _ol.apply(console,arguments); _log('log',  Array.from(arguments).join(' ')); };
+  console.warn  = function(){ _ow.apply(console,arguments); _log('warn', Array.from(arguments).join(' ')); };
+  console.error = function(){ _oe.apply(console,arguments); _log('error',Array.from(arguments).join(' ')); };
+})();
+</script>
+<!-- ── END DEBUG CONSOLE ── -->
 
 
 <!-- Image Lightbox -->
