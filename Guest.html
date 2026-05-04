@@ -9086,7 +9086,7 @@ function _probeNetwork(callback) {
   var done = false;
   var timer = setTimeout(function() {
     if (!done) { done = true; callback(false); }
-  }, 5000);
+  }, 1500); // 1.5s timeout — fast enough for real-time feel
   fetch(url, { method: 'HEAD', cache: 'no-store', mode: 'no-cors' })
     .then(function() { if (!done) { done = true; clearTimeout(timer); callback(true); } })
     .catch(function() { if (!done) { done = true; clearTimeout(timer); callback(false); } });
@@ -9107,7 +9107,7 @@ function _startWifiRecheck() {
     _probeNetwork(function(online) {
       _setHeaderWifiIcon(online ? 'connected' : 'failed');
     });
-  }, 10000);
+  }, 3000); // probe every 3s for near real-time updates
 }
 
 function initWifiBannerLifecycle() {
@@ -9168,23 +9168,20 @@ function initWifiBannerLifecycle() {
   });
 }
 
-// ── Override openWifiModal: probe to confirm connection, update header icon only ──
+// ── Override openWifiModal: probe immediately on open, update banner + header ──
 var _origOpenWifiModal = openWifiModal;
 openWifiModal = function() {
   var banner = document.getElementById('home-wifi-banner');
   var bannerVisible = banner && !banner.classList.contains('banner-hiding');
   if (bannerVisible && _wifiBannerState !== 'connected') {
-    // After 4s probe — if connected update banner to connected state, else leave as idle
-    setTimeout(function() {
-      _probeNetwork(function(online) {
-        if (online) {
-          _setWifiBannerState('connected');
-          _setHeaderWifiIcon('connected');
-          _startWifiRecheck();
-        }
-        // if not online, banner stays idle — no red/orange shown
-      });
-    }, 4000);
+    _probeNetwork(function(online) {
+      if (online) {
+        _setWifiBannerState('connected');
+        _setHeaderWifiIcon('connected');
+        _startWifiRecheck();
+      }
+      // if not online, banner stays idle — no red/orange shown
+    });
   }
   _origOpenWifiModal();
 };
