@@ -4435,13 +4435,18 @@ window.CHEF_IMG_SRC = './images/chef.webp';
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
           Copy Password
         </button>
-        <!-- Android: show Open WiFi Settings button -->
+        <!-- Android: open WiFi Settings -->
         <button class="wifi-btn-secondary" id="wifi-android-btn" style="display:none;" onclick="openWifiSettingsAndroid()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
           Open WiFi Settings
         </button>
-        <!-- iOS / others: manual tip -->
-        <div id="wifi-manual-tip" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--surface2);border-radius:12px;border:1px solid var(--card-border);">
+        <!-- iOS: open WiFi Settings via deep link -->
+        <button class="wifi-btn-secondary" id="wifi-ios-btn" style="display:none;" onclick="openWifiSettingsIOS()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+          Open WiFi Settings
+        </button>
+        <!-- Fallback for unsupported browsers only -->
+        <div id="wifi-manual-tip" style="display:none;align-items:center;gap:10px;padding:12px 14px;background:var(--surface2);border-radius:12px;border:1px solid var(--card-border);">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           <span style="font-size:13px;color:var(--text-muted);line-height:1.4;">Go to <strong style="color:var(--text);">Settings → Wi-Fi</strong>, select <strong style="color:var(--text);" id="wifi-manual-ssid-tip">the network</strong> and paste the password.</span>
         </div>
@@ -8685,34 +8690,42 @@ function _startWifiListener() {
   console.log('[WiFi-3] _waitDb called...');
   _waitDb().then(function(db) {
     if (!db) { console.warn('[WiFi-3] FAIL: Firebase db is null/unavailable'); return; }
-    console.log('[WiFi-4] Firebase db ready. Attaching onSnapshot to settings/hotel...');
-    try {
-      _wifiListener = db.collection('settings').doc('hotel').onSnapshot(function(doc) {
-        console.log('[WiFi-5] Snapshot received. exists=' + (doc && doc.exists) + ' data=' + (doc&&doc.exists?JSON.stringify(Object.keys(doc.data())):'none') + ' fromCache=' + (doc&&doc.metadata&&doc.metadata.fromCache));
-        // If doc came from cache and has no wifi_zones, force a fresh server fetch
-        if (doc && doc.exists && doc.metadata && doc.metadata.fromCache && !doc.data().wifi_zones) {
-          console.warn('[WiFi-5] Stale cache detected — forcing server fetch...');
-          db.collection('settings').doc('hotel').get({ source: 'server' })
-            .then(function(freshDoc) {
-              console.log('[WiFi-5] Fresh server doc fields:', JSON.stringify(Object.keys(freshDoc.data()||{})));
-              _applyFirebaseWifiDoc(freshDoc);
-            })
-            .catch(function(e){ console.warn('[WiFi-5] Server fetch failed:', e.message); });
-          return;
-        }
+    console.log('[WiFi-4] Firebase db ready. Fetching WiFi credentials fresh from server...');
+
+    // BUGFIX: Always fetch from server — never trust Firestore cache for WiFi credentials.
+    // Cache-check only on missing wifi_zones was insufficient; stale passwords passed through.
+    db.collection('settings').doc('hotel').get({ source: 'server' })
+      .then(function(doc) {
+        console.log('[WiFi-5] Server fetch OK. exists=' + (doc && doc.exists) + ' fromCache=' + (doc&&doc.metadata&&doc.metadata.fromCache));
         _applyFirebaseWifiDoc(doc);
-      }, function(err) {
-        console.warn('Wi-Fi listener error, falling back to one-time get:', err);
+
+        // After fresh load, attach live listener so real-time updates still work
+        try {
+          _wifiListener = db.collection('settings').doc('hotel').onSnapshot(function(snap) {
+            // Only apply if NOT from cache (i.e. a genuine real-time update)
+            if (snap && snap.metadata && snap.metadata.fromCache) {
+              console.log('[WiFi-5b] Snapshot is from cache — skipping to avoid stale password');
+              return;
+            }
+            console.log('[WiFi-5b] Live update received — applying...');
+            _applyFirebaseWifiDoc(snap);
+          }, function(err) {
+            console.warn('[WiFi-5b] Live listener error (non-fatal):', err.message);
+          });
+        } catch(e) {
+          console.warn('[WiFi-5b] onSnapshot not supported in this env:', e.message);
+        }
+      })
+      .catch(function(e) {
+        console.warn('[WiFi-5] Server fetch failed, falling back to cache:', e.message);
+        // Fallback: try cache if server unreachable (offline scenario)
         db.collection('settings').doc('hotel').get()
-          .then(_applyFirebaseWifiDoc)
-          .catch(function(e){ console.warn('Wi-Fi load failed:', e); });
+          .then(function(doc) {
+            console.warn('[WiFi-5] Using cached data as fallback. fromCache=' + (doc&&doc.metadata&&doc.metadata.fromCache));
+            _applyFirebaseWifiDoc(doc);
+          })
+          .catch(function(e2){ console.warn('[WiFi-5] All WiFi load attempts failed:', e2.message); });
       });
-    } catch(e) {
-      // Environment doesn't support onSnapshot (e.g. file://) — one-time get
-      db.collection('settings').doc('hotel').get()
-        .then(_applyFirebaseWifiDoc)
-        .catch(function(e){ console.warn('Wi-Fi load failed:', e); });
-    }
   });
 }
 
@@ -8815,44 +8828,22 @@ function _drawWifiQR() {
   if (!canvas) return;
   // WIFI QR spec: backslash-escape  ; \ " , :  in SSID and password
   function _escWifi(s) {
-    return String(s)
-      .replace(/\\/g,'\\\\')
-      .replace(/;/g,'\\;')
-      .replace(/,/g,'\\,')
-      .replace(/"/g,'\\"')
-      .replace(/:/g,'\\:');
+    return String(s).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/"/g,'\\"').replace(/:/g,'\\:');
   }
   var rawSSID = String(window.WIFI_SSID || '');
   var rawPASS = String(window.WIFI_PASS || '');
-  var escSSID = _escWifi(rawSSID);
-  var escPASS = _escWifi(rawPASS);
-  var wifiStr = 'WIFI:T:WPA;S:' + escSSID + ';P:' + escPASS + ';;';
-
-  // ── WiFi QR Debug ──
+  var wifiStr = 'WIFI:T:WPA;S:' + _escWifi(rawSSID) + ';P:' + _escWifi(rawPASS) + ';;';
+  // Debug log — auto-opens LOG panel
   (function(){
-    var ssidCodes = rawSSID.split('').map(function(c){ return c+'('+c.charCodeAt(0)+')'; }).join(' ');
-    var passCodes = rawPASS.split('').map(function(c){ return c.charCodeAt(0) > 32 ? c : '??('+c.charCodeAt(0)+')'; }).join('');
-    var hasSpecial = /[;,\\":]/.test(rawSSID+rawPASS);
-    var hasControl = rawSSID.split('').concat(rawPASS.split('')).some(function(c){ return c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127; });
     var hasTrailSpace = rawSSID !== rawSSID.trim() || rawPASS !== rawPASS.trim();
-    console.log('[WiFi-QR] ── QR Debug ──────────────────');
-    console.log('[WiFi-QR] Raw SSID  : "' + rawSSID + '" (' + rawSSID.length + ' chars)');
-    console.log('[WiFi-QR] Raw PASS  : "' + rawPASS + '" (' + rawPASS.length + ' chars)');
-    console.log('[WiFi-QR] Esc SSID  : "' + escSSID + '"');
-    console.log('[WiFi-QR] Esc PASS  : "' + escPASS + '"');
-    console.log('[WiFi-QR] Full str  : ' + wifiStr);
-    console.log('[WiFi-QR] SSID chars: ' + ssidCodes);
-    console.log('[WiFi-QR] PASS chars: ' + passCodes);
-    console.log('[WiFi-QR] Has special chars needing escape: ' + hasSpecial);
-    console.log('[WiFi-QR] Has control/invisible chars: ' + hasControl);
-    console.log('[WiFi-QR] Has leading/trailing spaces: ' + hasTrailSpace);
-    console.log('[WiFi-QR] QRious lib loaded: ' + (typeof QRious !== 'undefined'));
-    if (hasControl) console.warn('[WiFi-QR] WARNING: control chars in SSID/PASS — QR will be malformed!');
-    if (hasTrailSpace) console.warn('[WiFi-QR] WARNING: trailing/leading spaces in SSID or PASS — likely wrong password in Firestore!');
-    if (!rawSSID) console.error('[WiFi-QR] ERROR: SSID is empty — Firebase data not loaded yet?');
-    if (!rawPASS) console.error('[WiFi-QR] ERROR: Password is empty — check Firestore wifi_zones field');
-    console.log('[WiFi-QR] ──────────────────────────────');
-    // Auto-open LOG panel so debug is visible immediately
+    var hasControl = (rawSSID+rawPASS).split('').some(function(c){ return c.charCodeAt(0)<32||c.charCodeAt(0)===127; });
+    console.log('[WiFi-QR] SSID="' + rawSSID + '" (' + rawSSID.length + ' chars) PASS="' + rawPASS + '" (' + rawPASS.length + ' chars)');
+    console.log('[WiFi-QR] Full QR string: ' + wifiStr);
+    console.log('[WiFi-QR] QRious loaded: ' + (typeof QRious !== 'undefined'));
+    if (hasTrailSpace) console.warn('[WiFi-QR] WARNING: leading/trailing spaces in SSID or PASS — stale Firestore cache?');
+    if (hasControl)   console.warn('[WiFi-QR] WARNING: control/invisible chars in SSID or PASS — QR malformed!');
+    if (!rawSSID)     console.error('[WiFi-QR] ERROR: SSID empty — Firebase not loaded yet?');
+    if (!rawPASS)     console.error('[WiFi-QR] ERROR: Password empty — check Firestore wifi_zones');
     var panel = document.getElementById('dbg-panel');
     if (panel && panel.style.display === 'none') panel.style.display = 'block';
   })();
@@ -8867,7 +8858,6 @@ function _drawWifiQR() {
     s.src = 'https://unpkg.com/qrious@4.0.2/dist/qrious.min.js';
     s.onload = function() { window._qriousLoading = false; _drawWifiQR(); };
     s.onerror = function() {
-      console.error('[WiFi-QR] QRious CDN load FAILED — fallback canvas shown');
       window._qriousLoading = false;
       window._qriousFailed = true;
       _drawQRFallback(canvas, wifiStr);
@@ -8880,7 +8870,6 @@ function _drawWifiQR() {
     if (window._qriousRetries <= 5) {
       setTimeout(function() { _drawWifiQR(); }, 400);
     } else {
-      console.error('[WiFi-QR] QRious load timeout after 5 retries — showing fallback');
       window._qriousLoading = false;
       window._qriousFailed = true;
       _drawQRFallback(canvas, wifiStr);
@@ -8920,7 +8909,7 @@ window.openWifiModal = openWifiModal;
 window.closeWifiModal = closeWifiModal;
 window.toggleWifiPass = toggleWifiPass;
 window.copyWifiField = copyWifiField;
-// openWifiSettings removed — reference removed to prevent ReferenceError crash
+// openWifiSettings removed — was deleted, reference caused ReferenceError crash on load
 
 
 function openWifiSettingsAndroid() {
@@ -8932,12 +8921,31 @@ function openWifiSettingsAndroid() {
   setTimeout(function() { document.body.removeChild(a); }, 300);
 }
 
+function openWifiSettingsIOS() {
+  // Copy password first so guest can paste immediately after Settings opens
+  if (window.WIFI_PASS) {
+    try { navigator.clipboard.writeText(window.WIFI_PASS).catch(function(){}); } catch(e) {}
+  }
+  showGuestToast('Password copied — opening WiFi Settings…', 'green');
+  // App-prefs:root=WIFI works on iOS 14+ in Safari — triggers "Open in Settings?" prompt
+  var a = document.createElement('a');
+  a.href = 'App-prefs:root=WIFI';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function() { document.body.removeChild(a); }, 300);
+}
+
 function _initWifiModalForDevice() {
-  var isAndroid = /Android/.test(navigator.userAgent || '');
-  var androidBtn  = document.getElementById('wifi-android-btn');
-  var manualTip   = document.getElementById('wifi-manual-tip');
-  if (androidBtn) androidBtn.style.display  = isAndroid ? 'flex' : 'none';
-  if (manualTip)  manualTip.style.display   = isAndroid ? 'none' : 'flex';
+  var ua = navigator.userAgent || '';
+  var isAndroid = /Android/.test(ua);
+  var isIOS     = /iPhone|iPad|iPod/.test(ua);
+  var androidBtn = document.getElementById('wifi-android-btn');
+  var iosBtn     = document.getElementById('wifi-ios-btn');
+  var manualTip  = document.getElementById('wifi-manual-tip');
+  if (androidBtn) androidBtn.style.display = isAndroid ? 'flex' : 'none';
+  if (iosBtn)     iosBtn.style.display     = isIOS     ? 'flex' : 'none';
+  if (manualTip)  manualTip.style.display  = (!isAndroid && !isIOS) ? 'flex' : 'none';
 }
 
 function showGuestToast(msg,color){var toast=document.createElement('div');var bg=color==='red'?'rgba(192,57,43,0.95)':'rgba(76,175,125,0.95)';toast.style.cssText='position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:'+bg+';color:white;border-radius:14px;padding:14px 20px;z-index:999;font-size:14px;font-family:DM Sans,sans-serif;text-align:center;max-width:320px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3);';toast.textContent=msg;document.body.appendChild(toast);setTimeout(function(){if(toast.parentNode)toast.remove();},1000);}
