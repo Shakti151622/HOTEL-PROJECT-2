@@ -4440,8 +4440,13 @@ window.CHEF_IMG_SRC = './images/chef.webp';
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
           Open WiFi Settings
         </button>
-        <!-- iOS / others: manual tip -->
-        <div id="wifi-manual-tip" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--surface2);border-radius:12px;border:1px solid var(--card-border);">
+        <!-- iOS: Open WiFi Settings deep link button -->
+        <button class="wifi-btn-secondary" id="wifi-ios-btn" style="display:none;" onclick="openWifiSettingsIOS()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+          Open WiFi Settings
+        </button>
+        <!-- Fallback for unsupported browsers: manual tip -->
+        <div id="wifi-manual-tip" style="display:none;align-items:center;gap:10px;padding:12px 14px;background:var(--surface2);border-radius:12px;border:1px solid var(--card-border);">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           <span style="font-size:13px;color:var(--text-muted);line-height:1.4;">Go to <strong style="color:var(--text);">Settings → Wi-Fi</strong>, select <strong style="color:var(--text);" id="wifi-manual-ssid-tip">the network</strong> and paste the password.</span>
         </div>
@@ -8892,12 +8897,49 @@ function openWifiSettingsAndroid() {
   setTimeout(function() { document.body.removeChild(a); }, 300);
 }
 
+function openWifiSettingsIOS() {
+  // Copy password first so guest can paste it immediately after opening Settings
+  if (window.WIFI_PASS) {
+    try {
+      navigator.clipboard.writeText(window.WIFI_PASS).catch(function(){});
+    } catch(e) {}
+  }
+  // prefs:root=WIFI works on iOS 14+ in Safari (prompts with "Open in Settings")
+  // App-prefs:root=WIFI is the older scheme — try both via fallback chain
+  var opened = false;
+  var schemes = ['App-prefs:root=WIFI', 'prefs:root=WIFI'];
+  function tryNext(i) {
+    if (i >= schemes.length) {
+      // All schemes failed — show the manual tip as last resort
+      var tip = document.getElementById('wifi-manual-tip');
+      if (tip) tip.style.display = 'flex';
+      showGuestToast('Password copied — open Settings → Wi-Fi manually', 'green');
+      return;
+    }
+    var a = document.createElement('a');
+    a.href = schemes[i];
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() {
+      document.body.removeChild(a);
+    }, 300);
+  }
+  showGuestToast('Password copied — opening WiFi Settings…', 'green');
+  tryNext(0);
+}
+
 function _initWifiModalForDevice() {
-  var isAndroid = /Android/.test(navigator.userAgent || '');
-  var androidBtn  = document.getElementById('wifi-android-btn');
-  var manualTip   = document.getElementById('wifi-manual-tip');
-  if (androidBtn) androidBtn.style.display  = isAndroid ? 'flex' : 'none';
-  if (manualTip)  manualTip.style.display   = isAndroid ? 'none' : 'flex';
+  var ua = navigator.userAgent || '';
+  var isAndroid = /Android/.test(ua);
+  var isIOS     = /iPhone|iPad|iPod/.test(ua);
+  var androidBtn = document.getElementById('wifi-android-btn');
+  var iosBtn     = document.getElementById('wifi-ios-btn');
+  var manualTip  = document.getElementById('wifi-manual-tip');
+  if (androidBtn) androidBtn.style.display = isAndroid ? 'flex' : 'none';
+  if (iosBtn)     iosBtn.style.display     = isIOS     ? 'flex' : 'none';
+  // Show manual tip only for unsupported browsers (not iOS, not Android)
+  if (manualTip)  manualTip.style.display  = (!isAndroid && !isIOS) ? 'flex' : 'none';
 }
 
 function showGuestToast(msg,color){var toast=document.createElement('div');var bg=color==='red'?'rgba(192,57,43,0.95)':'rgba(76,175,125,0.95)';toast.style.cssText='position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:'+bg+';color:white;border-radius:14px;padding:14px 20px;z-index:999;font-size:14px;font-family:DM Sans,sans-serif;text-align:center;max-width:320px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3);';toast.textContent=msg;document.body.appendChild(toast);setTimeout(function(){if(toast.parentNode)toast.remove();},1000);}
