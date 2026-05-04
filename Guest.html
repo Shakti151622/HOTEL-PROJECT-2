@@ -9029,7 +9029,8 @@ function _probeNetwork(cb) {
 
 function _updateHeaderIcon(online) {
   var btn = document.getElementById('home-wifi-header-btn');
-  if (!btn || btn.style.display === 'none') return;
+  if (!btn) return;
+  btn.style.display = 'flex';
   btn.className = btn.className.replace(/state-\S+/g, '').trim();
   if (online) {
     btn.classList.add('state-connected');
@@ -9050,25 +9051,21 @@ function _startHeaderProbe() {
 // ── Init ──
 function initWifiBannerLifecycle() {
   var banner = document.getElementById('home-wifi-banner');
-  var headerBtn = document.getElementById('home-wifi-header-btn');
   if (!banner) return;
 
   _wifiEverConnected = _wifiGetFlag();
 
+  // Always start probing immediately — icon updates in real time regardless
+  _startHeaderProbe();
+
   if (_wifiEverConnected) {
-    // Return visit — skip banner, show header icon immediately
+    // Return visit — skip banner
     banner.classList.add('banner-hiding');
-    if (headerBtn) headerBtn.style.display = 'flex';
-    _startHeaderProbe();
   } else {
-    // First visit — show banner for 5 min
+    // First visit — show banner for 5 min then dismiss
     banner.classList.remove('banner-hiding');
-    if (headerBtn) headerBtn.style.display = 'none';
     _setWifiBannerState('idle');
-    setTimeout(function() {
-      _dismissWifiBanner();
-      _startHeaderProbe();
-    }, 5 * 60 * 1000);
+    setTimeout(_dismissWifiBanner, 5 * 60 * 1000);
   }
 }
 
