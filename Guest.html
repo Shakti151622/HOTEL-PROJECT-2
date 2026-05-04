@@ -8722,6 +8722,7 @@ function _resolveWifiForRoom(zones, roomNum) {
 
 // Apply loaded credentials to every DOM element that shows SSID or password
 function _applyWifiToUI() {
+  function _set(id, val) { var el = document.getElementById(id); if (el) { el.textContent = val; el.style.fontStyle = ''; el.style.color = ''; } }
   _set('wifi-ssid',            WIFI_SSID || '—');
   _set('wifi-pass',            WIFI_PASS || '—');
   _set('profile-ssid-display', WIFI_SSID || '—');
