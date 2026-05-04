@@ -4440,13 +4440,8 @@ window.CHEF_IMG_SRC = './images/chef.webp';
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
           Open WiFi Settings
         </button>
-        <!-- iOS: Open WiFi Settings deep link button -->
-        <button class="wifi-btn-secondary" id="wifi-ios-btn" style="display:none;" onclick="openWifiSettingsIOS()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
-          Open WiFi Settings
-        </button>
-        <!-- Fallback for unsupported browsers: manual tip -->
-        <div id="wifi-manual-tip" style="display:none;align-items:center;gap:10px;padding:12px 14px;background:var(--surface2);border-radius:12px;border:1px solid var(--card-border);">
+        <!-- iOS / others: manual tip -->
+        <div id="wifi-manual-tip" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--surface2);border-radius:12px;border:1px solid var(--card-border);">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           <span style="font-size:13px;color:var(--text-muted);line-height:1.4;">Go to <strong style="color:var(--text);">Settings → Wi-Fi</strong>, select <strong style="color:var(--text);" id="wifi-manual-ssid-tip">the network</strong> and paste the password.</span>
         </div>
@@ -8818,34 +8813,74 @@ function copyWifiField(field) {
 function _drawWifiQR() {
   var canvas = document.getElementById('wifi-qr-canvas');
   if (!canvas) return;
-  var wifiStr = 'WIFI:T:WPA;S:' + WIFI_SSID + ';P:' + WIFI_PASS + ';;';
+  // WIFI QR spec: backslash-escape  ; \ " , :  in SSID and password
+  function _escWifi(s) {
+    return String(s)
+      .replace(/\\/g,'\\\\')
+      .replace(/;/g,'\\;')
+      .replace(/,/g,'\\,')
+      .replace(/"/g,'\\"')
+      .replace(/:/g,'\\:');
+  }
+  var rawSSID = String(window.WIFI_SSID || '');
+  var rawPASS = String(window.WIFI_PASS || '');
+  var escSSID = _escWifi(rawSSID);
+  var escPASS = _escWifi(rawPASS);
+  var wifiStr = 'WIFI:T:WPA;S:' + escSSID + ';P:' + escPASS + ';;';
+
+  // ── WiFi QR Debug ──
+  (function(){
+    var ssidCodes = rawSSID.split('').map(function(c){ return c+'('+c.charCodeAt(0)+')'; }).join(' ');
+    var passCodes = rawPASS.split('').map(function(c){ return c.charCodeAt(0) > 32 ? c : '??('+c.charCodeAt(0)+')'; }).join('');
+    var hasSpecial = /[;,\\":]/.test(rawSSID+rawPASS);
+    var hasControl = rawSSID.split('').concat(rawPASS.split('')).some(function(c){ return c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127; });
+    var hasTrailSpace = rawSSID !== rawSSID.trim() || rawPASS !== rawPASS.trim();
+    console.log('[WiFi-QR] ── QR Debug ──────────────────');
+    console.log('[WiFi-QR] Raw SSID  : "' + rawSSID + '" (' + rawSSID.length + ' chars)');
+    console.log('[WiFi-QR] Raw PASS  : "' + rawPASS + '" (' + rawPASS.length + ' chars)');
+    console.log('[WiFi-QR] Esc SSID  : "' + escSSID + '"');
+    console.log('[WiFi-QR] Esc PASS  : "' + escPASS + '"');
+    console.log('[WiFi-QR] Full str  : ' + wifiStr);
+    console.log('[WiFi-QR] SSID chars: ' + ssidCodes);
+    console.log('[WiFi-QR] PASS chars: ' + passCodes);
+    console.log('[WiFi-QR] Has special chars needing escape: ' + hasSpecial);
+    console.log('[WiFi-QR] Has control/invisible chars: ' + hasControl);
+    console.log('[WiFi-QR] Has leading/trailing spaces: ' + hasTrailSpace);
+    console.log('[WiFi-QR] QRious lib loaded: ' + (typeof QRious !== 'undefined'));
+    if (hasControl) console.warn('[WiFi-QR] WARNING: control chars in SSID/PASS — QR will be malformed!');
+    if (hasTrailSpace) console.warn('[WiFi-QR] WARNING: trailing/leading spaces in SSID or PASS — likely wrong password in Firestore!');
+    if (!rawSSID) console.error('[WiFi-QR] ERROR: SSID is empty — Firebase data not loaded yet?');
+    if (!rawPASS) console.error('[WiFi-QR] ERROR: Password is empty — check Firestore wifi_zones field');
+    console.log('[WiFi-QR] ──────────────────────────────');
+    // Auto-open LOG panel so debug is visible immediately
+    var panel = document.getElementById('dbg-panel');
+    if (panel && panel.style.display === 'none') panel.style.display = 'block';
+  })();
   if (typeof QRious !== 'undefined') {
     new QRious({ element: canvas, value: wifiStr, size: 200, background: '#ffffff', foreground: '#1A1A1A', level: 'M', padding: 10 });
     return;
   }
   // Load QRious from unpkg (more reliable than cdnjs for local files)
-  if (!window._qriousLoading && !window._qriousFailed) {
+  if (!window._qriousLoading) {
     window._qriousLoading = true;
     var s = document.createElement('script');
     s.src = 'https://unpkg.com/qrious@4.0.2/dist/qrious.min.js';
     s.onload = function() { window._qriousLoading = false; _drawWifiQR(); };
     s.onerror = function() {
-      // BUGFIX: was never resetting _qriousLoading on error -> infinite setTimeout loop
+      console.error('[WiFi-QR] QRious CDN load FAILED — fallback canvas shown');
       window._qriousLoading = false;
-      window._qriousFailed = true; // don't retry again this session
+      window._qriousFailed = true;
       _drawQRFallback(canvas, wifiStr);
     };
     document.head.appendChild(s);
   } else if (window._qriousFailed) {
-    // CDN failed -- show fallback immediately, don't spin
     _drawQRFallback(canvas, wifiStr);
   } else {
-    // Still loading -- wait once, with a retry cap to prevent infinite loop
     window._qriousRetries = (window._qriousRetries || 0) + 1;
     if (window._qriousRetries <= 5) {
       setTimeout(function() { _drawWifiQR(); }, 400);
     } else {
-      // Give up waiting -- mark failed and show fallback
+      console.error('[WiFi-QR] QRious load timeout after 5 retries — showing fallback');
       window._qriousLoading = false;
       window._qriousFailed = true;
       _drawQRFallback(canvas, wifiStr);
@@ -8885,7 +8920,7 @@ window.openWifiModal = openWifiModal;
 window.closeWifiModal = closeWifiModal;
 window.toggleWifiPass = toggleWifiPass;
 window.copyWifiField = copyWifiField;
-// openWifiSettings removed — function was deleted, reference removed to prevent ReferenceError crash
+// openWifiSettings removed — reference removed to prevent ReferenceError crash
 
 
 function openWifiSettingsAndroid() {
@@ -8897,49 +8932,12 @@ function openWifiSettingsAndroid() {
   setTimeout(function() { document.body.removeChild(a); }, 300);
 }
 
-function openWifiSettingsIOS() {
-  // Copy password first so guest can paste it immediately after opening Settings
-  if (window.WIFI_PASS) {
-    try {
-      navigator.clipboard.writeText(window.WIFI_PASS).catch(function(){});
-    } catch(e) {}
-  }
-  // prefs:root=WIFI works on iOS 14+ in Safari (prompts with "Open in Settings")
-  // App-prefs:root=WIFI is the older scheme — try both via fallback chain
-  var opened = false;
-  var schemes = ['App-prefs:root=WIFI', 'prefs:root=WIFI'];
-  function tryNext(i) {
-    if (i >= schemes.length) {
-      // All schemes failed — show the manual tip as last resort
-      var tip = document.getElementById('wifi-manual-tip');
-      if (tip) tip.style.display = 'flex';
-      showGuestToast('Password copied — open Settings → Wi-Fi manually', 'green');
-      return;
-    }
-    var a = document.createElement('a');
-    a.href = schemes[i];
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function() {
-      document.body.removeChild(a);
-    }, 300);
-  }
-  showGuestToast('Password copied — opening WiFi Settings…', 'green');
-  tryNext(0);
-}
-
 function _initWifiModalForDevice() {
-  var ua = navigator.userAgent || '';
-  var isAndroid = /Android/.test(ua);
-  var isIOS     = /iPhone|iPad|iPod/.test(ua);
-  var androidBtn = document.getElementById('wifi-android-btn');
-  var iosBtn     = document.getElementById('wifi-ios-btn');
-  var manualTip  = document.getElementById('wifi-manual-tip');
-  if (androidBtn) androidBtn.style.display = isAndroid ? 'flex' : 'none';
-  if (iosBtn)     iosBtn.style.display     = isIOS     ? 'flex' : 'none';
-  // Show manual tip only for unsupported browsers (not iOS, not Android)
-  if (manualTip)  manualTip.style.display  = (!isAndroid && !isIOS) ? 'flex' : 'none';
+  var isAndroid = /Android/.test(navigator.userAgent || '');
+  var androidBtn  = document.getElementById('wifi-android-btn');
+  var manualTip   = document.getElementById('wifi-manual-tip');
+  if (androidBtn) androidBtn.style.display  = isAndroid ? 'flex' : 'none';
+  if (manualTip)  manualTip.style.display   = isAndroid ? 'none' : 'flex';
 }
 
 function showGuestToast(msg,color){var toast=document.createElement('div');var bg=color==='red'?'rgba(192,57,43,0.95)':'rgba(76,175,125,0.95)';toast.style.cssText='position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:'+bg+';color:white;border-radius:14px;padding:14px 20px;z-index:999;font-size:14px;font-family:DM Sans,sans-serif;text-align:center;max-width:320px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3);';toast.textContent=msg;document.body.appendChild(toast);setTimeout(function(){if(toast.parentNode)toast.remove();},1000);}
