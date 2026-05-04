@@ -1153,8 +1153,22 @@ window.addEventListener('error', function(e) {
   .home-status-value { font-size:12px; font-weight:700; color:var(--text-primary); line-height:1.2; }
   .home-status-sub { font-size:9px; color:var(--text-secondary); }
   .home-status-link { font-size:11px; color:var(--gold-primary); font-weight:600; text-decoration:underline; cursor:pointer; }
-  .home-wifi-connected { display:flex; align-items:center; gap:4px; font-size:11px; color:#2D7D46; font-weight:600; }
-  .home-wifi-dot { width:7px; height:7px; border-radius:50%; background:#2D7D46; flex-shrink:0; }
+  .home-wifi-connected { display:flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color: #B07A20; }
+  .home-wifi-dot { width:7px; height:7px; border-radius:50%; background: #B07A20; flex-shrink:0; transition: background 0.3s; }
+
+  /* State: connected (green) */
+  .home-wifi-connected.wifi-connected { color: #2D7D46; }
+  .home-wifi-connected.wifi-connected .home-wifi-dot { background: #2D7D46; }
+
+  /* State: checking (grey pulsing) */
+  .home-wifi-connected.wifi-checking { color: var(--text-muted); }
+  .home-wifi-connected.wifi-checking .home-wifi-dot { background: var(--text-muted); animation: wifiPulse 1.2s ease-in-out infinite; }
+
+  /* State: disconnected (red) */
+  .home-wifi-connected.wifi-disconnected { color: #C0392B; }
+  .home-wifi-connected.wifi-disconnected .home-wifi-dot { background: #C0392B; }
+
+  @keyframes wifiPulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
   /* DINING HERO CARD */
   .home-dining-card {
     border-radius:16px;
@@ -1276,9 +1290,59 @@ window.addEventListener('error', function(e) {
   .home-offers-title { font-size:13px; font-weight:600; color:var(--text-primary); margin-bottom:1px; }
   .home-offers-sub { font-size:10px; color:var(--text-secondary); }
   .home-offers-link { font-size:12px; color:var(--gold-primary); font-weight:600; white-space:nowrap; display:flex; align-items:center; gap:4px; }
-  /* WIFI banner hidden - integrated into status bar */
-  .home-wifi-banner { display:none !important; }
-  .home-wifi-icon, .home-wifi-text, .home-wifi-title, .home-wifi-sub, .home-wifi-btn { display:none !important; }
+  /* WIFI banner — shown when never connected, hidden after first connect */
+  .home-wifi-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--surface);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 14px 16px;
+    margin: 0 0 12px;
+    cursor: pointer;
+    transition: opacity 0.3s ease, max-height 0.4s ease, margin 0.4s ease, padding 0.4s ease;
+    overflow: hidden;
+    max-height: 100px;
+  }
+  .home-wifi-banner.wifi-banner-hidden {
+    max-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-bottom: 0;
+    pointer-events: none;
+  }
+  .home-wifi-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--gold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .home-wifi-text { flex: 1; }
+  .home-wifi-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+  .home-wifi-sub { font-size: 12px; color: var(--text-muted); }
+  .home-wifi-btn {
+    flex-shrink: 0;
+    background: var(--gold);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .home-wifi-btn:active { opacity: 0.85; transform: scale(0.97); }
   /* SECTION HEADERS */
   .home-section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
   .home-section-title { font-size:17px; font-weight:700; color:var(--text-primary); }
@@ -3475,7 +3539,7 @@ window.CHEF_IMG_SRC = './images/chef.webp';
         <div class="home-status-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg></div>
         <div>
           <div class="home-status-label">Complimentary WiFi</div>
-          <div class="home-wifi-connected"><div class="home-wifi-dot"></div>Connected</div>
+          <div class="home-wifi-connected" id="home-wifi-status"><div class="home-wifi-dot" id="home-wifi-dot"></div><span id="home-wifi-label">Tap to connect</span></div>
         </div>
       </div>
       <div class="home-status-item">
@@ -3493,6 +3557,20 @@ window.CHEF_IMG_SRC = './images/chef.webp';
           <div class="home-status-link">View benefits ›</div>
         </div>
       </div>
+    </div>
+    <!-- WIFI BANNER — visible when never connected, hidden after first connect -->
+    <div class="home-wifi-banner" id="home-wifi-banner" onclick="openWifiModal()">
+      <div class="home-wifi-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+      </div>
+      <div class="home-wifi-text">
+        <div class="home-wifi-title">Free WiFi</div>
+        <div class="home-wifi-sub">Stay connected during your stay.</div>
+      </div>
+      <button class="home-wifi-btn" onclick="event.stopPropagation();openWifiModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+        Connect Now
+      </button>
     </div>
     <!-- DINING HERO CARD — TIME-OF-DAY CONVERSION SYSTEM -->
     <div class="home-dining-card" id="dining-hero-card" onclick="go('menu')">
@@ -3514,12 +3592,6 @@ window.CHEF_IMG_SRC = './images/chef.webp';
         <!-- Rotation dots -->
         <div id="dining-dots" style="position:absolute; bottom:10px; left:50%; transform:translateX(-50%); z-index:3; display:flex; gap:5px;"></div>
       </div>
-    </div>
-    <!-- LEGACY WIFI BANNER (hidden by CSS) -->
-    <div class="home-wifi-banner" onclick="openWifiModal()">
-      <div class="home-wifi-icon"></div>
-      <div class="home-wifi-text"><div class="home-wifi-title">Free WiFi</div><div class="home-wifi-sub">Stay connected during your stay.</div></div>
-      <button class="home-wifi-btn">Connect Now</button>
     </div>
 <svg width="0" height="0" style="position:absolute;overflow:hidden"><defs>
   <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -8626,6 +8698,134 @@ function _resolveWifiForRoom(zones, roomNum) {
   return zones[0];
 }
 
+// ── WIFI STATUS BADGE STATE MACHINE ─────────────────────────────────────────
+// States:
+//   "tap"          → amber dot · "Tap to connect"   (never connected before)
+//   "connected"    → green dot · "Connected"          (online + previously connected)
+// ── WIFI CONNECTION STATE MACHINE ──────────────────────────────────────────
+//
+// Banner logic:
+//   - Timer starts the moment the guest scans the QR / page loads.
+//   - For 5 minutes: banner is visible with "Free WiFi / Connect Now".
+//   - If guest taps Connect Now and successfully connects → banner disappears
+//     immediately, chip in header goes green "Connected".
+//   - If 5 minutes pass and guest never tried → banner disappears quietly,
+//     only the small chip in the header remains (amber "Tap to connect").
+//   - On the next QR scan (new page load), the 5-min window resets and
+//     banner appears again — until they connect.
+//
+// Header chip states:
+//   amber (default)   → "Tap to connect"   (not connected, banner visible or expired)
+//   wifi-connected    → "Connected"         (navigator.onLine === true)
+//   wifi-checking     → "Checking status"   (was connected, now offline, 4s grace)
+//   wifi-disconnected → "Not connected"     (confirmed offline after prior connect)
+
+var _WIFI_LOAD_KEY      = 'hyatt_wifi_load_ts';   // set once on each page load
+var _WIFI_CONNECTED_KEY = 'hyatt_wifi_connected';  // set permanently once truly online
+var _WIFI_BANNER_WINDOW = 5 * 60 * 1000;          // 5 minutes in ms
+var _wifiBannerTimer    = null;                    // fires when 5-min window expires
+
+function _isActuallyConnected() {
+  try { return !!localStorage.getItem(_WIFI_CONNECTED_KEY); } catch(e) { return false; }
+}
+function _markActuallyConnected() {
+  try { localStorage.setItem(_WIFI_CONNECTED_KEY, '1'); } catch(e) {}
+}
+function _getLoadTimestamp() {
+  try { return parseInt(localStorage.getItem(_WIFI_LOAD_KEY) || '0', 10); } catch(e) { return 0; }
+}
+function _setLoadTimestamp() {
+  // Write a fresh timestamp on every page load
+  try { localStorage.setItem(_WIFI_LOAD_KEY, String(Date.now())); } catch(e) {}
+}
+function _msRemainingInBannerWindow() {
+  var ts = _getLoadTimestamp();
+  if (!ts) return 0;
+  return Math.max(0, _WIFI_BANNER_WINDOW - (Date.now() - ts));
+}
+
+// ── MAIN STATE UPDATE ──────────────────────────────────────────────────────
+function _updateWifiStatusBadge() {
+  var badge  = document.getElementById('home-wifi-status');
+  var label  = document.getElementById('home-wifi-label');
+  var banner = document.getElementById('home-wifi-banner');
+  if (!badge || !label) return;
+
+  badge.classList.remove('wifi-connected', 'wifi-checking', 'wifi-disconnected');
+
+  // ── Case 1: device is genuinely online ──────────────────────────────────
+  if (navigator.onLine) {
+    _markActuallyConnected();
+    _cancelBannerTimer();
+    if (banner) banner.classList.add('wifi-banner-hidden');
+    badge.classList.add('wifi-connected');
+    label.textContent = 'Connected';
+    return;
+  }
+
+  // ── Case 2: was connected before but now offline ─────────────────────────
+  if (_isActuallyConnected()) {
+    if (banner) banner.classList.add('wifi-banner-hidden');
+    badge.classList.add('wifi-checking');
+    label.textContent = 'Checking status';
+    setTimeout(function() {
+      if (navigator.onLine) { _updateWifiStatusBadge(); return; }
+      var b2 = document.getElementById('home-wifi-status');
+      var l2 = document.getElementById('home-wifi-label');
+      if (!b2 || !l2) return;
+      b2.classList.remove('wifi-checking');
+      b2.classList.add('wifi-disconnected');
+      l2.textContent = 'Not connected';
+    }, 4000);
+    return;
+  }
+
+  // ── Case 3: not yet connected ────────────────────────────────────────────
+  var remaining = _msRemainingInBannerWindow();
+
+  if (remaining > 0) {
+    // Still within the 5-min window — show the banner
+    if (banner) banner.classList.remove('wifi-banner-hidden');
+    label.textContent = 'Tap to connect';
+    // Schedule banner hide when window expires (if not already scheduled)
+    _scheduleBannerExpiry(remaining);
+  } else {
+    // 5-min window has expired — hide banner, chip only
+    if (banner) banner.classList.add('wifi-banner-hidden');
+    label.textContent = 'Tap to connect';
+  }
+}
+
+// ── Schedule the banner to auto-hide when the 5-min window expires ─────────
+function _scheduleBannerExpiry(ms) {
+  _cancelBannerTimer(); // don't double-schedule
+  _wifiBannerTimer = setTimeout(function() {
+    if (navigator.onLine || _isActuallyConnected()) return; // already handled
+    var banner = document.getElementById('home-wifi-banner');
+    if (banner) banner.classList.add('wifi-banner-hidden');
+    // chip stays, label stays "Tap to connect"
+  }, ms);
+}
+
+function _cancelBannerTimer() {
+  if (_wifiBannerTimer) { clearTimeout(_wifiBannerTimer); _wifiBannerTimer = null; }
+}
+
+// ── Called when guest taps "Connect Now" / opens the WiFi modal ────────────
+// Nothing extra needed here — opening the modal lets them connect.
+// When navigator.onLine fires true, _updateWifiStatusBadge handles it.
+function _onGuestConnectedWifi() {
+  _updateWifiStatusBadge();
+}
+
+// Listen for device going on/offline in real time
+window.addEventListener('online',  _updateWifiStatusBadge);
+window.addEventListener('offline', _updateWifiStatusBadge);
+
+// ── On every page load: stamp a fresh timestamp, then evaluate state ────────
+_setLoadTimestamp();
+
+
 // Apply loaded credentials to every DOM element that shows SSID or password
 function _applyWifiToUI() {
   console.log('[WiFi-UI] _applyWifiToUI called. SSID=' + WIFI_SSID + ' PASS length=' + (WIFI_PASS||'').length);
@@ -8638,6 +8838,8 @@ function _applyWifiToUI() {
   _set('wifi-manual-ssid-tip',  WIFI_SSID || 'the network');
   var pd = document.getElementById('modal-pass-display');
   if (pd) pd.textContent = _wifiPassVisible ? (WIFI_PASS || '—') : '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+  // Refresh badge whenever credentials update
+  _updateWifiStatusBadge();
 }
 
 // Show loading state while Firebase responds
@@ -8648,6 +8850,7 @@ function _setWifiLoadingState() {
   }
   _loading('wifi-ssid'); _loading('wifi-pass');
   _loading('profile-ssid-display'); _loading('modal-ssid'); _loading('hint-ssid-label');
+  // Badge is NOT set to loading — it keeps its current state ("Tap to connect" or "Connected" etc.)
 }
 
 // Parse Firebase doc and apply to UI; returns true if data was found
@@ -8777,6 +8980,8 @@ function openWifiModal() {
   // Just apply whatever is loaded and draw the QR. If not yet loaded, Firebase will update shortly.
   _applyWifiToUI();
   _drawWifiQR();
+  // Guest opened the WiFi modal → counts as "has connected"; update badge accordingly
+  _onGuestConnectedWifi();
 }
 
 function closeWifiModal() {
@@ -8901,6 +9106,13 @@ window.closeWifiModal = closeWifiModal;
 window.toggleWifiPass = toggleWifiPass;
 window.copyWifiField = copyWifiField;
 // openWifiSettings removed — was deleted, reference caused ReferenceError crash on load
+
+// Initialise badge on load based on persisted connection history
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _updateWifiStatusBadge);
+} else {
+  _updateWifiStatusBadge();
+}
 
 
 function openWifiSettingsAndroid() {
