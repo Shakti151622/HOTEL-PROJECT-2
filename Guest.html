@@ -9019,10 +9019,15 @@ function _dismissWifiBanner() {
 }
 
 // ── Header icon: probe every 3s, update instantly ──
+// Probes Firebase (hotel backend) not generic internet,
+// so mobile data won't give false green — only hotel WiFi will succeed
 function _probeNetwork(cb) {
   var done = false;
-  var t = setTimeout(function() { if (!done) { done=true; cb(false); } }, 1500);
-  fetch('https://www.gstatic.com/generate_204?' + Date.now(), { method:'HEAD', cache:'no-store', mode:'no-cors' })
+  var t = setTimeout(function() { if (!done) { done=true; cb(false); } }, 2000);
+  // Probe the hotel's own Firebase project — fails if not on hotel WiFi
+  fetch('https://roocan-16ea0.firebaseio.com/.json?shallow=true', {
+    method: 'GET', cache: 'no-store', mode: 'no-cors'
+  })
     .then(function() { if (!done) { done=true; clearTimeout(t); cb(true); } })
     .catch(function() { if (!done) { done=true; clearTimeout(t); cb(false); } });
 }
