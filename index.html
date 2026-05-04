@@ -4928,9 +4928,9 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
 
     </div>
 
-    <!-- Sticky footer save -->
+    <!-- Sticky footer save — calls saveWifiOnly when on Wi-Fi tab, saveHotelSetup otherwise -->
     <div style="padding:14px 20px;border-top:1px solid var(--topbar-border);background:var(--surface);flex-shrink:0;">
-      <button onclick="saveHotelSetup()" style="width:100%;padding:14px;background:var(--gold);border:none;border-radius:12px;color:var(--dark);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;letter-spacing:0.03em;">Save &amp; Apply</button>
+      <button onclick="(function(){var wifiPanel=document.getElementById('hs-panel-wifi');if(wifiPanel&&wifiPanel.style.display!=='none'){saveWifiOnly();}else{saveHotelSetup();}})()" style="width:100%;padding:14px;background:var(--gold);border:none;border-radius:12px;color:var(--dark);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;letter-spacing:0.03em;">Save &amp; Apply</button>
     </div>
   </div>
 </div>
@@ -15146,6 +15146,40 @@ window.hsGetWifiForRoom = function(roomNum, zones) {
   return zones[0] || null; // fallback to first zone
 };
 
+// Save ONLY wifi_zones — no hotel name required
+window.saveWifiOnly = function() {
+  var db = getDb();
+  // Flush all DOM values into _hsWifiZones
+  _hsWifiZones.forEach(function(zone, idx) {
+    var ssidEl = document.getElementById('hs-ssid-' + idx);
+    var passEl = document.getElementById('hs-wifi-pass-' + idx);
+    if (ssidEl) zone.ssid = ssidEl.value.trim();
+    if (passEl && passEl.value !== '') zone.pass = passEl.value;
+  });
+  var zones = _normaliseWifiZones(_hsWifiZones);
+  // Log exactly what will be saved so you can verify in LOG panel
+  console.log('[WiFi-SAVE] About to save ' + zones.length + ' zone(s):');
+  zones.forEach(function(z, i) {
+    console.log('[WiFi-SAVE] Zone ' + i + ': ssid="' + z.ssid + '" pass="' + (z.pass?'*'.repeat(z.pass.length):'') + '" rooms="' + z.rooms + '"');
+  });
+  if (!db) {
+    console.warn('[WiFi-SAVE] BLOCKED — Firebase db is null');
+    showToast('Firebase not connected — cannot save');
+    return;
+  }
+  showToast('Saving Wi-Fi to Firebase...');
+  db.collection('settings').doc('hotel').set({ wifi_zones: zones }, { merge: true })
+    .then(function() {
+      console.log('[WiFi-SAVE] ✅ SUCCESS — wifi_zones written to Firebase');
+      console.log('[WiFi-SAVE] Zones now in Firebase: ' + JSON.stringify(zones));
+      showToast('✅ Wi-Fi saved to Firebase!');
+    })
+    .catch(function(e) {
+      console.warn('[WiFi-SAVE] ❌ FAILED — code:' + e.code + ' msg:' + e.message);
+      showToast('❌ Save FAILED: ' + (e.code || e.message));
+    });
+};
+
 window.saveHotelSetup = function() {
   var val = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
   var name = val('hs-name');
@@ -15154,7 +15188,7 @@ window.saveHotelSetup = function() {
   _hsWifiZones.forEach(function(zone, idx) {
     var ssidEl = document.getElementById('hs-ssid-' + idx);
     var passEl = document.getElementById('hs-wifi-pass-' + idx);
-    if (ssidEl && ssidEl.value !== '') zone.ssid = ssidEl.value;
+    if (ssidEl) zone.ssid = ssidEl.value.trim();
     if (passEl && passEl.value !== '') zone.pass = passEl.value;
   });
 
