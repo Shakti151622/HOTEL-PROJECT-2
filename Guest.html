@@ -7882,6 +7882,9 @@ function _initDb(){
     var app=(firebase.apps&&firebase.apps.length)?firebase.app():firebase.initializeApp({apiKey:"AIzaSyAb1G6UATyCR0l_8kDyO3VpRgMwDJ5l7UI",authDomain:"roocan-16ea0.firebaseapp.com",projectId:"roocan-16ea0",storageBucket:"roocan-16ea0.firebasestorage.app",messagingSenderId:"521412270728",appId:"1:521412270728:web:c2564cf45855e2a6961d3d"});
     _db=firebase.firestore();
     try { _db.settings({ experimentalForceLongPolling: true, merge: true }); } catch(e) {}
+    // Disable offline persistence so guests always get fresh data, never stale cache
+    try { _db.disableNetwork().then(function(){ _db.enableNetwork(); }); } catch(e) {}
+    try { _db.clearPersistence(); } catch(e) {}
   } catch(e){ console.warn('FB init:',e.message); _firebaseUnavailable=true; }
 }
 document.addEventListener('DOMContentLoaded',function(){try{_initDb();}catch(e){}});
@@ -8685,7 +8688,18 @@ function _startWifiListener() {
     console.log('[WiFi-4] Firebase db ready. Attaching onSnapshot to settings/hotel...');
     try {
       _wifiListener = db.collection('settings').doc('hotel').onSnapshot(function(doc) {
-        console.log('[WiFi-5] Snapshot received. exists=' + (doc && doc.exists) + ' data=' + (doc&&doc.exists?JSON.stringify(Object.keys(doc.data())):'none'));
+        console.log('[WiFi-5] Snapshot received. exists=' + (doc && doc.exists) + ' data=' + (doc&&doc.exists?JSON.stringify(Object.keys(doc.data())):'none') + ' fromCache=' + (doc&&doc.metadata&&doc.metadata.fromCache));
+        // If doc came from cache and has no wifi_zones, force a fresh server fetch
+        if (doc && doc.exists && doc.metadata && doc.metadata.fromCache && !doc.data().wifi_zones) {
+          console.warn('[WiFi-5] Stale cache detected — forcing server fetch...');
+          db.collection('settings').doc('hotel').get({ source: 'server' })
+            .then(function(freshDoc) {
+              console.log('[WiFi-5] Fresh server doc fields:', JSON.stringify(Object.keys(freshDoc.data()||{})));
+              _applyFirebaseWifiDoc(freshDoc);
+            })
+            .catch(function(e){ console.warn('[WiFi-5] Server fetch failed:', e.message); });
+          return;
+        }
         _applyFirebaseWifiDoc(doc);
       }, function(err) {
         console.warn('Wi-Fi listener error, falling back to one-time get:', err);

@@ -14734,7 +14734,10 @@ function hsLoadData() {
   if (document.getElementById('hs-logo')) { document.getElementById('hs-logo').value = logo; hsPreviewLogo(); }
 
   if (!db) return;
-  db.collection('settings').doc('hotel').get().then(function(doc) {
+  // Force fetch from server, not cache, so wifi_zones is always fresh
+  db.collection('settings').doc('hotel').get({ source: 'server' }).catch(function(){
+    return db.collection('settings').doc('hotel').get(); // fallback to cache if offline
+  }).then(function(doc) {
     if (!doc.exists) return;
     var d = doc.data();
     var inp = function(id, val) { var el = document.getElementById(id); if (el && val) el.value = val; };
