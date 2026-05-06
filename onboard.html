@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+<meta name="theme-color" content="#0D0D0D">
+<title>Join VediraOS · Hotel Onboarding</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --vedira-gold-compat: #C9A96E;
+  --gold-dim: rgba(201,169,110,0.15);
+  --dark: #0D0D0D;
+  --surface: #1A1814;
+  --surface2: #222018;
+  --text: #F5EFE6;
+  --text-muted: #8A8070;
+  --green: #4CAF7D;
+  --red: #C0392B;
+  --border: rgba(255,255,255,0.08);
+  --input-bg: #151412;
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body { font-family:'DM Sans',sans-serif; background:var(--dark); color:var(--text); min-height:100vh; }
+
+/* ── TOPBAR ── */
+.topbar { display:flex; align-items:center; justify-content:space-between; padding:20px 24px; border-bottom:1px solid var(--border); }
+.logo { font-family:'Cormorant Garamond',serif; font-size:22px; color:var(--vedira-teal); letter-spacing:0.08em; }
+.topbar-sub { font-size:12px; color:var(--text-muted); }
+
+/* ── STEPS ── */
+.steps-bar { display:flex; gap:0; padding:0 24px; margin:28px 0 0; }
+.step-item { flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; position:relative; }
+.step-item:not(:last-child)::after { content:''; position:absolute; top:14px; left:calc(50% + 14px); right:calc(-50% + 14px); height:1px; background:var(--border); }
+.step-item.done:not(:last-child)::after { background:var(--vedira-teal); }
+.step-dot { width:28px; height:28px; border-radius:50%; border:1.5px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:var(--text-muted); background:var(--surface); z-index:1; transition:all 0.3s; }
+.step-item.active .step-dot { border-color:var(--vedira-teal); color:var(--vedira-teal); background:var(--gold-dim); }
+.step-item.done .step-dot { border-color:var(--vedira-teal); color:var(--dark); background:var(--vedira-teal); }
+.step-label { font-size:10px; color:var(--text-muted); letter-spacing:0.05em; text-align:center; }
+.step-item.active .step-label { color:var(--vedira-teal); }
+
+/* ── PANELS ── */
+.panel { display:none; padding:28px 24px 100px; animation:fadeUp 0.35s ease; }
+.panel.active { display:block; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+
+.panel-title { font-family:'Cormorant Garamond',serif; font-size:28px; font-weight:500; margin-bottom:6px; }
+.panel-sub { font-size:13px; color:var(--text-muted); margin-bottom:28px; line-height:1.6; }
+
+/* ── FORM ELEMENTS ── */
+.field { margin-bottom:18px; }
+.field label { display:block; font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-muted); margin-bottom:7px; }
+.field input, .field textarea, .field select {
+  width:100%; background:var(--input-bg); border:1px solid var(--border);
+  border-radius:12px; padding:14px 16px; font-size:15px; color:var(--text);
+  font-family:'DM Sans',sans-serif; outline:none; transition:border-color 0.2s;
+}
+.field input:focus, .field textarea:focus, .field select:focus { border-color:rgba(201,169,110,0.5); }
+.field textarea { resize:vertical; min-height:80px; }
+.field select { -webkit-appearance:none; appearance:none; }
+.field .hint { font-size:11px; color:var(--text-muted); margin-top:5px; }
+.field .prefix-wrap { display:flex; align-items:center; background:var(--input-bg); border:1px solid var(--border); border-radius:12px; overflow:hidden; transition:border-color 0.2s; }
+.field .prefix-wrap:focus-within { border-color:rgba(201,169,110,0.5); }
+.field .prefix { padding:14px 0 14px 16px; font-size:15px; color:var(--text-muted); white-space:nowrap; }
+.field .prefix-wrap input { border:none; border-radius:0; padding-left:4px; }
+
+.row2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+/* ── MENU BUILDER ── */
+.menu-builder { margin-top:8px; }
+.menu-cats { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+.cat-chip { padding:7px 14px; border-radius:100px; border:1px solid var(--border); font-size:12px; color:var(--text-muted); cursor:pointer; transition:all 0.2s; }
+.cat-chip.active { border-color:var(--vedira-teal); color:var(--vedira-teal); background:var(--gold-dim); }
+.menu-items-list { display:flex; flex-direction:column; gap:10px; }
+.menu-item-row { display:flex; align-items:center; gap:10px; background:var(--surface); border-radius:12px; padding:12px 14px; border:1px solid var(--border); }
+.menu-item-row .item-name { flex:1; font-size:14px; }
+.menu-item-row .item-price { font-size:14px; font-weight:600; color:var(--vedira-teal); min-width:60px; text-align:right; }
+.menu-item-row .item-del { width:28px; height:28px; border-radius:8px; border:none; background:rgba(192,57,43,0.12); color:var(--red); cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; }
+.add-item-row { display:flex; gap:8px; margin-top:10px; }
+.add-item-row input { flex:1; background:var(--input-bg); border:1px solid var(--border); border-radius:10px; padding:12px 14px; font-size:14px; color:var(--text); font-family:'DM Sans',sans-serif; outline:none; }
+.add-item-row input:focus { border-color:rgba(201,169,110,0.4); }
+.add-item-btn { padding:0 16px; border-radius:10px; background:var(--gold-dim); border:1px solid rgba(201,169,110,0.3); color:var(--vedira-teal); font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap; }
+
+/* ── ROOMS ── */
+.rooms-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(60px, 1fr)); gap:8px; margin-top:12px; }
+.room-chip { padding:10px 6px; border-radius:10px; background:var(--surface); border:1px solid var(--border); text-align:center; font-size:13px; font-weight:600; color:var(--text-muted); }
+
+/* ── BOTTOM BAR ── */
+.bottom-bar { position:fixed; bottom:0; left:0; right:0; padding:16px 24px; background:linear-gradient(to top, var(--dark) 60%, transparent); display:flex; gap:12px; }
+.btn-back { flex:0; padding:15px 20px; border-radius:14px; border:1px solid var(--border); background:transparent; color:var(--text-muted); font-size:14px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; }
+.btn-next { flex:1; padding:15px; border-radius:14px; border:none; background:var(--vedira-teal); color:#0D0D0D; font-size:15px; font-weight:700; cursor:pointer; font-family:'DM Sans',sans-serif; letter-spacing:0.02em; transition:opacity 0.2s; }
+.btn-next:disabled { opacity:0.4; cursor:not-allowed; }
+.btn-next:active:not(:disabled) { opacity:0.85; }
+
+/* ── SUCCESS ── */
+.success-screen { display:none; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding:32px 24px; text-align:center; }
+.success-screen.active { display:flex; }
+.success-icon { width:80px; height:80px; border-radius:50%; background:var(--gold-dim); border:1.5px solid var(--vedira-teal); display:flex; align-items:center; justify-content:center; font-size:32px; margin-bottom:24px; }
+.success-title { font-family:'Cormorant Garamond',serif; font-size:32px; font-weight:500; margin-bottom:10px; }
+.success-sub { font-size:14px; color:var(--text-muted); line-height:1.7; margin-bottom:32px; max-width:320px; }
+.cred-card { background:var(--surface); border:1px solid rgba(201,169,110,0.3); border-radius:16px; padding:20px; width:100%; max-width:360px; margin-bottom:20px; }
+.cred-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.cred-row:last-child { margin-bottom:0; }
+.cred-label { font-size:11px; color:var(--text-muted); letter-spacing:0.1em; text-transform:uppercase; }
+.cred-val { font-size:14px; font-weight:600; color:var(--text); font-family:monospace; }
+.cred-copy { padding:4px 10px; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--text-muted); font-size:11px; cursor:pointer; }
+
+.qr-section { width:100%; max-width:360px; }
+.qr-title { font-size:13px; color:var(--text-muted); margin-bottom:14px; text-align:center; }
+.qr-list { display:flex; flex-direction:column; gap:8px; max-height:250px; overflow-y:auto; }
+.qr-item { background:var(--surface); border-radius:10px; padding:14px; border:1px solid var(--border); }
+.qr-item span { font-size:13px; }
+.qr-item a { font-size:11px; color:var(--vedira-teal); text-decoration:none; }
+.download-all { width:100%; margin-top:12px; padding:14px; border-radius:12px; border:1px solid rgba(201,169,110,0.3); background:var(--gold-dim); color:var(--vedira-teal); font-size:14px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; }
+
+/* ── TOAST ── */
+.toast { position:fixed; top:24px; left:50%; transform:translateX(-50%); background:var(--surface); border:1px solid rgba(201,169,110,0.3); color:var(--text); padding:12px 20px; border-radius:12px; font-size:14px; z-index:9999; opacity:0; transition:opacity 0.3s; pointer-events:none; white-space:nowrap; }
+.toast.show { opacity:1; }
+</style>
+
+<style id="vedira-brand">
+:root {
+  --vedira-teal:    #00B7A7;
+  --vedira-blue:    #2563EB;
+  --vedira-navy:    #0D1B2A;
+  --vedira-light:   #F2F4F7;
+  --vedira-teal-dim: rgba(0,183,167,0.12);
+  --vedira-blue-dim: rgba(37,99,235,0.12);
+}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">VediraOS</div>
+  <div class="topbar-sub" style="font-family:'Poppins',sans-serif;color:#8A8070;font-size:11px;">by Vedira Technologies</div>
+</div>
+
+<!-- STEPS BAR -->
+<div class="steps-bar" id="steps-bar">
+  <div class="step-item active" id="step-1">
+    <div class="step-dot">1</div>
+    <div class="step-label">HOTEL</div>
+  </div>
+  <div class="step-item" id="step-2">
+    <div class="step-dot">2</div>
+    <div class="step-label">ROOMS</div>
+  </div>
+  <div class="step-item" id="step-3">
+    <div class="step-dot">3</div>
+    <div class="step-label">MENU</div>
+  </div>
+  <div class="step-item" id="step-4">
+    <div class="step-dot">4</div>
+    <div class="step-label">WIFI &amp; INFO</div>
+  </div>
+</div>
+
+<!-- ── PANEL 1: HOTEL DETAILS ── -->
+<div class="panel active" id="panel-1">
+  <div class="panel-title">Your Hotel</div>
+  <div class="panel-sub">Basic details about your property. Guests will see this.</div>
+
+  <div class="field">
+    <label>Hotel Name *</label>
+    <input type="text" id="hotel-name" placeholder="e.g. Keshav Grand Hotel" maxlength="80">
+  </div>
+
+  <div class="field">
+    <label>Hotel ID (URL-friendly) *</label>
+    <div class="prefix-wrap">
+      <span class="prefix">vediraos.com/g?hotel=</span>
+      <input type="text" id="hotel-id" placeholder="keshavgrand" maxlength="30" oninput="sanitizeId(this)">
+    </div>
+    <div class="hint" id="hotel-id-hint">Only lowercase letters, numbers, hyphens. e.g. "keshavgrand"</div>
+  </div>
+
+  <div class="row2">
+    <div class="field">
+      <label>Star Rating</label>
+      <select id="hotel-stars">
+        <option value="3">3 Star</option>
+        <option value="4" selected>4 Star</option>
+        <option value="5">5 Star</option>
+        <option value="2">2 Star</option>
+        <option value="1">1 Star</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Checkout Time</label>
+      <input type="time" id="checkout-time" value="11:00">
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Address</label>
+    <input type="text" id="hotel-address" placeholder="Full address of your hotel">
+  </div>
+
+  <div class="field">
+    <label>Reception Phone *</label>
+    <input type="tel" id="hotel-phone" placeholder="+91 98765 43210">
+  </div>
+
+  <div class="field">
+    <label>Manager Password *</label>
+    <input type="password" id="hotel-pass" placeholder="Set a password for your dashboard" autocomplete="new-password">
+    <div class="hint">You'll use this to login to your staff dashboard</div>
+  </div>
+</div>
+
+<!-- ── PANEL 2: ROOMS ── -->
+<div class="panel" id="panel-2">
+  <div class="panel-title">Your Rooms</div>
+  <div class="panel-sub">How many rooms? We'll set up QR codes for each one.</div>
+
+  <div class="field">
+    <label>Total Number of Rooms *</label>
+    <input type="number" id="room-count" placeholder="e.g. 20" min="1" max="500" oninput="previewRooms()">
+  </div>
+
+  <div class="row2">
+    <div class="field">
+      <label>Starting Room Number</label>
+      <input type="number" id="room-start" placeholder="101" value="101" min="1" oninput="previewRooms()">
+    </div>
+    <div class="field">
+      <label>Floor Prefix</label>
+      <input type="text" id="room-prefix" placeholder="e.g. leave empty" maxlength="5" oninput="previewRooms()">
+      <div class="hint">Optional. e.g. "A" → A101</div>
+    </div>
+  </div>
+
+  <div id="rooms-preview" style="display:none;">
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;letter-spacing:0.08em;">PREVIEW</div>
+    <div class="rooms-grid" id="rooms-grid"></div>
+  </div>
+</div>
+
+<!-- ── PANEL 3: MENU ── -->
+<div class="panel" id="panel-3">
+  <div class="panel-title">Your Menu</div>
+  <div class="panel-sub">Add your food & beverage items. You can always edit this later from your dashboard.</div>
+
+  <div class="menu-builder">
+    <div class="menu-cats" id="menu-cats">
+      <div class="cat-chip active" onclick="selectCat('Starters')">Starters</div>
+      <div class="cat-chip" onclick="selectCat('Main Course')">Main Course</div>
+      <div class="cat-chip" onclick="selectCat('Beverages')">Beverages</div>
+      <div class="cat-chip" onclick="selectCat('Desserts')">Desserts</div>
+      <div class="cat-chip" onclick="selectCat('Breads')">Breads</div>
+      <div class="cat-chip" onclick="selectCat('Snacks')">Snacks</div>
+    </div>
+
+    <div class="menu-items-list" id="menu-items-list"></div>
+
+    <div class="add-item-row">
+      <input type="text" id="new-item-name" placeholder="Item name e.g. Dal Makhani" maxlength="60">
+      <input type="number" id="new-item-price" placeholder="₹ Price" min="1" max="99999" style="width:90px;">
+      <button class="add-item-btn" onclick="addMenuItem()">+ Add</button>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">You can skip menu for now and add it from dashboard</div>
+  </div>
+</div>
+
+<!-- ── PANEL 4: WIFI & INFO ── -->
+<div class="panel" id="panel-4">
+  <div class="panel-title">WiFi &amp; Services</div>
+  <div class="panel-sub">Guests will see WiFi credentials on their room screen. Update anytime from dashboard.</div>
+
+  <div class="field">
+    <label>WiFi Network Name (SSID)</label>
+    <input type="text" id="wifi-ssid" placeholder="e.g. KeshavGrand_Wifi">
+  </div>
+  <div class="field">
+    <label>WiFi Password</label>
+    <input type="text" id="wifi-pass" placeholder="e.g. welcome2024" autocomplete="off">
+  </div>
+
+  <div style="height:1px;background:var(--border);margin:20px 0;"></div>
+
+  <div class="field">
+    <label>Tagline / Welcome Message</label>
+    <input type="text" id="hotel-tagline" placeholder="e.g. Experience luxury at its finest" maxlength="80">
+  </div>
+
+  <div class="row2">
+    <div class="field">
+      <label>City</label>
+      <input type="text" id="hotel-city" placeholder="e.g. Faridabad">
+    </div>
+    <div class="field">
+      <label>State</label>
+      <input type="text" id="hotel-state" placeholder="e.g. Haryana">
+    </div>
+  </div>
+
+  <div class="field">
+    <label>GST Number (optional)</label>
+    <input type="text" id="hotel-gst" placeholder="e.g. 06AABCU9603R1ZP" maxlength="15">
+  </div>
+</div>
+
+<!-- SUCCESS SCREEN -->
+<div class="success-screen" id="success-screen">
+  <div class="success-icon">✓</div>
+  <div class="success-title">You're Live!</div>
+  <div class="success-sub">Your hotel is set up on VediraOS. Place QR codes in rooms and guests can start ordering immediately.</div>
+
+  <div class="cred-card">
+    <div class="cred-row">
+      <div>
+        <div class="cred-label">Hotel ID</div>
+        <div class="cred-val" id="cred-hotel-id">—</div>
+      </div>
+      <button class="cred-copy" onclick="copyText('cred-hotel-id')">Copy</button>
+    </div>
+    <div class="cred-row">
+      <div>
+        <div class="cred-label">Dashboard URL</div>
+        <div class="cred-val" id="cred-dash-url" style="font-size:11px;">—</div>
+      </div>
+      <button class="cred-copy" onclick="copyText('cred-dash-url')">Copy</button>
+    </div>
+    <div class="cred-row">
+      <div>
+        <div class="cred-label">Guest URL Pattern</div>
+        <div class="cred-val" id="cred-guest-url" style="font-size:11px;">—</div>
+      </div>
+      <button class="cred-copy" onclick="copyText('cred-guest-url')">Copy</button>
+    </div>
+  </div>
+
+  <div class="qr-section">
+    <div class="qr-title">QR Codes for Rooms</div>
+    <div class="qr-list" id="qr-list"></div>
+    <button class="download-all" onclick="downloadAllQRLinks()">⬇ Download All Room Links as Text</button>
+  </div>
+</div>
+
+<!-- BOTTOM BAR (hidden on success) -->
+<div class="bottom-bar" id="bottom-bar">
+  <button class="btn-back" id="btn-back" onclick="goBack()" style="display:none;">Back</button>
+  <button class="btn-next" id="btn-next" onclick="goNext()">Continue →</button>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── FIREBASE CONFIG ──
+var firebaseConfig = {
+  apiKey: "AIzaSyAb1G6UATyCR0l_8kDyO3VpRgMwDJ5l7UI",
+  authDomain: "roocan-16ea0.firebaseapp.com",
+  projectId: "roocan-16ea0",
+  storageBucket: "roocan-16ea0.firebasestorage.app",
+  messagingSenderId: "521412270728",
+  appId: "1:521412270728:web:c2564cf45855e2a6961d3d"
+};
+var app = (firebase.apps && firebase.apps.length) ? firebase.app() : firebase.initializeApp(firebaseConfig);
+var db = firebase.firestore(app);
+
+// ── STATE ──
+var currentStep = 1;
+var totalSteps = 4;
+var menuItems = {}; // { category: [{name, price}] }
+var activeCat = 'Starters';
+var roomList = [];
+
+// ── STEP NAV ──
+function goNext() {
+  if (!validateStep(currentStep)) return;
+  if (currentStep === totalSteps) { submitOnboarding(); return; }
+  setStep(currentStep + 1);
+}
+function goBack() {
+  if (currentStep > 1) setStep(currentStep - 1);
+}
+function setStep(n) {
+  document.getElementById('panel-' + currentStep).classList.remove('active');
+  document.getElementById('step-' + currentStep).classList.remove('active');
+  document.getElementById('step-' + currentStep).classList.add('done');
+
+  if (n <= currentStep) {
+    // going back — remove done from all steps after n
+    for (var i = n; i <= totalSteps; i++) {
+      var s = document.getElementById('step-' + i);
+      if (s) { s.classList.remove('done'); s.classList.remove('active'); }
+    }
+  }
+
+  currentStep = n;
+  document.getElementById('panel-' + currentStep).classList.add('active');
+  document.getElementById('step-' + currentStep).classList.add('active');
+  document.getElementById('step-' + currentStep).classList.remove('done');
+
+  document.getElementById('btn-back').style.display = currentStep > 1 ? 'block' : 'none';
+  document.getElementById('btn-next').textContent = currentStep === totalSteps ? 'Go Live →' : 'Continue →';
+  window.scrollTo(0, 0);
+}
+
+// ── VALIDATION ──
+function validateStep(n) {
+  if (n === 1) {
+    var name = v('hotel-name');
+    var id   = v('hotel-id');
+    var phone = v('hotel-phone');
+    var pass  = v('hotel-pass');
+    if (!name) { toast('Please enter hotel name'); return false; }
+    if (!id || id.length < 3) { toast('Hotel ID must be at least 3 characters'); return false; }
+    if (!phone) { toast('Please enter reception phone'); return false; }
+    if (!pass || pass.length < 4) { toast('Password must be at least 4 characters'); return false; }
+    return true;
+  }
+  if (n === 2) {
+    var count = parseInt(v('room-count'));
+    if (!count || count < 1) { toast('Please enter number of rooms'); return false; }
+    buildRoomList();
+    return true;
+  }
+  return true; // steps 3 & 4 are optional
+}
+
+// ── HELPERS ──
+function v(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; }
+function toast(msg, dur) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, dur || 2500);
+}
+function sanitizeId(input) {
+  input.value = input.value.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/--+/g, '-');
+}
+
+// ── ROOM PREVIEW ──
+function previewRooms() {
+  var count  = parseInt(document.getElementById('room-count').value) || 0;
+  var start  = parseInt(document.getElementById('room-start').value)  || 101;
+  var prefix = document.getElementById('room-prefix').value.trim();
+  var grid   = document.getElementById('rooms-grid');
+  var wrap   = document.getElementById('rooms-preview');
+  if (!count || count < 1) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  var show = Math.min(count, 20);
+  var html = '';
+  for (var i = 0; i < show; i++) {
+    html += '<div class="room-chip">' + prefix + (start + i) + '</div>';
+  }
+  if (count > 20) html += '<div class="room-chip" style="color:var(--text-muted);">+' + (count - 20) + '</div>';
+  grid.innerHTML = html;
+}
+function buildRoomList() {
+  var count  = parseInt(v('room-count')) || 0;
+  var start  = parseInt(document.getElementById('room-start').value) || 101;
+  var prefix = document.getElementById('room-prefix').value.trim();
+  roomList = [];
+  for (var i = 0; i < count; i++) {
+    roomList.push(prefix + (start + i));
+  }
+}
+
+// ── MENU ──
+function selectCat(cat) {
+  activeCat = cat;
+  document.querySelectorAll('.cat-chip').forEach(function(c) {
+    c.classList.toggle('active', c.textContent === cat);
+  });
+  renderMenuItems();
+}
+function renderMenuItems() {
+  var items = menuItems[activeCat] || [];
+  var list  = document.getElementById('menu-items-list');
+  if (!items.length) { list.innerHTML = '<div style="font-size:13px;color:var(--text-muted);padding:8px 0;">No items in ' + activeCat + ' yet</div>'; return; }
+  list.innerHTML = items.map(function(item, i) {
+    return '<div class="menu-item-row">'
+      + '<div class="item-name">' + escHtml(item.name) + '</div>'
+      + '<div class="item-price">₹' + item.price + '</div>'
+      + '<button class="item-del" onclick="deleteMenuItem(\'' + activeCat + '\',' + i + ')">✕</button>'
+      + '</div>';
+  }).join('');
+}
+function addMenuItem() {
+  var name  = document.getElementById('new-item-name').value.trim();
+  var price = parseInt(document.getElementById('new-item-price').value);
+  if (!name) { toast('Enter item name'); return; }
+  if (!price || price < 1) { toast('Enter valid price'); return; }
+  if (!menuItems[activeCat]) menuItems[activeCat] = [];
+  menuItems[activeCat].push({ name: name, price: price });
+  document.getElementById('new-item-name').value = '';
+  document.getElementById('new-item-price').value = '';
+  renderMenuItems();
+}
+function deleteMenuItem(cat, idx) {
+  menuItems[cat].splice(idx, 1);
+  renderMenuItems();
+}
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── SUBMIT ──
+async function submitOnboarding() {
+  var btn = document.getElementById('btn-next');
+  btn.disabled = true;
+  btn.textContent = 'Setting up…';
+
+  buildRoomList();
+
+  var hotelId   = v('hotel-id');
+  var hotelName = v('hotel-name');
+
+  // Build menu array
+  var menuArr = [];
+  var catOrder = ['Starters','Main Course','Beverages','Desserts','Breads','Snacks'];
+  catOrder.forEach(function(cat) {
+    if (menuItems[cat] && menuItems[cat].length) {
+      menuItems[cat].forEach(function(item, i) {
+        menuArr.push({
+          id: cat.toLowerCase().replace(/\s+/g,'_') + '_' + i,
+          name: item.name,
+          price: item.price,
+          category: cat,
+          available: true
+        });
+      });
+    }
+  });
+
+  // Build rooms map
+  var roomsMap = {};
+  roomList.forEach(function(r) { roomsMap[String(r)] = { status: 'vacant' }; });
+
+  var hotelDoc = {
+    hotel_id:       hotelId,
+    name:           hotelName,
+    stars:          parseInt(v('hotel-stars')),
+    address:        v('hotel-address'),
+    city:           v('hotel-city'),
+    state:          v('hotel-state'),
+    phone:          v('hotel-phone'),
+    checkout_time:  v('checkout-time'),
+    tagline:        v('hotel-tagline'),
+    gst:            v('hotel-gst'),
+    wifi_ssid:      v('wifi-ssid'),
+    wifi_pass:      v('wifi-pass'),
+    room_count:     roomList.length,
+    rooms:          roomsMap,
+    menu:           menuArr,
+    manager_pass:   v('hotel-pass'),
+    status:         'active',
+    plan:           'trial',
+    onboarded_at:   firebase.firestore.FieldValue.serverTimestamp(),
+    platform_version: '1.0'
+  };
+
+  try {
+    // Check if hotel ID already exists
+    var existing = await db.collection('hotels').doc(hotelId).get();
+    if (existing.exists) {
+      toast('Hotel ID "' + hotelId + '" is already taken. Please choose another.', 4000);
+      btn.disabled = false;
+      btn.textContent = 'Go Live →';
+      return;
+    }
+
+    await db.collection('hotels').doc(hotelId).set(hotelDoc);
+
+    // Also save settings sub-doc (what guest.html reads)
+    await db.collection('hotels').doc(hotelId).collection('settings').doc('hotel').set({
+      hotel_name:    hotelName,
+      wifi_ssid:     v('wifi-ssid'),
+      wifi_pass:     v('wifi-pass'),
+      phone:         v('hotel-phone'),
+      checkout_time: v('checkout-time')
+    });
+
+    // Save menu
+    if (menuArr.length) {
+      await db.collection('hotels').doc(hotelId).collection('menu_config').doc('published').set({
+        items: menuArr,
+        updated_at: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    showSuccess(hotelId, hotelName);
+
+  } catch(e) {
+    console.error(e);
+    toast('Error: ' + (e.message || 'Something went wrong'), 4000);
+    btn.disabled = false;
+    btn.textContent = 'Go Live →';
+  }
+}
+
+function showSuccess(hotelId, hotelName) {
+  document.getElementById('bottom-bar').style.display = 'none';
+  document.getElementById('steps-bar').style.display = 'none';
+  ['panel-1','panel-2','panel-3','panel-4'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.remove('active');
+  });
+
+  var baseUrl = window.location.origin + (window.location.pathname.replace('onboard.html', ''));
+  var guestUrl = baseUrl + 'guest.html?hotel=' + hotelId + '&room=';
+  var dashUrl  = baseUrl + 'index.html?hotel=' + hotelId;
+
+  document.getElementById('cred-hotel-id').textContent  = hotelId;
+  document.getElementById('cred-dash-url').textContent  = dashUrl;
+  document.getElementById('cred-guest-url').textContent = guestUrl + '{ROOM}';
+
+  // Build QR list
+  var qrList = document.getElementById('qr-list');
+  // Generate actual QR code images
+  var displayRooms = roomList.slice(0, 20);
+  qrList.innerHTML = displayRooms.map(function(room) {
+    return '<div class="qr-item" id="qr-wrap-' + room + '">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+      + '<span style="font-size:13px;font-weight:600;">Room ' + room + '</span>'
+      + '<a href="' + guestUrl + room + '" target="_blank" style="font-size:11px;color:var(--vedira-teal);">Open ↗</a>'
+      + '</div>'
+      + '<div id="qr-canvas-' + room + '" style="background:#fff;padding:8px;border-radius:8px;display:inline-block;"></div>'
+      + '</div>';
+  }).join('');
+
+  if (roomList.length > 20) {
+    qrList.innerHTML += '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:8px;">Showing 20 of ' + roomList.length + ' rooms. Download all links below.</div>';
+  }
+
+  // Render QR codes after DOM is ready
+  setTimeout(function() {
+    displayRooms.forEach(function(room) {
+      var el = document.getElementById('qr-canvas-' + room);
+      if (el && typeof QRCode !== 'undefined') {
+        new QRCode(el, {
+          text: guestUrl + room,
+          width: 140,
+          height: 140,
+          colorDark: '#000000',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      }
+    });
+  }, 100);
+
+  document.getElementById('success-screen').classList.add('active');
+  window.scrollTo(0, 0);
+
+  // Store for download
+  window._successHotelId = hotelId;
+  window._successGuestUrl = guestUrl;
+}
+
+function downloadAllQRLinks() {
+  var hotelId  = window._successHotelId;
+  var guestUrl = window._successGuestUrl;
+
+  // Generate a self-contained HTML file with all QR codes for printing
+  var qrHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+    + '<title>QR Codes - ' + hotelId + '</title>'
+    + '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>'
+    + '<style>body{font-family:sans-serif;padding:20px;background:#f9f9f9;}'
+    + '.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;}'
+    + '.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:16px;text-align:center;}'
+    + '.card h3{margin:0 0 12px;font-size:16px;} @media print{body{padding:0;} .card{break-inside:avoid;}}'
+    + '</style></head><body>'
+    + '<h2 style="margin-bottom:4px;">QR Codes — ' + hotelId + '</h2>'
+    + '<p style="color:#666;margin-bottom:20px;font-size:13px;">Print and place in each room</p>'
+    + '<div class="grid">';
+
+  roomList.forEach(function(room) {
+    qrHtml += '<div class="card"><h3>Room ' + room + '</h3>'
+      + '<div id="q' + room + '"></div>'
+      + '<div style="font-size:10px;color:#999;margin-top:8px;word-break:break-all;">' + guestUrl + room + '</div>'
+      + '</div>';
+  });
+
+  qrHtml += '</div>'
+    + '<script>window.onload=function(){'
+    + 'var rooms=' + JSON.stringify(roomList) + ';'
+    + 'var base="' + guestUrl + '";'
+    + 'rooms.forEach(function(r){'
+    + 'var el=document.getElementById("q"+r);'
+    + 'if(el&&typeof QRCode!=="undefined"){new QRCode(el,{text:base+r,width:160,height:160,correctLevel:QRCode.CorrectLevel.M});}'
+    + '});'
+    + '};<\/script></body></html>';
+
+  var blob = new Blob([qrHtml], { type: 'text/html' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = hotelId + '_qr_codes.html';
+  a.click();
+  toast('Downloading QR page — open the file and print!', 3000);
+}
+
+function copyText(id) {
+  var text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(function() {
+    toast('Copied!', 1500);
+  }).catch(function() {
+    toast('Copy failed', 1500);
+  });
+}
+
+// init
+renderMenuItems();
+</script>
+</body>
+</html>

@@ -9,9 +9,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <title>Hyatt Hotel</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <!-- ══ ROUTER — runs before anything else ══ -->
@@ -27,11 +29,27 @@
   window.ROOM_NUM   = params.room  || null;
   window.GUEST_NAME = params.guest || null;
   window.ROOM_TOKEN = params.token || null;
+  // Multi-hotel: ?hotel=keshavgrand routes staff/guest to that hotel's data
+  // HOTEL_ID: URL param takes priority, then session storage, then block
+  window.HOTEL_ID   = params.hotel || sessionStorage.getItem('vediraos_hotel_id') || null;
   window.APP_MODE   = window.ROOM_NUM ? 'guest' : 'staff';
+
+  // Persist hotel for this browser session (not localStorage — security)
+  if (params.hotel) sessionStorage.setItem('vediraos_hotel_id', params.hotel);
+
+  // ── HARD BLOCK: no HOTEL_ID = no app ──
+  if (!window.HOTEL_ID) {
+    document.addEventListener('DOMContentLoaded', function() {
+      document.body.style.cssText = 'display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0D0D0D;font-family:DM Sans,sans-serif;padding:32px;text-align:center;';
+      document.body.innerHTML = '<div><div style="font-size:48px;margin-bottom:16px;">🔗</div>'
+        + '<div style="font-size:18px;color:#F5EFE6;margin-bottom:8px;">Invalid Link</div>'
+        + '<div style="font-size:13px;color:#5A5248;">This link is missing a hotel ID.<br>Please scan your room QR code.</div></div>';
+    });
+  }
+
   document.title = window.APP_MODE === 'guest'
-    ? 'Hyatt Hotel \u00b7 Room ' + window.ROOM_NUM
-    : 'Hyatt \u00b7 Staff Dashboard';
-  // Apply mode class to html element immediately
+    ? (window.HOTEL_ID || 'Hotel') + ' \u00b7 Room ' + window.ROOM_NUM
+    : (window.HOTEL_ID || 'Hotel') + ' \u00b7 Staff Dashboard';
   document.documentElement.setAttribute('data-mode', window.APP_MODE);
 })();
 </script>
@@ -2102,6 +2120,17 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
   .stat-value { font-size: 44px !important; }
 }
 </style>
+
+<style id="vedira-brand">
+:root {
+  --vedira-teal:    #00B7A7;
+  --vedira-blue:    #2563EB;
+  --vedira-navy:    #0D1B2A;
+  --vedira-light:   #F2F4F7;
+  --vedira-teal-dim: rgba(0,183,167,0.12);
+  --vedira-blue-dim: rgba(37,99,235,0.12);
+}
+</style>
 </head>
 <body>
 
@@ -3697,22 +3726,102 @@ function showGuestNotif(title, msg, type, onClick) {
     if (!firebase.apps || !firebase.apps.length) {
       firebase.initializeApp(fbConfig);
     }
-    guestSb = firebase.firestore();
-    try { guestSb.settings({ experimentalForceLongPolling: true, merge: true }); } catch(e) {}
-    window._guestDbReady = true;
-    console.log('Guest Firebase ready');
-    // Track menu open event for Revenue Intelligence
-    try {
-      var _riRoom = String(window.ROOM_NUM || 'unknown');
-      var _riDate = new Date().toISOString().slice(0,10);
-      guestSb.collection('menu_opens').add({
-        room: _riRoom,
-        date: _riDate,
-        ts: Date.now()
-      }).catch(function(){});
-    } catch(e){}
-    // Re-subscribe all active orders from localStorage on connect
-    setTimeout(guestResubscribeAll, 500);
+    var _rawGuestDb = firebase.firestore();
+    try { _rawGuestDb.settings({ experimentalForceLongPolling: true, merge: true }); } catch(e) {}
+
+    // ── SCOPE guestSb to hotels/{HOTEL_ID}/ ──
+    // Every guestSb.collection('X') now goes to hotels/{HOTEL_ID}/X
+    // This is the single source of truth — no bypasses possible
+    var _hotelId = window.HOTEL_ID;
+    if (!_hotelId) {
+      console.error('[VediraOS] No HOTEL_ID — guest Firebase blocked');
+      return;
+    }
+    var _hotelRef = _rawGuestDb.collection('hotels').doc(_hotelId);
+    guestSb = {
+      _raw: _rawGuestDb,
+      _ref: _hotelRef,
+      collection: function(name) { return this._ref.collection(name); }
+    };
+
+    // ── VALIDATE hotel exists + is active ──
+    _rawGuestDb.collection('hotels').doc(_hotelId).get().then(function(doc) {
+      if (!doc.exists) {
+        document.body.style.cssText = 'display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0D0D0D;font-family:DM Sans,sans-serif;padding:32px;text-align:center;';
+        document.body.innerHTML = '<div><div style="font-size:48px;margin-bottom:16px;">🏨</div>'
+          + '<div style="font-size:18px;color:#F5EFE6;margin-bottom:8px;">Hotel Not Found</div>'
+          + '<div style="font-size:13px;color:#5A5248;">Hotel ID: ' + _hotelId + '<br>Please check your QR code.</div></div>';
+        return;
+      }
+      var data = doc.data();
+      // Check platform status
+      if (data.status === 'inactive') {
+        document.body.style.cssText = 'display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0D0D0D;font-family:DM Sans,sans-serif;padding:32px;text-align:center;';
+        document.body.innerHTML = '<div><div style="font-size:48px;margin-bottom:16px;">🔒</div>'
+          + '<div style="font-size:18px;color:#F5EFE6;margin-bottom:8px;">Service Unavailable</div>'
+          + '<div style="font-size:13px;color:#5A5248;">Please contact reception for assistance.</div></div>';
+        return;
+      }
+      // Apply hotel branding
+      window.HOTEL_NAME = data.name || _hotelId;
+      window.HOTEL_WIFI_SSID = data.wifi_ssid || '';
+      window.HOTEL_WIFI_PASS = data.wifi_pass || '';
+      window.HOTEL_CHECKOUT  = data.checkout_time || '11:00';
+      window.HOTEL_PHONE     = data.phone || '';
+      document.title = window.HOTEL_NAME + ' · Room ' + (window.ROOM_NUM || '');
+      // Update visible hotel name elements
+      document.querySelectorAll('[data-hotel-name]').forEach(function(el) { el.textContent = window.HOTEL_NAME; });
+
+      // ── VALIDATE room exists (guest mode only) ──
+      if (window.APP_MODE === 'guest' && window.ROOM_NUM) {
+        var rooms = data.rooms || {};
+        var roomKey = String(window.ROOM_NUM);
+        if (!rooms[roomKey]) {
+          // Room not found in hotel doc — show error
+          var guestRoot = document.getElementById('guest-root');
+          if (guestRoot) {
+            guestRoot.style.cssText = 'display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;padding:32px;text-align:center;';
+            guestRoot.innerHTML = '<div style="font-size:48px;margin-bottom:16px;">🚪</div>'
+              + '<div style="font-size:18px;color:#F5EFE6;margin-bottom:8px;">Room Not Found</div>'
+              + '<div style="font-size:13px;color:#5A5248;">Room ' + roomKey + ' is not registered.<br>Please scan your room QR code again.</div>';
+          }
+          return;
+        }
+      }
+
+      // Hotel valid — proceed
+      window._guestDbReady = true;
+
+      // Track menu open (scoped to this hotel)
+      try {
+        guestSb.collection('menu_opens').add({
+          room: String(window.ROOM_NUM || 'unknown'),
+          date: new Date().toISOString().slice(0,10),
+          ts: Date.now()
+        }).catch(function(){});
+      } catch(e){}
+
+      // Check for platform-wide broadcast
+      _rawGuestDb.collection('platform').doc('broadcast').onSnapshot(function(bdoc) {
+        var existing = document.getElementById('vediraos-broadcast');
+        if (bdoc.exists && bdoc.data().active && bdoc.data().message) {
+          if (!existing) {
+            existing = document.createElement('div');
+            existing.id = 'vediraos-broadcast';
+            existing.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:8888;background:#E8A030;color:#0D0D0D;font-size:13px;font-weight:600;text-align:center;padding:10px 16px;font-family:DM Sans,sans-serif;';
+            document.body.insertBefore(existing, document.body.firstChild);
+          }
+          existing.textContent = bdoc.data().message;
+        } else if (existing) { existing.remove(); }
+      });
+
+      setTimeout(guestResubscribeAll, 500);
+    }).catch(function(e) {
+      console.warn('[VediraOS] Hotel validation error:', e.message);
+      // Proceed anyway on network error — don't block guest
+      window._guestDbReady = true;
+      setTimeout(guestResubscribeAll, 500);
+    });
   } catch(e) { console.warn('Guest Firebase init error:', e); }
 })();
 
@@ -4473,12 +4582,20 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
   function _unlock() {
     sessionStorage.setItem('staff_pin_ok','true');
     _overlay.classList.remove('pin-active');
+    // Validate hotel in DB and apply branding now that staff is authenticated
+    if (typeof validateAndInitStaff === 'function') {
+      setTimeout(validateAndInitStaff, 200);
+    }
   }
 
   // Show or skip on load
   if (_checkSession() || !_pinEnabled()) {
     _overlay.classList.remove('pin-active');
     sessionStorage.setItem('staff_pin_ok','true');
+    // Already authed — validate hotel and apply branding
+    if (typeof validateAndInitStaff === 'function') {
+      setTimeout(validateAndInitStaff, 300);
+    }
   } else {
     _overlay.classList.add('pin-active');
   }
@@ -4835,12 +4952,16 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
           <input id="hs-tagline" type="text" class="hs-input" placeholder="e.g. Where every stay is a story">
         </div>
         <div class="hs-field-group">
-          <div class="hs-label">Logo URL <span class="hs-optional">optional</span></div>
-          <input id="hs-logo" type="url" class="hs-input" placeholder="https://..." oninput="hsPreviewLogo()">
+          <div class="hs-label">Hotel Logo <span class="hs-optional">optional</span></div>
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <button onclick="hsUploadLogo()" style="flex:1;padding:10px;background:rgba(201,169,110,0.1);border:1.5px dashed rgba(201,169,110,0.4);border-radius:10px;color:var(--gold);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬆ Upload Logo File</button>
+          </div>
+          <input id="hs-logo" type="url" class="hs-input" placeholder="Or paste image URL..." oninput="hsPreviewLogo()" style="margin-top:0;">
           <div id="hs-logo-preview" style="display:none;margin-top:10px;padding:12px;background:var(--surface2);border-radius:10px;text-align:center;">
             <img id="hs-logo-img" src="" style="max-height:56px;max-width:160px;object-fit:contain;" onerror="document.getElementById('hs-logo-preview').style.display='none'">
           </div>
-          <div style="font-size:11px;color:var(--text-dim);margin-top:6px;">Use a transparent PNG. Appears on guest screen and QR codes.</div>
+          <div id="hs-logo-uploading" style="display:none;font-size:12px;color:var(--gold);margin-top:6px;">Uploading...</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:6px;">Transparent PNG recommended. Appears on guest screen.</div>
         </div>
         <div class="hs-field-group">
           <div class="hs-label">Star Rating</div>
@@ -5335,6 +5456,21 @@ function openHotelBrandModal() {
   if (modal) modal.style.display = 'flex';
   // Pre-fill from Firestore or localStorage
   var nameInp = document.getElementById('hb-name-input');
+  // Wire up logo file upload button if present
+  var logoUploadBtn = document.getElementById('hb-logo-upload-btn');
+  if (logoUploadBtn) {
+    logoUploadBtn.onclick = function() {
+      pickAndUpload('logo', null, function(downloadUrl) {
+        var logoInp2 = document.getElementById('hb-logo-input');
+        if (logoInp2) { logoInp2.value = downloadUrl; hbPreviewLogo(); }
+        // Immediately save to hotel doc
+        var db2 = getDb();
+        if (db2 && db2.hotelDoc) {
+          db2.hotelDoc().update({ logo_url: downloadUrl }).catch(function(){});
+        }
+      });
+    };
+  }
   var logoInp = document.getElementById('hb-logo-input');
   var saved   = localStorage.getItem('hyatt_hotel_name') || 'Shakti Hotels';
   var savedLogo = localStorage.getItem('hyatt_hotel_logo') || '';
@@ -5356,6 +5492,18 @@ function closeHotelBrandModal() {
   if (modal) modal.style.display = 'none';
 }
 
+// Hotel Setup logo upload via Firebase Storage
+window.hsUploadLogo = function() {
+  var uploadingEl = document.getElementById('hs-logo-uploading');
+  pickAndUpload('logo', null, function(downloadUrl) {
+    var logoInp = document.getElementById('hs-logo');
+    if (logoInp) { logoInp.value = downloadUrl; hsPreviewLogo(); }
+    if (uploadingEl) uploadingEl.style.display = 'none';
+    if (typeof showToast === 'function') showToast('✓ Logo uploaded');
+  });
+  if (uploadingEl) uploadingEl.style.display = 'block';
+};
+
 function hbPreviewLogo() {
   var url     = document.getElementById('hb-logo-input') && document.getElementById('hb-logo-input').value.trim();
   var preview = document.getElementById('hb-logo-preview');
@@ -5370,6 +5518,21 @@ function hbPreviewLogo() {
 
 function saveHotelBrand() {
   var nameInp = document.getElementById('hb-name-input');
+  // Wire up logo file upload button if present
+  var logoUploadBtn = document.getElementById('hb-logo-upload-btn');
+  if (logoUploadBtn) {
+    logoUploadBtn.onclick = function() {
+      pickAndUpload('logo', null, function(downloadUrl) {
+        var logoInp2 = document.getElementById('hb-logo-input');
+        if (logoInp2) { logoInp2.value = downloadUrl; hbPreviewLogo(); }
+        // Immediately save to hotel doc
+        var db2 = getDb();
+        if (db2 && db2.hotelDoc) {
+          db2.hotelDoc().update({ logo_url: downloadUrl }).catch(function(){});
+        }
+      });
+    };
+  }
   var logoInp = document.getElementById('hb-logo-input');
   var name    = nameInp ? nameInp.value.trim() : '';
   var logo    = logoInp ? logoInp.value.trim() : '';
@@ -5776,7 +5939,7 @@ function setKitchenStatus(isOpen) {
     var data = { kitchen_open: isOpen };
     if (!isOpen && reopenTime) data.reopen_time = reopenTime;
     if (isOpen) data.reopen_time = '';
-    _db.collection('settings').doc('hotel').set(data, { merge: true })
+    getDb().collection('settings').doc('hotel').set(data, { merge: true })
       .then(function(){ console.log('[KITCHEN] status saved:', isOpen); })
       .catch(function(e){ console.warn('[KITCHEN] save failed:', e.message); });
   }
@@ -6822,8 +6985,52 @@ window.cpBackToStep1 = cpBackToStep1;
 (function() {
 if (window.APP_MODE === 'guest') return;
 
-// ── Permanent Supabase credentials (auto-connects on every load) ──
-// ── Firebase Configuration (replaces Supabase) ──
+// ══════════════════════════════════════════════════════════════
+// MULTI-HOTEL STAFF VALIDATION
+// Runs after login gate passes — confirms hotel exists in DB
+// ══════════════════════════════════════════════════════════════
+function validateAndInitStaff() {
+  if (window.APP_MODE !== 'staff') return;
+  var hotelId = window.HOTEL_ID;
+  if (!hotelId) return; // router already blocked this
+
+  var rawDb = getDb()._raw;
+  if (!rawDb) return;
+
+  rawDb.collection('hotels').doc(hotelId).get().then(function(doc) {
+    if (!doc.exists) {
+      showStaffError('Hotel Not Found', 'Hotel ID "' + hotelId + '" does not exist. Contact platform admin.');
+      return;
+    }
+    var data = doc.data();
+    if (data.status === 'inactive') {
+      showStaffError('Hotel Suspended', 'This hotel has been suspended. Contact platform support.');
+      return;
+    }
+    // Apply branding to staff dashboard
+    window.HOTEL_NAME = data.name || hotelId;
+    document.title = window.HOTEL_NAME + ' · Staff Dashboard';
+    document.querySelectorAll('[data-hotel-name]').forEach(function(el) { el.textContent = window.HOTEL_NAME; });
+    // Cache for this session
+    sessionStorage.setItem('vediraos_hotel_name_' + hotelId, window.HOTEL_NAME);
+  }).catch(function(e) {
+    console.warn('[VediraOS] Staff hotel validation:', e.message);
+    // Network error — don't block staff, they're already authed
+  });
+}
+
+function showStaffError(title, msg) {
+  var root = document.getElementById('staff-root');
+  if (root) {
+    root.style.cssText = 'display:flex;align-items:center;justify-content:center;min-height:100vh;';
+    root.innerHTML = '<div style="text-align:center;padding:32px;font-family:DM Sans,sans-serif;">'
+      + '<div style="font-size:48px;margin-bottom:16px;">⛔</div>'
+      + '<div style="font-size:18px;color:#F5EFE6;margin-bottom:8px;">' + title + '</div>'
+      + '<div style="font-size:13px;color:#5A5248;">' + msg + '</div></div>';
+  }
+}
+
+// ── Firebase Configuration ──
 var FIREBASE_CONFIG = {
   apiKey:            "AIzaSyAb1G6UATyCR0l_8kDyO3VpRgMwDJ5l7UI",
   authDomain:        "roocan-16ea0.firebaseapp.com",
@@ -6838,7 +7045,7 @@ var _orderUnsub = null, _svcUnsub = null, _chkUnsub = null;
 var realtimeChan = null; // kept for compat
 
 function getDb() {
-  if (_db) return _db;
+  if (_db) return _getHotelProxy(_db);
   if (!_fbApp) {
     if (!firebase.apps || !firebase.apps.length) {
       _fbApp = firebase.initializeApp(FIREBASE_CONFIG);
@@ -6847,17 +7054,151 @@ function getDb() {
     }
   }
   _db = firebase.firestore();
-  window._db = _db; // expose globally so hotel-setup section can find it
-  // Force long polling — eliminates the ~5s WebSocket upgrade delay on mobile/unstable networks
+  window._db = _db;
   try {
     _db.settings({
       experimentalForceLongPolling: true,
       merge: true
     });
   } catch(e) { /* already set */ }
-  return _db;
+  return _getHotelProxy(_db);
+}
+
+// ══════════════════════════════════════════════════════════════
+// FIREBASE STORAGE — hotel-scoped image uploads
+// All images stored under hotels/{hotelId}/
+// ══════════════════════════════════════════════════════════════
+var _storage = null;
+function getStorage() {
+  if (_storage) return _storage;
+  try {
+    var app = (firebase.apps && firebase.apps.length) ? firebase.app() : null;
+    if (!app) return null;
+    _storage = firebase.storage(app);
+  } catch(e) { console.warn('[VediraOS] Storage init:', e.message); }
+  return _storage;
+}
+
+// Upload a file to Firebase Storage under hotels/{hotelId}/{path}
+// Returns a Promise<downloadURL>
+function uploadHotelFile(file, storagePath, onProgress) {
+  return new Promise(function(resolve, reject) {
+    var storage = getStorage();
+    if (!storage) { reject(new Error('Storage not available')); return; }
+    var hotelId = window.HOTEL_ID;
+    if (!hotelId) { reject(new Error('No HOTEL_ID')); return; }
+    var fullPath = 'hotels/' + hotelId + '/' + storagePath;
+    var ref = storage.ref(fullPath);
+    var task = ref.put(file, { contentType: file.type });
+    task.on('state_changed',
+      function(snap) {
+        var pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+        if (onProgress) onProgress(pct);
+      },
+      function(err) { reject(err); },
+      function() {
+        task.snapshot.ref.getDownloadURL().then(function(url) {
+          resolve(url);
+        }).catch(reject);
+      }
+    );
+  });
+}
+
+// Generic image picker + upload with progress toast
+// type: 'logo' | 'login' | 'hero' | 'menu'
+// itemId: used for menu images only
+// callback(url): called with download URL on success
+function pickAndUpload(type, itemId, callback) {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = function() {
+    var file = input.files && input.files[0];
+    if (!file) return;
+    // Validate size — max 5MB
+    if (file.size > 5 * 1024 * 1024) {
+      if (typeof showToast === 'function') showToast('Image too large — max 5MB');
+      return;
+    }
+    // Build storage path
+    var ext = file.name.split('.').pop().toLowerCase() || 'jpg';
+    var storagePath;
+    if (type === 'logo')  storagePath = 'logo.' + ext;
+    else if (type === 'login') storagePath = 'appearance/login.' + ext;
+    else if (type === 'hero')  storagePath = 'appearance/hero.' + ext;
+    else if (type === 'menu')  storagePath = 'menu/' + (itemId || Date.now()) + '.' + ext;
+    else storagePath = 'misc/' + Date.now() + '.' + ext;
+
+    if (typeof showToast === 'function') showToast('Uploading...');
+
+    uploadHotelFile(file, storagePath, function(pct) {
+      if (typeof showToast === 'function') showToast('Uploading ' + pct + '%');
+    }).then(function(url) {
+      if (typeof showToast === 'function') showToast('✓ Image uploaded');
+      if (callback) callback(url);
+    }).catch(function(e) {
+      console.error('[VediraOS] Upload failed:', e.message);
+      if (typeof showToast === 'function') showToast('Upload failed: ' + e.message);
+    });
+  };
+  input.click();
+}
+
+// ── MULTI-HOTEL DB SCOPE (staff dashboard) ──
+// ALL collection() calls are strictly scoped to hotels/{HOTEL_ID}/
+// No fallback to raw DB — data isolation is enforced
+function _getHotelProxy(rawDb) {
+  var hotelId = window.HOTEL_ID;
+  if (!hotelId) {
+    // Return a null-safe stub — all calls silently no-op
+    console.error('[VediraOS] getDb() called without HOTEL_ID — all DB operations blocked');
+    var _stub = { collection: function() { return _stub; }, doc: function() { return _stub; },
+      get: function() { return Promise.resolve({ exists: false, data: function(){return{};} }); },
+      set: function() { return Promise.resolve(); }, update: function() { return Promise.resolve(); },
+      add: function() { return Promise.resolve({id:'blocked'}); },
+      onSnapshot: function(cb) { return function(){}; },
+      where: function() { return _stub; }, orderBy: function() { return _stub; },
+      limit: function() { return _stub; } };
+    return _stub;
+  }
+  var hotelRef = rawDb.collection('hotels').doc(hotelId);
+  return {
+    _raw: rawDb,
+    _ref: hotelRef,
+    collection: function(name) { return hotelRef.collection(name); },
+    hotelDoc: function() { return hotelRef; }
+  };
 }
 var SETUP_SQL = '-- Firebase does not need SQL setup. Collections are created automatically.';
+
+// ══════════════════════════════════════════════════════════════
+// HOTEL DOC HELPER — single source of truth
+// Replaces all settings/hotel reads. Reads from hotels/{hotelId} directly.
+// Falls back to settings/hotel for backward compat.
+// ══════════════════════════════════════════════════════════════
+function getHotelDoc() {
+  var db = getDb();
+  if (!db) return Promise.resolve(null);
+  // Try hotel doc first
+  if (db.hotelDoc) {
+    return db.hotelDoc().get().then(function(doc) {
+      if (doc.exists) return doc;
+      // Fallback to settings/hotel
+      return db.collection('settings').doc('hotel').get();
+    }).catch(function() {
+      return db.collection('settings').doc('hotel').get();
+    });
+  }
+  return db.collection('settings').doc('hotel').get();
+}
+
+function watchHotelDoc(callback) {
+  var db = getDb();
+  if (!db) return function(){};
+  var ref = db.hotelDoc ? db.hotelDoc() : db.collection('settings').doc('hotel');
+  return ref.onSnapshot(callback, function(e) { console.warn('[VediraOS] hotelDoc watch:', e.message); });
+}
 
 // ROOMS_DATA replaced by buildRoomsData()
 
@@ -7476,7 +7817,7 @@ function filterOrders(f,el){if(typeof setTypeFilter==='function')setTypeFilter(f
 function renderStaffServices(){if(typeof updateServiceSummaryBar==='function')updateServiceSummaryBar();var list=document.getElementById('svc-list');if(!list)return;var filtered=services.filter(function(s){if(svcFilter==='all') return s.status!=='done';return s.status===svcFilter;});var _sc=document.getElementById('svc-count');if(_sc)_sc.textContent=filtered.length+' requests';var _sbCount=services.filter(function(s){return s.status!=='done';}).length;var _sb=document.getElementById('service-badge');if(_sb)_sb.textContent=_sbCount;var _dsb=document.getElementById('desk-service-badge');if(_dsb){_dsb.textContent=_sbCount||'';_dsb.style.display=_sbCount>0?'inline':'none';}var _scd=document.getElementById('svc-completed-count');if(_scd){var _doneCount=services.filter(function(s){return s.status==='done';}).length;var _sct=document.getElementById('svc-completed-text');if(_sct)_sct.textContent=_doneCount+' done';_scd.style.display=_doneCount>0?'flex':'none';}var _sp=document.getElementById('stat-svc-pending');if(_sp)_sp.textContent=services.filter(function(s){return s.status!=='done';}).length;if(!filtered.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">✓</div><div style="color:var(--text-muted);font-size:15px;font-family:&quot;Cormorant Garamond&quot;,serif">No requests</div></div>';return;}var pills={received:'<span class="status-pill pill-received"><span class="pill-dot"></span>New</span>',assigned:'<span class="status-pill pill-assigned"><span class="pill-dot"></span>Assigned</span>',inprogress:'<span class="status-pill pill-inprogress"><span class="pill-dot"></span>In Progress</span>',done:'<span class="status-pill pill-done"><span class="pill-dot"></span>Done</span>'};list.innerHTML=filtered.map(function(s){var qtyStr=s.qty?' ×'+s.qty:'';var btns='';if(s.status==='received')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'assigned\')">Assign to Staff</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='assigned')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'inprogress\')" style="background:rgba(76,175,125,0.08);border-color:rgba(76,175,125,0.22);color:var(--green)">In Progress</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='inprogress')btns='<button class="svc-complete" style="width:100%" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Completed</button>';else btns='<span style="font-size:13px;color:var(--text-muted);padding:4px 0;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>Completed</span>';return'<div class="svc-card" id="svc-card-'+s.id+'"><div class="svc-head"><div class="svc-icon-box">'+s.icon+'</div><div><div class="svc-room">Room '+s.room+'</div><div class="svc-type">'+s.type+qtyStr+'</div>'+(s.note?'<div class="svc-note">"'+ s.note+'"</div>':'')+ '</div><div class="svc-meta">'+(pills[s.status]||'')+'<div class="svc-time" style="margin-top:6px">'+s.id+'</div><div class="svc-elapsed '+elapsedClass(s.placedAt)+'">'+elapsed(s.placedAt)+'</div></div></div><div class="svc-actions">'+btns+'<button class="btn-call" onclick="callRoom(\''+s.room+'\')" title="Call room" style="width:36px;height:36px;border-radius:10px;background:var(--surface2);border:1px solid var(--card-border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6z"/></svg></button></div></div>';}).join('');}
 function filterSvc(f,el){svcFilter=f;document.querySelectorAll('#view-services .filter-tab').forEach(function(t){t.classList.remove('active');});el.classList.add('active');renderStaffServices();}
 function getGuestBaseUrl(){
-  return localStorage.getItem('roocan_guest_url') || 'https://Shakti151622.github.io/HOTEL-PROJECT-2/Guest.html';
+  return localStorage.getItem('vediraos_guest_url') || 'https://vediraos.com/guest.html';
 }
 function renderRooms(){var data=(typeof buildRoomsData==='function')?buildRoomsData():[];var grid=document.getElementById('rooms-grid');if(!grid)return;grid.innerHTML=data.map(function(r){var dots='';if(r.orders>0)dots+='<div class="room-dot order">'+r.orders+'🍽</div>';if(r.services>0)dots+='<div class="room-dot service">'+r.services+'🛎</div>';var isOccupied=r.status==='occupied'||r.status==='checkout';var _hn=localStorage.getItem('hyatt_hotel_name')||'';var fixedUrl=getGuestBaseUrl()+'?room='+encodeURIComponent(r.num)+(_hn?'&hotel='+encodeURIComponent(_hn):'');var qrSrc='https://chart.googleapis.com/chart?chs=72x72&cht=qr&chl='+encodeURIComponent(fixedUrl)+'&choe=UTF-8&chld=M|0';return'<div class="room-tile '+r.status+'" onclick="showRoomQR(\''+r.num+'\')">'+'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'+'<div class="room-number">'+r.num+'</div>'+'</div>'+'<div class="room-guest">'+(r.guest||'Vacant')+'</div>'+'<div style="display:flex;justify-content:center;margin:6px 0 4px;">'+'<div style="background:white;border-radius:6px;padding:3px;display:inline-block;position:relative;">'+'<img src="'+qrSrc+'" width="66" height="66" style="display:block;border-radius:2px;" loading="lazy" alt="QR '+r.num+'">'+'<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;background:white;border-radius:3px;display:flex;align-items:center;justify-content:center;">'+'<div style="width:10px;height:10px;background:#C9A96E;border-radius:2px;"></div>'+'</div>'+'</div>'+'</div>'+'<div class="room-status-row"><div class="room-checkout" style="font-size:10px;color:var(--text-dim)">'+r.checkout+'</div>'+'<div class="room-actions-active">'+dots+'</div></div>'+(isOccupied?'<button onclick="event.stopPropagation()" style="width:100%;margin-top:6px;background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.2);border-radius:8px;color:var(--red);font-size:11px;padding:5px;cursor:pointer;letter-spacing:0.04em;">Check Out</button>':'')+'</div>';}).join('');}
 // ── Analytics period state ──────────────────────────────────────────
@@ -9416,7 +9757,7 @@ function saveRoomConfig() {
   // Save to Firebase — single source of truth for room list across all devices
   var _saveDb = (typeof getDb === 'function') ? getDb() : null;
   if (_saveDb) {
-    _saveDb.collection('settings').doc('rooms').set({ floor_config: floorConfig, updated_at: new Date().toISOString() })
+    getDb().collection('settings').doc('rooms').set({ floor_config: floorConfig, updated_at: new Date().toISOString() })
       .then(function(){ console.log('Room config saved to Firebase'); })
       .catch(function(e){ console.warn('Room config Firebase save error:', e); });
   }
@@ -10629,8 +10970,8 @@ var FM = {
   newItemType: 'veg',
 
   // ── Config
-  CLOUDINARY_CLOUD: 'dknnkoa7w',
-  CLOUDINARY_PRESET: 'roomserve',
+  CLOUDINARY_CLOUD: '', // replaced by Firebase Storage
+  CLOUDINARY_PRESET: '', // replaced by Firebase Storage
   WORKER_URL: 'https://roomserve.shanewilson2324.workers.dev',
 
   // ── localStorage keys
@@ -11011,10 +11352,26 @@ function fmSaveToGuest(){
     var db = typeof getDb === 'function' ? getDb() : null;
     if(db){
       // Firestore can't store nested arrays directly — JSON stringify the menu
+      // Build flat items array for Firestore (structured, not JSON string)
+      var itemsArr = [];
+      Object.keys(out).forEach(function(cat) {
+        (out[cat] || []).forEach(function(item) {
+          itemsArr.push({
+            id:        item.id || (cat + '_' + Date.now()),
+            name:      item.name || '',
+            price:     Number(item.price) || 0,
+            category:  cat,
+            available: item.available !== false,
+            image_url: item.image || '',
+            desc:      item.desc || '',
+            tags:      item.tags || []
+          });
+        });
+      });
       db.collection('menu_config').doc('published').set({
-        menu:      JSON.stringify(out),
+        items:     itemsArr,
         meta:      JSON.stringify(meta),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        updated_at: firebase.firestore.FieldValue.serverTimestamp()
       }).then(function(){
         fmToast('✓ Menu published — all guest devices updated', 'green');
       }).catch(function(e){
@@ -11524,9 +11881,9 @@ function fmToggleItem(id){
   fmSaveData(); fmRenderList(); fmUpdateStats();
   fmToast(isAvail ? '✓ Item visible to guests' : 'Item hidden from guests');
   if(_db){
-    _db.collection('menu_items').doc(String(id)).update({available:isAvail})
+    getDb().collection('menu_items').doc(String(id)).update({available:isAvail})
       .catch(function(){
-        _db.collection('menu_items').where('name','==',found.item.name).get().then(function(snap){
+        getDb().collection('menu_items').where('name','==',found.item.name).get().then(function(snap){
           snap.forEach(function(doc){ doc.ref.update({available:isAvail}); });
         }).catch(function(){});
       });
@@ -12019,15 +12376,15 @@ function fmUploadImage(itemId){
     fmToast('Uploading...');
     var fd=new FormData();
     fd.append('file',file);
-    fd.append('upload_preset',FM.CLOUDINARY_PRESET);
-    fd.append('folder','shakti_menu');
-    fetch('https://api.cloudinary.com/v1_1/'+FM.CLOUDINARY_CLOUD+'/image/upload',{method:'POST',body:fd})
-    .then(function(r){return r.json();})
-    .then(function(d){
-      if(d.error){fmToast('Upload failed','red');return;}
-      var item=fmFindById(itemId);
-      if(item){item.image=d.secure_url;fmSaveData();fmRenderList();fmToast('✓ Image uploaded','green');}
-    }).catch(function(){fmToast('Upload error','red');});
+    // Upload to Firebase Storage — hotels/{hotelId}/menu/{itemId}.jpg
+    uploadHotelFile(file, 'menu/' + itemId + '.' + (file.name.split('.').pop() || 'jpg'), function(pct) {
+      fmToast('Uploading ' + pct + '%', 'green');
+    }).then(function(downloadUrl) {
+      var item = fmFindById(itemId);
+      if (item) { item.image = downloadUrl; fmSaveData(); fmRenderList(); fmToast('✓ Image uploaded', 'green'); }
+    }).catch(function(e) {
+      fmToast('Upload failed: ' + (e && e.message || 'error'), 'red');
+    });
   };
   input.click();
 }
@@ -13485,7 +13842,7 @@ function ohArchive(order) {
     try {
       var _db = getDb();
       if (_db) {
-        _db.collection('orders').doc(String(order.id)).update({ archived: true })
+        getDb().collection('orders').doc(String(order.id)).update({ archived: true })
           .catch(function(e){ console.warn('Archive flag error:', e && e.message); });
       }
     } catch(e){}
@@ -13522,7 +13879,7 @@ function ohArchiveSvc(svc) {
     try {
       var _db = getDb();
       if (_db) {
-        _db.collection('service_requests').doc(String(svc.id)).update({ archived: true })
+        getDb().collection('service_requests').doc(String(svc.id)).update({ archived: true })
           .catch(function(e){ console.warn('Svc archive flag error:', e && e.message); });
       }
     } catch(e){}
@@ -14736,7 +15093,7 @@ function hsLoadData() {
 
   if (!db) return;
   // Force fetch from server, not cache, so wifi_zones is always fresh
-  db.collection('settings').doc('hotel').get({ source: 'server' }).catch(function(){
+  getHotelDoc().catch(function(){
     return db.collection('settings').doc('hotel').get(); // fallback to cache if offline
   }).then(function(doc) {
     if (!doc.exists) return;
@@ -15404,14 +15761,25 @@ window.apTriggerUpload = function(type) {
 window.apHandleUpload = function(type, input) {
   var file = input.files && input.files[0];
   if (!file) return;
-  // Preview locally via object URL
-  var url = URL.createObjectURL(file);
-  _apState[type] = url;
-  // Mark all presets unselected
+  // Show local preview immediately while uploading
+  var localUrl = URL.createObjectURL(file);
+  _apState[type] = localUrl;
   var container = document.getElementById('ap-' + type + '-presets');
   if (container) container.querySelectorAll('.ap-preset-item').forEach(function(item) { item.classList.remove('selected'); });
-  showToast('Photo selected · save to apply');
-  // TODO: upload to Firebase Storage and replace url with download URL
+  showToast('Uploading...');
+  // Upload to Firebase Storage — path: hotels/{hotelId}/appearance/{type}.jpg
+  pickAndUpload(type === 'login' ? 'login' : 'hero', null, function(downloadUrl) {
+    _apState[type] = downloadUrl;
+    showToast('✓ Photo uploaded · save to apply');
+    // Auto-apply preview with real URL
+    if (type === 'login') {
+      var loginBg = document.querySelector('.entry-bg-photo');
+      if (loginBg) loginBg.style.backgroundImage = "url('" + downloadUrl + "')";
+    } else if (type === 'hero') {
+      var heroBg = document.querySelector('.home-hero-photo-inner');
+      if (heroBg) { heroBg.style.backgroundImage = "url('" + downloadUrl + "')"; heroBg.style.backgroundSize = 'cover'; }
+    }
+  });
 };
 
 window.openAppearanceModal = function() {
@@ -15465,9 +15833,15 @@ window.saveAppearance = function() {
 
   var db = getDb();
   if (db) {
-    db.collection('settings').doc('hotel').set(data, { merge: true })
+    // Save appearance to hotel doc directly (not settings/hotel duplicate)
+    db.hotelDoc().set(data, { merge: true })
       .then(function() { showToast('✓ Appearance saved'); })
-      .catch(function(e) { showToast('Saved · Firebase error'); console.warn(e); });
+      .catch(function(e) {
+        // Fallback to settings/hotel for compatibility
+        db.collection('settings').doc('hotel').set(data, { merge: true })
+          .then(function() { showToast('✓ Appearance saved'); })
+          .catch(function(e2) { showToast('Saved · Firebase error'); console.warn(e2); });
+      });
   } else {
     showToast('✓ Appearance saved locally');
   }
