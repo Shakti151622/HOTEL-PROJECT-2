@@ -4928,9 +4928,9 @@ window.subscribeGuestServiceUpdates = subscribeGuestServiceUpdates;
 
     </div>
 
-    <!-- Sticky footer save — calls saveWifiOnly when on Wi-Fi tab, saveHotelSetup otherwise -->
+    <!-- Sticky footer save -->
     <div style="padding:14px 20px;border-top:1px solid var(--topbar-border);background:var(--surface);flex-shrink:0;">
-      <button onclick="(function(){var wifiPanel=document.getElementById('hs-panel-wifi');if(wifiPanel&&wifiPanel.style.display!=='none'){saveWifiOnly();}else{saveHotelSetup();}})()" style="width:100%;padding:14px;background:var(--gold);border:none;border-radius:12px;color:var(--dark);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;letter-spacing:0.03em;">Save &amp; Apply</button>
+      <button onclick="saveHotelSetup()" style="width:100%;padding:14px;background:var(--gold);border:none;border-radius:12px;color:var(--dark);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;letter-spacing:0.03em;">Save &amp; Apply</button>
     </div>
   </div>
 </div>
@@ -5449,7 +5449,6 @@ window.hbPreviewLogo        = hbPreviewLogo;
 
 // Load on dashboard init
 setTimeout(_loadHotelBrand, 2000);
-
 
 // ══ KITCHEN STATUS ══
 var _kitchenOpen = true;
@@ -6847,7 +6846,6 @@ function getDb() {
     }
   }
   _db = firebase.firestore();
-  window._db = _db; // expose globally so hotel-setup section can find it
   // Force long polling — eliminates the ~5s WebSocket upgrade delay on mobile/unstable networks
   try {
     _db.settings({
@@ -7363,6 +7361,99 @@ async function confirmReject(){
   }).catch(function(e){console.warn('Reject error:',e);}); }
 }
 
+// ══════════════════════════════════════════════════════════════
+// KOT PRINT — Kitchen Order Ticket
+// Works with: Browser print, AirPrint, Thermal printers (80mm)
+// ══════════════════════════════════════════════════════════════
+function printKOT(orderId) {
+  var o = orders.find(function(x) { return x.id === orderId; });
+  if (!o) { showToast('service', 'KOT Error', 'Order not found', 800); return; }
+
+  var hotelName  = window.HOTEL_NAME || window.HOTEL_ID || 'Hotel';
+  var now        = new Date();
+  var printTime  = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  var printDate  = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  var placedAt   = o.placedAt ? new Date(o.placedAt.seconds ? o.placedAt.seconds * 1000 : o.placedAt) : now;
+  var placedTime = placedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  var placedDate = placedAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  var statusMap  = { new:'NEW', accepted:'ACCEPTED', preparing:'PREPARING', ready:'READY FOR PICKUP', delivered:'DELIVERED', rejected:'REJECTED' };
+  var statusText = statusMap[o.status] || (o.status || '').toUpperCase();
+
+  var itemsHtml = (o.items || []).map(function(item) {
+    return '<tr>'
+      + '<td style="padding:5px 3px;font-size:13px;vertical-align:top;white-space:nowrap;">' + (item.qty || 1) + ' x</td>'
+      + '<td style="padding:5px 3px;font-size:13px;width:100%;vertical-align:top;">' + (item.name || '') + (item.variant ? '<br><span style="font-size:11px;color:#555;">' + item.variant + '</span>' : '') + '</td>'
+      + '<td style="padding:5px 3px;font-size:13px;text-align:right;white-space:nowrap;vertical-align:top;">&#8377;' + ((item.price || 0) * (item.qty || 1)) + '</td>'
+      + '</tr>';
+  }).join('');
+
+  var hasNote = o.instructions || o.note || o.specialInstructions;
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+    + '<title>KOT ' + orderId + ' | ' + hotelName + '</title>'
+    + '<style>'
+    + '*{margin:0;padding:0;box-sizing:border-box;}'
+    + 'body{font-family:"Courier New",Courier,monospace;background:#fff;color:#000;width:80mm;max-width:80mm;margin:0 auto;padding:0;font-size:12px;}'
+    + '.wrap{padding:6px 10px 10px;}'
+    + '.center{text-align:center;}'
+    + '.bold{font-weight:bold;}'
+    + '.hotel{font-size:15px;font-weight:bold;text-align:center;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:1px;}'
+    + '.sub{font-size:9px;text-align:center;color:#666;margin-bottom:4px;}'
+    + '.dash{border:none;border-top:1px dashed #000;margin:5px 0;}'
+    + '.solid{border:none;border-top:2px solid #000;margin:5px 0;}'
+    + '.kot-label{font-size:20px;font-weight:bold;text-align:center;letter-spacing:4px;margin:3px 0;}'
+    + '.info{display:flex;justify-content:space-between;font-size:11px;margin:2px 0;}'
+    + '.room{font-size:30px;font-weight:bold;text-align:center;letter-spacing:2px;margin:6px 0 2px;}'
+    + '.guest{font-size:12px;text-align:center;margin-bottom:4px;}'
+    + '.status{border:2px solid #000;padding:3px 10px;font-size:11px;font-weight:bold;letter-spacing:2px;display:inline-block;}'
+    + '.status-wrap{text-align:center;margin:3px 0;}'
+    + 'table{width:100%;border-collapse:collapse;}'
+    + '.thead td{font-size:10px;font-weight:bold;text-transform:uppercase;padding:3px 3px 2px;border-bottom:2px solid #000;color:#333;}'
+    + '.tfoot td{font-size:15px;font-weight:bold;padding:5px 3px 2px;border-top:2px solid #000;}'
+    + '.note{border:1px dashed #000;padding:5px 7px;margin:5px 0;font-size:11px;}'
+    + '.footer{font-size:9px;text-align:center;color:#888;margin-top:6px;}'
+    + '.print-btn{text-align:center;margin:14px 0 4px;}'
+    + '@media print{.no-print{display:none!important;}@page{margin:3mm;size:80mm auto;}}'
+    + '</style></head><body>'
+    + '<div class="wrap">'
+    + '<div class="hotel">' + hotelName + '</div>'
+    + '<div class="sub">Kitchen Order Ticket</div>'
+    + '<hr class="solid">'
+    + '<div class="kot-label">K · O · T</div>'
+    + '<hr class="dash">'
+    + '<div class="info"><span>Order No.</span><span class="bold">' + orderId + '</span></div>'
+    + '<div class="info"><span>Ordered</span><span class="bold">' + placedDate + ' ' + placedTime + '</span></div>'
+    + '<div class="info"><span>Printed</span><span class="bold">' + printDate + ' ' + printTime + '</span></div>'
+    + '<hr class="dash">'
+    + '<div class="room">ROOM&nbsp;' + (o.room || '—') + '</div>'
+    + (o.guest && o.guest !== 'Guest' ? '<div class="guest">' + o.guest + '</div>' : '')
+    + '<div class="status-wrap"><span class="status">' + statusText + '</span></div>'
+    + '<hr class="dash">'
+    + '<table>'
+    + '<tr class="thead"><td>QTY</td><td>ITEM</td><td style="text-align:right">AMT</td></tr>'
+    + itemsHtml
+    + '<tr class="tfoot"><td colspan="2">TOTAL</td><td style="text-align:right">&#8377;' + (o.total || 0) + '</td></tr>'
+    + '</table>'
+    + '<hr class="dash">'
+    + (hasNote ? '<div class="note"><strong>Note:</strong> ' + (o.instructions || o.note || o.specialInstructions) + '</div><hr class="dash">' : '')
+    + '<div class="footer">Powered by VediraOS &bull; vediratechnologies.com</div>'
+    + '<div class="print-btn no-print">'
+    + '<button onclick="window.print()" style="padding:10px 28px;background:#000;color:#fff;border:none;font-size:14px;font-weight:bold;cursor:pointer;border-radius:3px;margin-right:8px;">&#128424; Print</button>'
+    + '<button onclick="window.close()" style="padding:10px 18px;background:#eee;color:#333;border:none;font-size:14px;cursor:pointer;border-radius:3px;">Close</button>'
+    + '</div>'
+    + '</div>'
+    + '<script>setTimeout(function(){window.print();},300);<\/script>'
+    + '</body></html>';
+
+  var w = window.open('', 'KOT_' + orderId, 'width=420,height=650,scrollbars=yes,resizable=yes');
+  if (w) { w.document.write(html); w.document.close(); }
+  else {
+    var blob = new Blob([html], { type: 'text/html' });
+    window.open(URL.createObjectURL(blob), '_blank');
+  }
+}
+
 // Legacy advanceOrder — superseded by advanceOrderWithUndo below (kept for safety)
 async function _legacyAdvanceOrder(id,toStatus){
   var order=orders.find(function(o){return o.id===id;});
@@ -7476,7 +7567,7 @@ function filterOrders(f,el){if(typeof setTypeFilter==='function')setTypeFilter(f
 function renderStaffServices(){if(typeof updateServiceSummaryBar==='function')updateServiceSummaryBar();var list=document.getElementById('svc-list');if(!list)return;var filtered=services.filter(function(s){if(svcFilter==='all') return s.status!=='done';return s.status===svcFilter;});var _sc=document.getElementById('svc-count');if(_sc)_sc.textContent=filtered.length+' requests';var _sbCount=services.filter(function(s){return s.status!=='done';}).length;var _sb=document.getElementById('service-badge');if(_sb)_sb.textContent=_sbCount;var _dsb=document.getElementById('desk-service-badge');if(_dsb){_dsb.textContent=_sbCount||'';_dsb.style.display=_sbCount>0?'inline':'none';}var _scd=document.getElementById('svc-completed-count');if(_scd){var _doneCount=services.filter(function(s){return s.status==='done';}).length;var _sct=document.getElementById('svc-completed-text');if(_sct)_sct.textContent=_doneCount+' done';_scd.style.display=_doneCount>0?'flex':'none';}var _sp=document.getElementById('stat-svc-pending');if(_sp)_sp.textContent=services.filter(function(s){return s.status!=='done';}).length;if(!filtered.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">✓</div><div style="color:var(--text-muted);font-size:15px;font-family:&quot;Cormorant Garamond&quot;,serif">No requests</div></div>';return;}var pills={received:'<span class="status-pill pill-received"><span class="pill-dot"></span>New</span>',assigned:'<span class="status-pill pill-assigned"><span class="pill-dot"></span>Assigned</span>',inprogress:'<span class="status-pill pill-inprogress"><span class="pill-dot"></span>In Progress</span>',done:'<span class="status-pill pill-done"><span class="pill-dot"></span>Done</span>'};list.innerHTML=filtered.map(function(s){var qtyStr=s.qty?' ×'+s.qty:'';var btns='';if(s.status==='received')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'assigned\')">Assign to Staff</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='assigned')btns='<button class="svc-assign" onclick="advanceSvc(\''+s.id+'\',\'inprogress\')" style="background:rgba(76,175,125,0.08);border-color:rgba(76,175,125,0.22);color:var(--green)">In Progress</button><button class="svc-complete" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Done</button>';else if(s.status==='inprogress')btns='<button class="svc-complete" style="width:100%" onclick="advanceSvc(\''+s.id+'\',\'done\')">Mark Completed</button>';else btns='<span style="font-size:13px;color:var(--text-muted);padding:4px 0;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>Completed</span>';return'<div class="svc-card" id="svc-card-'+s.id+'"><div class="svc-head"><div class="svc-icon-box">'+s.icon+'</div><div><div class="svc-room">Room '+s.room+'</div><div class="svc-type">'+s.type+qtyStr+'</div>'+(s.note?'<div class="svc-note">"'+ s.note+'"</div>':'')+ '</div><div class="svc-meta">'+(pills[s.status]||'')+'<div class="svc-time" style="margin-top:6px">'+s.id+'</div><div class="svc-elapsed '+elapsedClass(s.placedAt)+'">'+elapsed(s.placedAt)+'</div></div></div><div class="svc-actions">'+btns+'<button class="btn-call" onclick="callRoom(\''+s.room+'\')" title="Call room" style="width:36px;height:36px;border-radius:10px;background:var(--surface2);border:1px solid var(--card-border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6z"/></svg></button></div></div>';}).join('');}
 function filterSvc(f,el){svcFilter=f;document.querySelectorAll('#view-services .filter-tab').forEach(function(t){t.classList.remove('active');});el.classList.add('active');renderStaffServices();}
 function getGuestBaseUrl(){
-  return localStorage.getItem('roocan_guest_url') || 'https://Shakti151622.github.io/HOTEL-PROJECT-2/Guest.html';
+  return localStorage.getItem('roocan_guest_url') || 'https://Shakti151622.github.io/HOTEL-PROJECT-2/Guest_compressed.html';
 }
 function renderRooms(){var data=(typeof buildRoomsData==='function')?buildRoomsData():[];var grid=document.getElementById('rooms-grid');if(!grid)return;grid.innerHTML=data.map(function(r){var dots='';if(r.orders>0)dots+='<div class="room-dot order">'+r.orders+'🍽</div>';if(r.services>0)dots+='<div class="room-dot service">'+r.services+'🛎</div>';var isOccupied=r.status==='occupied'||r.status==='checkout';var _hn=localStorage.getItem('hyatt_hotel_name')||'';var fixedUrl=getGuestBaseUrl()+'?room='+encodeURIComponent(r.num)+(_hn?'&hotel='+encodeURIComponent(_hn):'');var qrSrc='https://chart.googleapis.com/chart?chs=72x72&cht=qr&chl='+encodeURIComponent(fixedUrl)+'&choe=UTF-8&chld=M|0';return'<div class="room-tile '+r.status+'" onclick="showRoomQR(\''+r.num+'\')">'+'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'+'<div class="room-number">'+r.num+'</div>'+'</div>'+'<div class="room-guest">'+(r.guest||'Vacant')+'</div>'+'<div style="display:flex;justify-content:center;margin:6px 0 4px;">'+'<div style="background:white;border-radius:6px;padding:3px;display:inline-block;position:relative;">'+'<img src="'+qrSrc+'" width="66" height="66" style="display:block;border-radius:2px;" loading="lazy" alt="QR '+r.num+'">'+'<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;background:white;border-radius:3px;display:flex;align-items:center;justify-content:center;">'+'<div style="width:10px;height:10px;background:#C9A96E;border-radius:2px;"></div>'+'</div>'+'</div>'+'</div>'+'<div class="room-status-row"><div class="room-checkout" style="font-size:10px;color:var(--text-dim)">'+r.checkout+'</div>'+'<div class="room-actions-active">'+dots+'</div></div>'+(isOccupied?'<button onclick="event.stopPropagation()" style="width:100%;margin-top:6px;background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.2);border-radius:8px;color:var(--red);font-size:11px;padding:5px;cursor:pointer;letter-spacing:0.04em;">Check Out</button>':'')+'</div>';}).join('');}
 // ── Analytics period state ──────────────────────────────────────────
@@ -9165,41 +9256,11 @@ window.initDashTheme=initDashTheme;
 window.connectSupabase=connectSupabase;
 
 /* ── ROOM CONFIG ── */
-// floorConfig: load from localStorage immediately (so rooms render fast),
-// then Firebase will override with authoritative data once connected.
 var floorConfig = JSON.parse(localStorage.getItem('hyatt_floors') || 'null') || [
   {name:'Floor 1', prefix:'1', start:1, count:8},
   {name:'Floor 2', prefix:'2', start:1, count:8},
   {name:'Floor 3', prefix:'3', start:1, count:4},
 ];
-
-// Load authoritative room config from Firebase (settings/rooms) on startup
-// This ensures Manage Rooms changes made on any device sync everywhere
-(function _syncFloorConfigFromFirebase() {
-  var _attempt = function() {
-    var db = (typeof getDb === 'function') ? getDb() : null;
-    if (!db) { setTimeout(_attempt, 1500); return; }
-    db.collection('settings').doc('rooms').get().then(function(doc) {
-      if (!doc.exists) return; // no Firebase rooms yet — keep localStorage/default
-      var d = doc.data();
-      if (d.floor_config && Array.isArray(d.floor_config) && d.floor_config.length > 0) {
-        floorConfig = d.floor_config;
-        try { localStorage.setItem('hyatt_floors', JSON.stringify(floorConfig)); } catch(e) {}
-        if (typeof window._hsRebuildRoomList === 'function') window._hsRebuildRoomList();
-        if (typeof renderRooms === 'function') renderRooms();
-        if (typeof renderFloorList === 'function') renderFloorList();
-        if (typeof updateRoomTotal === 'function') updateRoomTotal();
-        var total = floorConfig.reduce(function(s,f){ return s + f.count; }, 0);
-        var sub = document.getElementById('rooms-config-sub');
-        if (sub) sub.textContent = total + ' rooms configured';
-        var rb = document.getElementById('rooms-badge'); if (rb) rb.textContent = total;
-        console.log('Room config loaded from Firebase:', floorConfig.length, 'floors,', total, 'rooms');
-      }
-    }).catch(function(e){ console.warn('Floor config load error:', e); });
-  };
-  // Wait for Firebase to connect before trying
-  setTimeout(_attempt, 2500);
-})();
 
 // Static room data — real guest names + real checkout dates
 // Keyed by room number so the grid is always consistent
@@ -9228,12 +9289,6 @@ var STATIC_ROOMS = {
 };
 
 function buildRoomsData() {
-  // Merge persisted occupancy overrides (written by Firestore check-in/checkout listeners)
-  // back into STATIC_ROOMS so guest names and statuses survive page refresh
-  try {
-    var _ov = JSON.parse(localStorage.getItem('hyatt_rooms_override') || 'null');
-    if (_ov && typeof _ov === 'object') Object.assign(STATIC_ROOMS, _ov);
-  } catch(e) {}
   var rooms = [];
   floorConfig.forEach(function(floor) {
     for (var i = 0; i < floor.count; i++) {
@@ -9410,16 +9465,11 @@ function saveRoomConfig() {
   if (sub) sub.textContent = total + ' rooms configured';
   var rb=document.getElementById('rooms-badge');if(rb)rb.textContent=total;
   closeRoomConfig();
-  if (document.getElementById('view-rooms').classList.contains('active')) renderRooms();
-  if (typeof window._hsRebuildRoomList === 'function') window._hsRebuildRoomList();
-  showToast('service', 'Rooms Updated', total + ' rooms configured across ' + floorConfig.length + ' floors');
-  // Save to Firebase — single source of truth for room list across all devices
-  var _saveDb = (typeof getDb === 'function') ? getDb() : null;
-  if (_saveDb) {
-    _saveDb.collection('settings').doc('rooms').set({ floor_config: floorConfig, updated_at: new Date().toISOString() })
-      .then(function(){ console.log('Room config saved to Firebase'); })
-      .catch(function(e){ console.warn('Room config Firebase save error:', e); });
+  // Re-render rooms view with new config
+  if (document.getElementById('view-rooms').classList.contains('active')) {
+    renderRooms();
   }
+  showToast('service', 'Rooms Updated', total + ' rooms configured across ' + floorConfig.length + ' floors');
 }
 
 // renderRooms now uses buildRoomsData() directly
@@ -9814,6 +9864,11 @@ function renderTasks() {
     else if (o.status==='ready')
       ac = '<button data-id="'+id+'" data-s="delivered" onclick="advanceOrder(this.dataset.id,this.dataset.s)" style="flex:1;padding:14px 8px;border-radius:10px;background:var(--green);color:white;border:none;font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">&#10003; Delivered</button>' + undoBtn;
     else ac = cb;
+
+    // KOT print button — always shown
+    var kotBtn = '<button data-id="'+id+'" onclick="printKOT(this.dataset.id)" style="flex:none;width:44px;height:44px;background:rgba(37,99,235,0.08);border:1px solid rgba(37,99,235,0.25);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;" title="Print KOT"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>';
+    // Append KOT to action row
+    ac = ac + kotBtn;
 
     // Show ETA bar only for in-progress orders
     var showEta = (o.status==='accepted' || o.status==='preparing' || o.status==='ready');
@@ -14675,24 +14730,9 @@ window.hsSwitchTab = function(tab) {
   });
   if (tab === 'policies') hsRenderFacilities();
   if (tab === 'wifi') {
-    if (_hsDataLoaded) {
-      // Data already loaded — render immediately
-      hsRenderWifiZones();
-    } else {
-      // Firestore not resolved yet — wait then render
-      var _wifiTabWait = setInterval(function() {
-        if (_hsDataLoaded) {
-          clearInterval(_wifiTabWait);
-          hsRenderWifiZones();
-        }
-      }, 100);
-      // Safety timeout: force reload after 3s if still not loaded
-      setTimeout(function() {
-        clearInterval(_wifiTabWait);
-        if (!_hsDataLoaded) { hsLoadData(); }
-        hsRenderWifiZones();
-      }, 3000);
-    }
+    hsRenderWifiZones();
+    // If zones are still empty (Firestore may not have resolved yet), reload
+    if (_hsWifiZones.length === 1 && !_hsWifiZones[0].ssid) hsLoadData();
   }
 };
 
@@ -14723,10 +14763,7 @@ window.hsPreviewLogo = function() {
   else if (preview) { preview.style.display = 'none'; }
 };
 
-var _hsDataLoaded = false; // flag: Firestore data has been loaded
-
 function hsLoadData() {
-  _hsDataLoaded = false;
   var db = getDb();
   // Pre-fill from localStorage first (instant)
   var name = localStorage.getItem('hyatt_hotel_name') || '';
@@ -14735,10 +14772,7 @@ function hsLoadData() {
   if (document.getElementById('hs-logo')) { document.getElementById('hs-logo').value = logo; hsPreviewLogo(); }
 
   if (!db) return;
-  // Force fetch from server, not cache, so wifi_zones is always fresh
-  db.collection('settings').doc('hotel').get({ source: 'server' }).catch(function(){
-    return db.collection('settings').doc('hotel').get(); // fallback to cache if offline
-  }).then(function(doc) {
+  db.collection('settings').doc('hotel').get().then(function(doc) {
     if (!doc.exists) return;
     var d = doc.data();
     var inp = function(id, val) { var el = document.getElementById(id); if (el && val) el.value = val; };
@@ -14756,26 +14790,8 @@ function hsLoadData() {
       // Migrate old single-wifi to zones array
       _hsWifiZones = [{ name: 'Main Network', ssid: d.wifi_ssid, pass: d.wifi_pass || '', rooms: '' }];
     }
-    // Load room list from Firebase settings/rooms FIRST, then render Wi-Fi zones
-    // This ensures chip picker shows correct rooms with correct pre-selection
-    db.collection('settings').doc('rooms').get().then(function(rDoc) {
-      if (rDoc.exists) {
-        var rd = rDoc.data();
-        if (rd.floor_config && Array.isArray(rd.floor_config) && rd.floor_config.length > 0) {
-          floorConfig = rd.floor_config;
-          try { localStorage.setItem('hyatt_floors', JSON.stringify(floorConfig)); } catch(e) {}
-        }
-      }
-      // Always rebuild room list and render wifi AFTER rooms are known
-      if (typeof window._hsRebuildRoomList === 'function') window._hsRebuildRoomList();
-      _hsDataLoaded = true;
-      hsRenderWifiZones();
-    }).catch(function() {
-      // Fallback: render with whatever rooms we have
-      if (typeof window._hsRebuildRoomList === 'function') window._hsRebuildRoomList();
-      _hsDataLoaded = true;
-      hsRenderWifiZones();
-    });
+    // Always re-render wifi zones so data is ready when tab is clicked
+    hsRenderWifiZones();
     // Update contact tab summary
     var wsum = document.getElementById('hs-wifi-summary');
     if (wsum) wsum.textContent = _hsWifiZones.length + ' zone' + (_hsWifiZones.length !== 1 ? 's' : '') + ' configured';
@@ -14883,7 +14899,7 @@ function hsRenderWifiZones() {
       + '<div style="margin-bottom:10px;">'
       + '<div class="hs-label" style="margin-bottom:5px;">Password</div>'
       + '<div style="position:relative;">'
-      + '<input type="password" id="hs-wifi-pass-' + idx + '" value="' + _esc(zone.pass) + '" oninput="hsWifiField(' + idx + ',\x27pass\x27,this.value)" onchange="hsWifiField(' + idx + ',\x27pass\x27,this.value)" class="hs-input" placeholder="Wi-Fi password" style="padding-right:44px;">'
+      + '<input type="password" id="hs-wifi-pass-' + idx + '" value="' + _esc(zone.pass) + '" onchange="hsWifiField(' + idx + ',\x27pass\x27,this.value)" class="hs-input" placeholder="Wi-Fi password" style="padding-right:44px;">'
       + '<button onclick="hsTogglePassVis(' + idx + ')" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;padding:0;" title="Show/hide">👁</button>'
       + '</div>'
       + '</div>'
@@ -15003,21 +15019,10 @@ window.hsToggleRoomChip = function(idx, room, el) {
   hsAutoSaveWifi();
 };
 
-function _normaliseWifiZones(zones) {
-  // Ensure zone.rooms is always a comma-separated string before any Firestore write.
-  // The chip picker stores rooms as an array; _resolveWifiForRoom in Guest.html
-  // expects a string it can split. Normalise here so both paths are consistent.
-  return zones.map(function(z) {
-    var r = z.rooms;
-    if (Array.isArray(r)) r = r.join(',');
-    return Object.assign({}, z, { rooms: r || '' });
-  });
-}
-
 function hsAutoSaveWifi() {
   var db = getDb();
   if (!db) return;
-  db.collection('settings').doc('hotel').set({ wifi_zones: _normaliseWifiZones(_hsWifiZones) }, { merge: true })
+  db.collection('settings').doc('hotel').set({ wifi_zones: _hsWifiZones }, { merge: true })
     .catch(function(e) { console.warn('Wi-Fi auto-save error:', e); });
 }
 
@@ -15147,62 +15152,10 @@ window.hsGetWifiForRoom = function(roomNum, zones) {
   return zones[0] || null; // fallback to first zone
 };
 
-// Save ONLY wifi_zones — no hotel name required
-window.saveWifiOnly = function() {
-  // Flush all DOM values into _hsWifiZones first
-  _hsWifiZones.forEach(function(zone, idx) {
-    var ssidEl = document.getElementById('hs-ssid-' + idx);
-    var passEl = document.getElementById('hs-wifi-pass-' + idx);
-    if (ssidEl) zone.ssid = ssidEl.value.trim();
-    if (passEl && passEl.value !== '') zone.pass = passEl.value;
-  });
-  var zones = _normaliseWifiZones(_hsWifiZones);
-  console.log('[WiFi-SAVE] About to save ' + zones.length + ' zone(s):');
-  zones.forEach(function(z, i) {
-    console.log('[WiFi-SAVE] Zone ' + i + ': ssid="' + z.ssid + '" pass="' + (z.pass?'*'.repeat(z.pass.length):'') + '" rooms="' + z.rooms + '"');
-  });
-
-  function _doSave(db) {
-    showToast('Saving Wi-Fi to Firebase...');
-    db.collection('settings').doc('hotel').set({ wifi_zones: zones }, { merge: true })
-      .then(function() {
-        console.log('[WiFi-SAVE] ✅ SUCCESS — wifi_zones written to Firebase');
-        showToast('✅ Wi-Fi saved!');
-      })
-      .catch(function(e) {
-        console.warn('[WiFi-SAVE] ❌ FAILED — code:' + e.code + ' msg:' + e.message);
-        showToast('❌ Save FAILED: ' + (e.code || e.message));
-      });
-  }
-
-  // Try all possible db references — the two getDb() functions use different variables
-  var db = window._db || window.db || window.guestSb || null;
-  if (!db) { try { db = (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length) ? firebase.firestore() : null; } catch(e){} }
-  if (db) { _doSave(db); return; }
-
-  // db not ready yet — wait up to 5s
-  console.warn('[WiFi-SAVE] db null, waiting for Firebase...');
-  showToast('Connecting to Firebase...');
-  var attempts = 0;
-  var interval = setInterval(function() {
-    var db2 = window._db || window.db || window.guestSb || null;
-    if (!db2) { try { db2 = (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length) ? firebase.firestore() : null; } catch(e){} }
-    if (db2) { clearInterval(interval); _doSave(db2); }
-    else if (++attempts > 25) { clearInterval(interval); console.warn('[WiFi-SAVE] Firebase never connected after 5s'); showToast('Firebase unavailable — check connection'); }
-  }, 200);
-};
-
 window.saveHotelSetup = function() {
   var val = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
   var name = val('hs-name');
   if (!name) { document.getElementById('hs-name').focus(); return; }
-  // Flush DOM values into _hsWifiZones in case onchange didn't fire (e.g. Save clicked without blur)
-  _hsWifiZones.forEach(function(zone, idx) {
-    var ssidEl = document.getElementById('hs-ssid-' + idx);
-    var passEl = document.getElementById('hs-wifi-pass-' + idx);
-    if (ssidEl) zone.ssid = ssidEl.value.trim();
-    if (passEl && passEl.value !== '') zone.pass = passEl.value;
-  });
 
   var facilities = {};
   _hsFacilities.forEach(function(f) {
@@ -15222,7 +15175,7 @@ window.saveHotelSetup = function() {
     phone:         val('hs-phone'),
     checkin_time:  val('hs-checkin'),
     checkout_time: val('hs-checkout'),
-    wifi_zones:    _normaliseWifiZones(_hsWifiZones),
+    wifi_zones:    _hsWifiZones,
     stars:         _hsStars,
     policies:      { smoking: hsToggleState('smoking'), pets: hsToggleState('pets') },
     facilities:    facilities
@@ -15235,20 +15188,12 @@ window.saveHotelSetup = function() {
 
   // Sync to Firestore
   var db = getDb();
-  console.log('[SAVE] wifi_zones being saved:', JSON.stringify(data.wifi_zones));
   if (db) {
     db.collection('settings').doc('hotel').set(data, { merge: true })
-      .then(function() { 
-        showToast('✓ Hotel settings saved');
-        console.log('[SAVE] SUCCESS — wifi_zones written to Firebase');
-      })
-      .catch(function(e) { 
-        showToast('Saved locally · Firebase error'); 
-        console.warn('[SAVE] FAILED:', e.message || e); 
-      });
+      .then(function() { showToast('✓ Hotel settings saved'); })
+      .catch(function(e) { showToast('Saved locally · Firebase error'); console.warn(e); });
   } else {
     showToast('✓ Saved locally');
-    console.warn('[SAVE] No Firebase db — saved locally only');
   }
 
   // Update settings panel subtitle
