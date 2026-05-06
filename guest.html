@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Shakti Hotels</title>
+<title>VediraOS</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" crossorigin="anonymous" onerror="window._firebaseUnavailable=true;console.warn('Firebase app SDK failed to load - offline mode')"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" crossorigin="anonymous" onerror="window._firebaseUnavailable=true;console.warn('Firebase firestore SDK failed to load - offline mode')"></script>
 <script>
@@ -15,12 +15,35 @@
   var p={};
   try{window.location.search.slice(1).split('&').forEach(function(s){var kv=s.split('=');if(kv[0])p[decodeURIComponent(kv[0])]=decodeURIComponent((kv[1]||'').replace(/\+/g,' '));});}catch(e){}
   // ?reset=1 clears stored orders for a fresh demo
-  if(p.reset==='1'){try{var k='hyatt_g_'+String(p.room||'000');localStorage.removeItem(k);}catch(e){}}
-  window.ROOM_NUM=p.room||'000';
-  window.GUEST_NAME=p.guest||'Guest';
-  window.HOTEL_NAME=p.hotel||localStorage.getItem('hyatt_hotel_name')||'Shakti Hotels';
-  if(p.hotel)localStorage.setItem('hyatt_hotel_name',p.hotel);
-  document.title=window.HOTEL_NAME+' · Room '+window.ROOM_NUM;
+  if(p.reset==='1'){try{var k='vediraos_g_'+String(p.hotel||'default')+'_'+String(p.room||'000');localStorage.removeItem(k);}catch(e){}}
+
+  // ── MULTI-HOTEL SUPPORT ──
+  // URL: guest.html?hotel=keshavgrand&room=101
+  // HOTEL_ID is the Firestore document ID under hotels/
+  window.HOTEL_ID   = p.hotel || null;
+  window.ROOM_NUM   = p.room  || '000';
+  window.GUEST_NAME = p.guest || 'Guest';
+  // Use hotel ID as instant placeholder — real name loads from Firebase within 1s
+  var _idForDisplay = window.HOTEL_ID ? window.HOTEL_ID.replace(/[-_]/g,' ').replace(/\w/g,function(c){return c.toUpperCase();}) : '';
+  window.HOTEL_NAME = _idForDisplay;
+  document.title = window.HOTEL_ID ? (_idForDisplay + ' · Room ' + window.ROOM_NUM) : 'VediraOS';
+
+  // HARD BLOCK — no hotel param = show error, stop everything
+  if (!window.HOTEL_ID) {
+    document.addEventListener('DOMContentLoaded', function() {
+      document.body.style.cssText = 'margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0D0D0D;font-family:DM Sans,sans-serif;padding:32px;text-align:center;';
+      document.body.innerHTML = '<div><div style="font-size:56px;margin-bottom:20px;">🔗</div>'
+        + '<div style="font-size:20px;color:#F5EFE6;margin-bottom:10px;font-weight:600;">Invalid Link</div>'
+        + '<div style="font-size:14px;color:#5A5248;line-height:1.6;">This link is missing a hotel ID.<br>Please scan your room QR code.</div></div>';
+    });
+  } else {
+    // Set placeholder name immediately on DOM ready — Firebase will update it within 1s
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('[data-hotel-name]').forEach(function(el) {
+        el.textContent = window.HOTEL_NAME || window.HOTEL_ID || '';
+      });
+    });
+  }
   // Apply theme IMMEDIATELY before CSS renders — prevents flash of dark mode
   var saved=sessionStorage.getItem('hyatt-theme') || (function(){ try { return localStorage.getItem('hyatt-theme'); } catch(e) { return null; } })();
   var h=new Date().getHours();
@@ -38,6 +61,7 @@ window.addEventListener('error', function(e) {
 });
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   /* ── NIGHT (default) ── */
   :root {
@@ -3420,6 +3444,17 @@ window.addEventListener('error', function(e) {
 // Chef image embedded as base64 WebP
 window.CHEF_IMG_SRC = './images/chef.webp';
 </script>
+
+<style id="vedira-brand">
+:root {
+  --vedira-teal:    #00B7A7;
+  --vedira-blue:    #2563EB;
+  --vedira-navy:    #0D1B2A;
+  --vedira-light:   #F2F4F7;
+  --vedira-teal-dim: rgba(0,183,167,0.12);
+  --vedira-blue-dim: rgba(37,99,235,0.12);
+}
+</style>
 </head>
 <body>
 
@@ -3451,7 +3486,7 @@ window.CHEF_IMG_SRC = './images/chef.webp';
         <line x1="24" y1="40" x2="24" y2="43"/>
         <line x1="18" y1="42" x2="30" y2="42"/>
       </svg>
-      <div class="entry-logo-hotel-name" id="entry-hotel-name-display">Shakti Hotels</div>
+      <div class="entry-logo-hotel-name" id="entry-hotel-name-display" data-hotel-name></div>
       <div class="entry-logo-tagline-wrap">
         <div class="entry-logo-line"></div>
         <div class="entry-logo-diamond"></div>
@@ -3527,7 +3562,7 @@ window.CHEF_IMG_SRC = './images/chef.webp';
         <svg width="24" height="22" viewBox="0 0 48 44" fill="none"><text x="50%" y="72%" text-anchor="middle" font-family="Cormorant Garamond, serif" font-size="28" font-weight="600" fill="#2A5C3A">S</text></svg>
       </div>
       <div class="home-hotel-name-col">
-        <div class="home-hotel-name" id="home-hotel-name-display">Shakti Hotels</div>
+        <div class="home-hotel-name" id="home-hotel-name-display" data-hotel-name></div>
         <div class="home-hotel-sub">Comfort Stays ★ ★ ★</div>
       </div>
     </div>
@@ -3905,7 +3940,7 @@ window.CHEF_IMG_SRC = './images/chef.webp';
         <div class="info-row-icon">🏨</div>
         <div class="info-row-content">
           <div class="info-row-label">Hotel Name</div>
-          <div class="info-row-value" id="info-hotel-name">Shakti Hotels</div>
+          <div class="info-row-value" id="info-hotel-name" data-hotel-name></div>
         </div>
       </div>
       <div class="info-row">
@@ -4349,7 +4384,7 @@ window.CHEF_IMG_SRC = './images/chef.webp';
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       </div>
       <div style="flex:1;">
-        <div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:#fff;letter-spacing:0.02em;" id="profile-hotel-name">Shakti Hotels</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:#fff;letter-spacing:0.02em;" id="profile-hotel-name" data-hotel-name></div>
         <div style="font-size:12px;color:rgba(255,255,255,0.65);margin-top:2px;font-style:italic;">Experience comfort. Feel at home.</div>
       </div>
     </div>
@@ -7916,7 +7951,7 @@ function setTheme(theme) {
 
 function initTheme() {
   // Hotel name + logo from dashboard localStorage
-  var hotelName = window.HOTEL_NAME || localStorage.getItem('hyatt_hotel_name') || 'Shakti Hotels';
+  var hotelName = window.HOTEL_NAME || window.HOTEL_ID || 'Hotel';
   var initial = hotelName.trim().charAt(0).toUpperCase();
   // Update all hotel name elements
   document.querySelectorAll('.hotel-name').forEach(function(el){ el.textContent = hotelName; });
@@ -7971,6 +8006,25 @@ initTheme();
 // ══════════════════════════════════════════
 var _db = null;
 var _firebaseUnavailable = false;
+
+// ── MULTI-HOTEL COLLECTION PROXY ──
+// All .collection() calls go through this so they're scoped to hotels/{HOTEL_ID}/
+// e.g. db.collection('orders') → hotels/keshavgrand/orders
+var _hotelDb = null;
+function _getHotelDb() {
+  if (!_db) return null;
+  if (_hotelDb) return _hotelDb;
+  var hotelId = window.HOTEL_ID || 'default';
+  // Proxy: wraps _db to prepend hotels/{hotelId}/ to every collection call
+  _hotelDb = {
+    _ref: _db.collection('hotels').doc(hotelId),
+    collection: function(name) { return this._ref.collection(name); },
+    // Pass-through for anything that needs raw db
+    _raw: _db
+  };
+  return _hotelDb;
+}
+
 function _initDb(){
   if(_db || _firebaseUnavailable) return;
   try {
@@ -7981,7 +8035,90 @@ function _initDb(){
     // Disable offline persistence so guests always get fresh data, never stale cache
     try { _db.disableNetwork().then(function(){ _db.enableNetwork(); }); } catch(e) {}
     try { _db.clearPersistence(); } catch(e) {}
+
+    // Load hotel branding from Firestore immediately
+    _loadHotelBranding();
   } catch(e){ console.warn('FB init:',e.message); _firebaseUnavailable=true; }
+}
+
+function _loadHotelBranding() {
+  if (!_db || !window.HOTEL_ID) return;
+  _db.collection('hotels').doc(window.HOTEL_ID).get().then(function(doc) {
+    if (!doc.exists) {
+      console.warn('[VEDIRAOS] Hotel "' + window.HOTEL_ID + '" not found in Firestore');
+      // Check platform status for custom message
+      _checkHotelStatus(null);
+      return;
+    }
+    var data = doc.data();
+    // Check if hotel is active
+    if (data.status && data.status === 'inactive') {
+      _showHotelOffline();
+      return;
+    }
+    // Update branding
+    var name = data.name || window.HOTEL_ID;
+    window.HOTEL_NAME = name;
+    document.title = name + ' · Room ' + window.ROOM_NUM;
+    localStorage.setItem('vediraos_hotel_name_' + window.HOTEL_ID, name);
+    // Update any hotel name displays
+    var nameEls = document.querySelectorAll('[data-hotel-name]');
+    nameEls.forEach(function(el) { el.textContent = name; });
+    // Apply WiFi from main hotel doc as fallback
+    if (data.wifi_ssid && !window.WIFI_SSID) window.WIFI_SSID = data.wifi_ssid;
+    if (data.wifi_pass && !window.WIFI_PASS) window.WIFI_PASS = data.wifi_pass;
+  }).catch(function(e) { console.warn('[VEDIRAOS] branding load error:', e.message); });
+
+  // Also check global broadcast from platform
+  _checkPlatformBroadcast();
+}
+
+function _checkHotelStatus(data) {
+  if (!data) {
+    // Hotel doesn't exist
+    document.body.style.display = 'flex';
+    document.body.style.alignItems = 'center';
+    document.body.style.justifyContent = 'center';
+    document.body.style.minHeight = '100vh';
+    document.body.innerHTML = '<div style="text-align:center;padding:32px;font-family:DM Sans,sans-serif;color:#8A8070;">'
+      + '<div style="font-size:32px;margin-bottom:12px;">🏨</div>'
+      + '<div style="font-size:18px;color:#F5EFE6;margin-bottom:8px;">Hotel Not Found</div>'
+      + '<div style="font-size:13px;">Hotel ID: ' + (window.HOTEL_ID || '—') + '</div>'
+      + '<div style="font-size:12px;margin-top:8px;">Please check your QR code or contact the hotel.</div>'
+      + '</div>';
+  }
+}
+function _showHotelOffline() {
+  document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:32px;font-family:DM Sans,sans-serif;color:#8A8070;">'
+    + '<div><div style="font-size:32px;margin-bottom:12px;">🔒</div>'
+    + '<div style="font-size:18px;color:#F5EFE6;margin-bottom:8px;">Service Unavailable</div>'
+    + '<div style="font-size:13px;">Please contact reception for assistance.</div></div></div>';
+}
+function _checkPlatformBroadcast() {
+  if (!_db) return;
+  _db.collection('platform').doc('broadcast').onSnapshot(function(doc) {
+    if (!doc.exists) return;
+    var d = doc.data();
+    if (d && d.active && d.message) {
+      _showBroadcastBanner(d.message);
+    } else {
+      _hideBroadcastBanner();
+    }
+  });
+}
+function _showBroadcastBanner(msg) {
+  var existing = document.getElementById('vediraos-broadcast');
+  if (!existing) {
+    existing = document.createElement('div');
+    existing.id = 'vediraos-broadcast';
+    existing.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:8888;background:#E8A030;color:#0D0D0D;font-size:13px;font-weight:600;text-align:center;padding:10px 16px;font-family:DM Sans,sans-serif;';
+    document.body.insertBefore(existing, document.body.firstChild);
+  }
+  existing.textContent = msg;
+}
+function _hideBroadcastBanner() {
+  var el = document.getElementById('vediraos-broadcast');
+  if (el) el.remove();
 }
 document.addEventListener('DOMContentLoaded',function(){try{_initDb();}catch(e){}});
 window.addEventListener('load',function(){try{_initDb();}catch(e){}});
@@ -7989,7 +8126,15 @@ setTimeout(function(){try{_initDb();}catch(e){}},300);
 setTimeout(function(){try{_initDb();}catch(e){}},1000);
 // If Firebase SDKs never loaded (e.g. file:// or content:// URL), mark unavailable after 3s
 setTimeout(function(){ if(!_db && typeof firebase==='undefined'){ _firebaseUnavailable=true; console.warn('Firebase not available — running in offline mode'); } }, 3000);
-function _waitDb(){return new Promise(function(resolve){if(_db){resolve(_db);return;}if(_firebaseUnavailable){resolve(null);return;}var n=0,iv=setInterval(function(){try{_initDb();}catch(e){}if(_db){clearInterval(iv);resolve(_db);}else if(_firebaseUnavailable||++n>30){clearInterval(iv);resolve(null);}},200);});}
+function _waitDb(){return new Promise(function(resolve){
+  if(_db){resolve(_getHotelDb());return;}
+  if(_firebaseUnavailable){resolve(null);return;}
+  var n=0,iv=setInterval(function(){
+    try{_initDb();}catch(e){}
+    if(_db){clearInterval(iv);resolve(_getHotelDb());}
+    else if(_firebaseUnavailable||++n>30){clearInterval(iv);resolve(null);}
+  },200);
+});}
 
 // ── Live menu from Firestore — loaded once on startup ──
 var _firestoreMenu = null;      // parsed shakti_menu object
@@ -8030,7 +8175,7 @@ setTimeout(_loadMenuFromFirestore, 500);
 document.addEventListener('DOMContentLoaded', function() {
   // Restore orders from localStorage on page load — no expiry, history kept for the full stay
   try {
-    var raw = localStorage.getItem('hyatt_g_' + String(window.ROOM_NUM||'000'));
+    var raw = localStorage.getItem('vediraos_g_'+(window.HOTEL_ID||'h')+'_' + String(window.ROOM_NUM||'000'));
     if (raw) {
       var d = JSON.parse(raw);
       if (Array.isArray(d.orders)) orderHistory = d.orders;
@@ -8113,7 +8258,7 @@ function _updateHomeScreen() {
   try {
     var rn = String(window.ROOM_NUM || '000');
     var gn = window.GUEST_NAME || 'Guest';
-    var hn = window.HOTEL_NAME || 'Shakti Hotels';
+    var hn = window.HOTEL_NAME || window.HOTEL_ID || 'Hotel';
     var el;
     el = document.getElementById('home-room-label'); if (el) el.textContent = 'Room ' + rn;
     el = document.getElementById('home-hotel-name-display'); if (el) el.textContent = hn;
@@ -8278,11 +8423,11 @@ function _applyHomeLayout() {
 }
 
 // ── localStorage
-function _saveHistory(){try{localStorage.setItem('hyatt_g_'+String(window.ROOM_NUM||'000'),JSON.stringify({orders:orderHistory,services:serviceHistory,ts:Date.now()}));}catch(e){}}
+function _saveHistory(){try{localStorage.setItem('vediraos_g_'+(window.HOTEL_ID||'h')+'_'+String(window.ROOM_NUM||'000'),JSON.stringify({orders:orderHistory,services:serviceHistory,ts:Date.now()}));}catch(e){}}
 // Load history — no expiry, kept for the full stay (cleared only on checkout or manual clear)
 (function(){
   try {
-    var raw = localStorage.getItem('hyatt_g_' + String(window.ROOM_NUM || '000'));
+    var raw = localStorage.getItem('vediraos_g_'+(window.HOTEL_ID||'h')+'_' + String(window.ROOM_NUM || '000'));
     if (!raw) return;
     var d = JSON.parse(raw);
     var now = Date.now();
@@ -8810,7 +8955,7 @@ function _updateProfileScreen() {
   var el;
   el = document.getElementById('profile-guest-name-display'); if (el) el.textContent = gn;
   el = document.getElementById('profile-avatar-letter'); if (el) el.textContent = gn.trim().charAt(0).toUpperCase();
-  el = document.getElementById('profile-hotel-name'); if (el) el.textContent = window.HOTEL_NAME || 'Shakti Hotels';
+  el = document.getElementById('profile-hotel-name'); if (el) el.textContent = window.HOTEL_NAME || window.HOTEL_ID || 'Hotel';
 }
 
 
